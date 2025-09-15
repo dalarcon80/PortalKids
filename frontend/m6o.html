@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M6 — Gold Operaciones: Une y mide</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>M6 — Gold (OPERACIONES): Une y mide</h1>
+  </header>
+  <main>
+    <section class="mission">
+      <h2>Historia</h2>
+      <p>En la Estación Logística, tableros muestran rutas y paquetes. “Para cumplir promesas”, dice Byte, “necesitamos visibilidad: unir pedidos con clientes para saber en qué ciudad está cada envío.”</p>
+      <p>“Crearemos dos banderas: enviado (1 si shipped=True) y pendiente (1 si shipped=False). Con eso mediremos envíos por ciudad, por día y el backlog diario (acumulado de pendientes). Si city aparece vacía, la brújula está rota: revisa el join.”</p>
+      <h2>¿Para qué sirve?</h2>
+      <p>Controlar envíos por ciudad y día, y entender el backlog para priorizar acciones.</p>
+      <h2>Al final podrás…</h2>
+      <ul>
+        <li>Hacer join por customer_id (left).</li>
+        <li>Calcular enviado/pendiente y backlog acumulado.</li>
+        <li>Entregar 3 métricas y documentar el modelo.</li>
+      </ul>
+      <h2>Videos</h2>
+      <ul>
+        <li><a href="https://www.youtube.com/watch?v=ammtdbAephY" target="_blank">GroupBy/Pivot en pandas (conteos)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=bFrq6xYo5cI" target="_blank">GroupBy (ejercicio de conteo)</a></li>
+        <li><a href="https://www.atlassian.com/es/agile/scrum/backlogs" target="_blank">¿Qué es backlog? (Atlassian)</a></li>
+      </ul>
+      <h2>Investigación — Fichas</h2>
+      <p>Completa 3 fichas: join por customer_id (left), conteo condicional, backlog. Para cada ficha incluye: definición, ejemplo en este proyecto, error común, fuente vista. Además, redacta tu plan (6–8 líneas): join, banderas y métricas.</p>
+      <h2>Práctica — Contrato</h2>
+      <p><strong>Entrada:</strong> (Silver Operaciones): orders_o_clean.csv, customers_o_clean.csv (opcional products_o_clean.csv).</p>
+      <p><strong>Logro:</strong> en <code>data/gold/</code>:</p>
+      <ul>
+        <li><code>envios_por_ciudad.csv</code> (por city: envios, pendientes — ordenado por envíos desc)</li>
+        <li><code>envios_por_dia.csv</code> (por order_date: envios, pendientes — ordenado por fecha)</li>
+        <li><code>backlog_por_dia.csv</code> (acumulado de pendientes)</li>
+        <li><code>o_model.json</code> (fuentes, join, métricas, definiciones)</li>
+      </ul>
+      <h2>Parte aplicada (detallada)</h2>
+      <p><strong>Situación:</strong> Operaciones necesita saber dónde reforzar y cuándo se acumula backlog.</p>
+      <p><strong>Qué debes hacer:</strong></p>
+      <ul>
+        <li>Comprueba que el join traiga city para todos los pedidos (si no, corrige claves).</li>
+        <li>Define enviado/pendiente como 1/0 según shipped; revisa 3–5 filas para asegurarte.</li>
+        <li>Calcula backlog como acumulado por fecha y verifica la progresión (no debe “bajar” si no hay envíos).</li>
+        <li>Documenta cualquier caso con city vacía y explica cómo lo resolviste.</li>
+      </ul>
+      <p><strong>Criterio de aceptación:</strong> métricas ordenadas y acumulado correcto; <code>o_model.json</code> coherente.</p>
+      <h2>Entregables</h2>
+      <p>envios_por_ciudad.csv, envios_por_dia.csv, backlog_por_dia.csv, o_model.json, docs/m6_ops_notes.md.</p>
+      <h2>Verificación</h2>
+      <p>Archivos envíos por ciudad, envíos por día y backlog existen.</p>
+      <h2>Micro‑quiz (5)</h2>
+      <ol>
+        <li>¿Por qué usar join left al unir pedidos y clientes?</li>
+        <li>¿Cómo defines enviado y pendiente?</li>
+        <li>¿Qué es backlog acumulado?</li>
+        <li>¿Cómo se calcula backlog por día?</li>
+        <li>¿Qué hacer si hay ciudades vacías tras el join?</li>
+      </ol>
+      <h2>Checklist</h2>
+      <ul>
+        <li>Videos vistos</li>
+        <li>Fichas completadas</li>
+        <li>Plan redactado</li>
+        <li>Archivos generados</li>
+      </ul>
+      <h2>Rúbrica (10)</h2>
+      <ul>
+        <li>Fichas (3)</li>
+        <li>Práctica (4)</li>
+        <li>Evidencias (2)</li>
+        <li>Orden (1)</li>
+      </ul>
+      <h2>Errores comunes</h2>
+      <ul>
+        <li>No traer city para algunos pedidos</li>
+        <li>Calcular mal el backlog (disminuir cuando no corresponde)</li>
+        <li>No ordenar por fecha o envíos</li>
+      </ul>
+    </section>
+    <section class="verification">
+      <button id="verifyBtn">Verificar y Entregar Misión</button>
+      <div id="verifyResult"></div>
+    </section>
+  </main>
+  <script src="assets/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const resultDiv = document.getElementById('verifyResult');
+      document.getElementById('verifyBtn').addEventListener('click', () => {
+        verifyMission('m6o', resultDiv);
+      });
+    });
+  </script>
+</body>
+</html>
