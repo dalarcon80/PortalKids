@@ -1,3 +1,4 @@
+
 runtime: python39
 
 entrypoint: gunicorn -b :$PORT backend.app:app
@@ -8,3 +9,5 @@ env_variables:
 handlers:
   - url: /.*
     script: auto
+
+service: portal-kids
