@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Misiones</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  </head>
+  <body>
+    <main class="page-container">
+      <header class="page-header">
+        <h1>Misiones</h1>
+        <p>Explora los objetivos y aventuras disponibles para la tripulación.</p>
+      </header>
+      <section aria-label="Listado de misiones">
+        <div class="mission-grid">
+          {% for mission in missions %}
+          <div class="mission-card">
+            <h2>{{ mission.title or mission.name }}</h2>
+            {% if mission.description or mission.summary %}
+            <p>{{ mission.description or mission.summary }}</p>
+            {% endif %}
+            {% if mission.status %}
+            <p class="mission-status">Estado: <span>{{ mission.status }}</span></p>
+            {% endif %}
+            {% if mission.due_date or mission.deadline %}
+            <p class="mission-meta">Fecha límite: {{ mission.due_date or mission.deadline }}</p>
+            {% endif %}
+            {% if mission.location %}
+            <p class="mission-meta">Ubicación: {{ mission.location }}</p>
+            {% endif %}
+            {% if mission.link %}
+            <a class="mission-meta" href="{{ mission.link }}">Más información</a>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="mission-card empty-state">
+            <p>No hay misiones disponibles por ahora.</p>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
