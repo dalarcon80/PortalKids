@@ -131,7 +131,7 @@ function renderDashboard(student, completed) {
     <h2>Bienvenido, ${student.name}</h2>
     <p>Rol: ${student.role}</p>
     <p>Selecciona una misión para continuar:</p>
-    <ul class="missions">`;
+    <div class="missions-grid">`;
   missionsForRole.forEach((m) => {
     const isCompleted = completed.includes(m.id);
     const isUnlocked = unlocked[m.id] || false;
@@ -147,13 +147,15 @@ function renderDashboard(student, completed) {
       statusClass = 'locked';
       statusText = 'Bloqueada';
     }
-    if (isUnlocked) {
-      html += `<li class="${statusClass}"><a href="${m.id}.html">${m.title}</a> — <span>${statusText}</span></li>`;
-    } else {
-      html += `<li class="${statusClass}">${m.title} — <span>${statusText}</span></li>`;
-    }
+    const titleContent = isUnlocked
+      ? `<a href="${m.id}.html">${m.title}</a>`
+      : `${m.title}`;
+    html += `<div class="mission-card ${statusClass}">
+        <h3>${titleContent}</h3>
+        <p class="mission-status">${statusText}</p>
+      </div>`;
   });
-  html += '</ul>';
+  html += '</div>';
   html += '<button id="logoutBtn">Salir</button>';
   html += '</section>';
   content.innerHTML = html;

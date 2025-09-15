@@ -55,42 +55,70 @@ form button:hover {
   background-color: #21618c;
 }
 
-.missions {
-  list-style: none;
+.missions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
   padding: 0;
+  margin: 0;
 }
 
-.missions li {
-  padding: 0.5rem;
-  border-bottom: 1px solid #ddd;
+.mission-card {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.missions li:last-child {
-  border-bottom: none;
+.mission-card h3 {
+  margin: 0;
+  font-size: 1.1rem;
 }
 
-.missions li a {
+.mission-card a {
   text-decoration: none;
   color: #2980b9;
 }
 
-.missions li.locked {
-  color: #aaa;
+.mission-card .mission-status {
+  font-weight: 600;
 }
 
-.missions li.locked span {
-  color: #aaa;
+.mission-card.unlocked {
+  border-color: #f39c12;
 }
 
-.missions li.completed span {
+.mission-card.completed {
+  border-color: #27ae60;
+}
+
+.mission-card.completed .mission-status {
   color: #27ae60;
 }
 
-.missions li.unlocked span {
+.mission-card.unlocked .mission-status {
   color: #f39c12;
+}
+
+.mission-card.locked {
+  border-color: #ccc;
+  color: #aaa;
+  background-color: #f5f5f5;
+}
+
+.mission-card.locked .mission-status {
+  color: #aaa;
+}
+
+.mission-card.unlocked:hover,
+.mission-card.completed:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
 .success {
