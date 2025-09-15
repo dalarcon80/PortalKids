@@ -1,0 +1,10 @@
+runtime: python39
+
+entrypoint: gunicorn -b :$PORT backend.app:app
+
+env_variables:
+  PYTHONUNBUFFERED: 'true'
+
+handlers:
+  - url: /.*
+    script: auto
