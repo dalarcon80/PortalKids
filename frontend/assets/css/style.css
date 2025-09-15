@@ -133,7 +133,7 @@ form button:hover {
   background-color: var(--accent-hover);
 }
 
-.missions {
+.missions-grid {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -142,12 +142,11 @@ form button:hover {
   gap: 1.25rem;
 }
 
-.missions > li {
+.missions-grid > li {
   list-style: none;
   margin: 0;
 }
 
-.missions li,
 .mission-card {
   padding: 1.75rem;
   border-radius: var(--radius);
@@ -162,31 +161,26 @@ form button:hover {
   color: var(--text);
 }
 
-.missions li:hover,
 .mission-card:hover {
   transform: translateY(-6px);
   box-shadow: var(--card-shadow-hover);
 }
 
-.missions li a,
 .mission-card a {
   text-decoration: none;
   color: var(--accent);
   font-weight: 600;
 }
 
-.missions li a:hover,
 .mission-card a:hover {
   color: var(--accent-hover);
 }
 
-.missions li span,
 .mission-card .status {
   font-weight: 600;
   color: var(--muted);
 }
 
-.missions li.locked,
 .mission-card.locked {
   background-color: var(--locked-bg);
   border-color: var(--locked-border);
@@ -194,36 +188,30 @@ form button:hover {
   box-shadow: none;
 }
 
-.missions li.locked a,
 .mission-card.locked a {
   color: var(--muted);
   pointer-events: none;
   cursor: not-allowed;
 }
 
-.missions li.locked span,
 .mission-card.locked .status {
   color: var(--muted);
 }
 
-.missions li.unlocked,
 .mission-card.unlocked {
   background-color: var(--unlocked-bg);
   border-color: var(--unlocked-border);
 }
 
-.missions li.unlocked span,
 .mission-card.unlocked .status {
   color: var(--warning);
 }
 
-.missions li.completed,
 .mission-card.completed {
   background-color: var(--completed-bg);
   border-color: var(--completed-border);
 }
 
-.missions li.completed span,
 .mission-card.completed .status {
   color: var(--success);
 }
@@ -264,7 +252,7 @@ button#logoutBtn:hover {
     padding: 1.5rem 1rem 2rem;
   }
 
-  .missions {
+  .missions-grid {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 1rem;
   }
