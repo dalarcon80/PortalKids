@@ -18,3 +18,4 @@ ENV PORT 8080
 
 # Command to run the application
 CMD ["gunicorn", "-b", ":$PORT", "backend.app:app"]
+CMD ["sh", "-c", "gunicorn -b :$PORT backend.app:app"]
