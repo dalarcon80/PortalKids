@@ -1,6 +1,4 @@
-/inscrib
-/renderEnrollForm
- main.js - lógica del portal de misiones
+// main.js - lógica del portal de misiones
 
 const API_BASE = '';
 const STORAGE_KEYS = {
