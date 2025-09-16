@@ -22,7 +22,8 @@
         <a class="portal-header__link portal-header__link--active" href="index.html" aria-current="page">Inicio</a>
         <a
           class="portal-header__link"
-          href="/index.html?enroll"
+          href="#"
+          onclick="localStorage.removeItem('student_slug'); renderEnrollForm(); return false;"
           >Inscribirme</a>
       </nav>
       <div class="portal-header__user">
