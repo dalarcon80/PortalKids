@@ -387,20 +387,11 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
                 return
             try:
-                password_bytes = password_for_check.encode('utf-8')
-            except Exception:
-                self._send_json({"error": "Formato de contraseña inválido."}, status=400)
+                password_matches = verify_password(password_for_check, row.get('password_hash'))
+            except PasswordValidationError as exc:
+                self._send_json({"error": str(exc)}, status=400)
                 return
-            stored_hash = row.get('password_hash')
-            if isinstance(stored_hash, str):
-                stored_hash_bytes = stored_hash.encode('utf-8')
-            elif isinstance(stored_hash, bytes):
-                stored_hash_bytes = stored_hash
-            else:
-                stored_hash_bytes = str(stored_hash or '').encode('utf-8')
-            try:
-                password_matches = bcrypt.checkpw(password_bytes, stored_hash_bytes)
-            except (ValueError, TypeError, AttributeError) as exc:
+            except PasswordVerificationError as exc:
                 print(f"Password verification error on /api/login: {exc}", file=sys.stderr)
                 self._send_json({"error": "Failed to verify credentials."}, status=500)
                 return
