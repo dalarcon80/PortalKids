@@ -22,6 +22,18 @@ SESSION_DURATION_SECONDS = 60 * 60 * 8
 ACTIVE_SESSIONS = {}
 
 
+class PasswordValidationError(ValueError):
+    """Raised when the provided password cannot be processed."""
+
+
+class PasswordHashingError(RuntimeError):
+    """Raised when hashing a password fails unexpectedly."""
+
+
+class PasswordVerificationError(RuntimeError):
+    """Raised when verifying a stored password hash fails."""
+
+
 def get_db_connection():
     db_config = {
         'dbname': os.environ.get('DB_NAME'),
@@ -57,6 +69,51 @@ def get_db_connection():
         db_config['sslmode'] = sslmode
 
     return psycopg.connect(**db_config)
+
+
+def hash_password(raw_password):
+    """Hash a password using bcrypt returning the hash as text."""
+
+    if not isinstance(raw_password, str):
+        raw_password = str(raw_password or '')
+    if not raw_password.strip():
+        raise PasswordValidationError('La contraseña no puede estar vacía.')
+    try:
+        password_bytes = raw_password.encode('utf-8')
+    except Exception as exc:
+        raise PasswordValidationError('Formato de contraseña inválido.') from exc
+    try:
+        hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+    except (ValueError, TypeError) as exc:
+        raise PasswordHashingError('No se pudo procesar la contraseña.') from exc
+    if isinstance(hashed, bytes):
+        hashed = hashed.decode('utf-8')
+    return hashed
+
+
+def verify_password(raw_password, stored_hash):
+    """Return True if the password matches the stored hash."""
+
+    if not isinstance(raw_password, str):
+        raw_password = str(raw_password or '')
+    if not raw_password.strip():
+        raise PasswordValidationError('Debes ingresar tu contraseña.')
+    try:
+        password_bytes = raw_password.encode('utf-8')
+    except Exception as exc:
+        raise PasswordValidationError('Formato de contraseña inválido.') from exc
+    if not stored_hash:
+        return False
+    if isinstance(stored_hash, str):
+        stored_hash_bytes = stored_hash.encode('utf-8')
+    elif isinstance(stored_hash, bytes):
+        stored_hash_bytes = stored_hash
+    else:
+        stored_hash_bytes = str(stored_hash).encode('utf-8')
+    try:
+        return bcrypt.checkpw(password_bytes, stored_hash_bytes)
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise PasswordVerificationError('No se pudo verificar la contraseña.') from exc
 
 
 def init_db():
@@ -247,29 +304,29 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             role = (data.get('role') or '').strip()
             workdir = (data.get('workdir') or '').strip()
             email = (data.get('email') or '').strip()
-            password_raw = data.get('password') or ''
-            if not isinstance(password_raw, str):
-                password_raw = str(password_raw or '')
-            password = password_raw
+            password_raw = data.get('password')
+            password_for_check = (
+                password_raw
+                if isinstance(password_raw, str)
+                else str(password_raw or '')
+            )
             if (
                 not slug
                 or not name
                 or not role
                 or not workdir
                 or not email
-                or not password
-                or not password.strip()
+                or not password_for_check
+                or not password_for_check.strip()
             ):
                 self._send_json({"error": "Missing required fields."}, status=400)
                 return
             try:
-                password_bytes = password.encode('utf-8')
-            except Exception:
-                self._send_json({"error": "Invalid password encoding."}, status=400)
+                password_hash = hash_password(password_raw)
+            except PasswordValidationError as exc:
+                self._send_json({"error": str(exc)}, status=400)
                 return
-            try:
-                password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
-            except (ValueError, TypeError) as exc:
+            except PasswordHashingError as exc:
                 print(f"Password hashing error on /api/enroll: {exc}", file=sys.stderr)
                 self._send_json({"error": "Failed to process password."}, status=500)
                 return
@@ -297,17 +354,14 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             return
         if path == '/api/login':
             slug = (data.get('slug') or '').strip()
-            password_raw = data.get('password') or ''
-            if not isinstance(password_raw, str):
-                password_raw = str(password_raw or '')
-            password = password_raw
-            if not slug or not password or not password.strip():
+            password_raw = data.get('password')
+            password_for_check = (
+                password_raw
+                if isinstance(password_raw, str)
+                else str(password_raw or '')
+            )
+            if not slug or not password_for_check or not password_for_check.strip():
                 self._send_json({"error": "Missing slug or password."}, status=400)
-                return
-            try:
-                password_bytes = password.encode('utf-8')
-            except Exception:
-                self._send_json({"error": "Invalid password encoding."}, status=400)
                 return
             try:
                 with get_db_connection() as conn:
@@ -324,15 +378,12 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             if not row or not row.get('password_hash'):
                 self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
                 return
-            stored_hash = row['password_hash'] or ''
-            if isinstance(stored_hash, bytes):
-                stored_hash = stored_hash.decode('utf-8')
             try:
-                password_matches = bcrypt.checkpw(
-                    password_bytes,
-                    stored_hash.encode('utf-8'),
-                )
-            except (ValueError, TypeError, AttributeError) as exc:
+                password_matches = verify_password(password_raw, row.get('password_hash'))
+            except PasswordValidationError as exc:
+                self._send_json({"error": str(exc)}, status=400)
+                return
+            except PasswordVerificationError as exc:
                 print(f"Password verification error on /api/login: {exc}", file=sys.stderr)
                 self._send_json({"error": "Failed to verify credentials."}, status=500)
                 return
