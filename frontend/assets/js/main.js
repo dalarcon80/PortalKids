@@ -7,10 +7,30 @@ function $(selector) {
 }
 
 /**
+ * Obtiene o crea el contenedor donde se dibuja el contenido principal.
+ * Permite usar el flujo de matrícula en cualquier archivo HTML.
+ */
+function getContentContainer() {
+  let content = $('#content');
+  if (content) {
+    return content;
+  }
+  const main = document.querySelector('main');
+  if (main) {
+    main.id = 'content';
+    return main;
+  }
+  content = document.createElement('div');
+  content.id = 'content';
+  document.body.appendChild(content);
+  return content;
+}
+
+/**
  * Renderiza el formulario de matrícula.
  */
 function renderEnrollForm() {
-  const content = $('#content');
+  const content = getContentContainer();
   content.innerHTML = `
     <section class="enroll">
       <h2>Matrícula</h2>
@@ -203,15 +223,22 @@ async function verifyMission(missionId, resultContainer) {
   }
 }
 
-// Al cargar la página index, decide qué mostrar
+// Al cargar la página, decide qué mostrar
 window.addEventListener('load', () => {
+  const searchParams = new URLSearchParams(window.location.search);
+  const forceEnroll = searchParams.has('enroll');
+  if (forceEnroll) {
+    localStorage.removeItem('student_slug');
+    renderEnrollForm();
+    return;
+  }
   const slug = localStorage.getItem('student_slug');
-  if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
-    const forceEnroll = window.location.search.includes('enroll');
-    if (forceEnroll) {
-      localStorage.removeItem('student_slug');
-      renderEnrollForm();
-    } else if (!slug) {
+  if (
+    window.location.pathname.endsWith('index.html') ||
+    window.location.pathname === '/' ||
+    window.location.pathname === ''
+  ) {
+    if (!slug) {
       renderEnrollForm();
     } else {
       loadDashboard();
