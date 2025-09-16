@@ -207,7 +207,11 @@ async function verifyMission(missionId, resultContainer) {
 window.addEventListener('load', () => {
   const slug = localStorage.getItem('student_slug');
   if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/') {
-    if (!slug) {
+    const forceEnroll = window.location.search.includes('enroll');
+    if (forceEnroll) {
+      localStorage.removeItem('student_slug');
+      renderEnrollForm();
+    } else if (!slug) {
       renderEnrollForm();
     } else {
       loadDashboard();
