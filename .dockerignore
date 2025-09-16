@@ -27,3 +27,6 @@ env/
 
 # Ignore node modules if accidentally included
 node_modules/
+
+# Legacy directory from previous builds
+portal_educativo/

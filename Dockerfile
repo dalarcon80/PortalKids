@@ -10,8 +10,9 @@ COPY backend/requirements.txt ./backend/requirements.txt
 # Install dependencies
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
-# Copy the rest of the project files
-COPY . .
+# Copy application source code explicitly
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
 
 # Set the port the container will listen on
 ENV PORT 8080
