@@ -1,6 +1,34 @@
 // main.js - lógica del portal de misiones
 
 const API_BASE = '';
+const STORAGE_KEYS = {
+  slug: 'student_slug',
+  token: 'session_token',
+};
+
+function storeSession(slug, token) {
+  if (slug) {
+    localStorage.setItem(STORAGE_KEYS.slug, slug);
+  }
+  if (token) {
+    localStorage.setItem(STORAGE_KEYS.token, token);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.token);
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem(STORAGE_KEYS.slug);
+  localStorage.removeItem(STORAGE_KEYS.token);
+}
+
+function getStoredSlug() {
+  return localStorage.getItem(STORAGE_KEYS.slug);
+}
+
+function getStoredToken() {
+  return localStorage.getItem(STORAGE_KEYS.token);
+}
 
 function $(selector) {
   return document.querySelector(selector);
@@ -74,11 +102,37 @@ function renderEnrollForm() {
       });
       const data = await res.json();
       if (res.ok) {
-        localStorage.setItem('student_slug', slug);
-        $('#enrollMsg').textContent = '¡Matrícula exitosa! Redirigiendo...';
-        setTimeout(() => {
-          loadDashboard();
-        }, 1000);
+        let sessionToken = '';
+        try {
+          const loginRes = await fetch('/api/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ slug, password }),
+          });
+          if (loginRes.ok) {
+            const loginData = await loginRes.json();
+            if (loginData && loginData.authenticated && loginData.token) {
+              sessionToken = loginData.token;
+            }
+          }
+        } catch (loginErr) {
+          console.warn('No se pudo iniciar sesión automáticamente tras la matrícula.', loginErr);
+        }
+        if (sessionToken) {
+          storeSession(slug, sessionToken);
+          $('#enrollMsg').textContent = '¡Matrícula exitosa! Redirigiendo...';
+          setTimeout(() => {
+            loadDashboard();
+          }, 1000);
+        } else {
+          clearSession();
+          $('#enrollMsg').textContent = '¡Matrícula exitosa! Ahora ingresa con tu contraseña.';
+          setTimeout(() => {
+            renderLoginForm();
+          }, 1200);
+        }
       } else {
         $('#enrollMsg').textContent = data.error || 'Error en la matrícula.';
       }
@@ -96,7 +150,7 @@ function renderLoginForm() {
   content.innerHTML = `
     <section class="login">
       <h2>Ingresar</h2>
-      <p>Ingresa tu slug para acceder al portal.</p>
+      <p>Ingresa tu slug y contraseña para acceder al portal.</p>
       <form id="loginForm">
         <label>Selecciona tu usuario:<br />
           <select id="studentSelect">
@@ -157,12 +211,13 @@ function renderLoginForm() {
           data && data.student && data.student.slug
             ? data.student.slug
             : slug;
-        localStorage.setItem('student_slug', confirmedSlug);
+        const sessionToken = data && data.token ? data.token : '';
+        storeSession(confirmedSlug, sessionToken);
         msg.textContent = 'Ingreso exitoso. Cargando tu portal...';
         loadDashboard();
         return;
       }
-      localStorage.removeItem('student_slug');
+      clearSession();
       if (passwordInput) {
         passwordInput.value = '';
       }
@@ -181,7 +236,7 @@ function renderLoginForm() {
   if (registerBtn) {
     registerBtn.onclick = (event) => {
       event.preventDefault();
-      localStorage.removeItem('student_slug');
+      clearSession();
       renderEnrollForm();
     };
   }
@@ -239,16 +294,25 @@ function renderLoginForm() {
  * Carga el tablero de misiones según el estudiante.
  */
 async function loadDashboard() {
-  const slug = localStorage.getItem('student_slug');
+  const slug = getStoredSlug();
+  const token = getStoredToken();
   const initialSlug = slug;
-  if (!slug) {
+  if (!slug || !token) {
+    clearSession();
     renderLoginForm();
     return;
   }
   const content = $('#content');
   content.innerHTML = '<p>Cargando tu información...</p>';
   try {
-    const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`);
+    const headers = token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {};
+    const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`, {
+      headers,
+    });
     let data = {};
     try {
       data = await res.json();
@@ -259,8 +323,24 @@ async function loadDashboard() {
     const studentNotFound =
       res.status === 404 && backendMessage.toLowerCase().includes('student not found');
     if (!res.ok) {
+      if (res.status === 401) {
+        clearSession();
+        content.innerHTML = `
+          <section class="status-error">
+            <p>Tu sesión expiró o no es válida. Vuelve a iniciar sesión para continuar.</p>
+            <button id="loginAgainBtn">Iniciar sesión</button>
+          </section>
+        `;
+        const loginAgainBtn = $('#loginAgainBtn');
+        if (loginAgainBtn) {
+          loginAgainBtn.onclick = () => {
+            renderLoginForm();
+          };
+        }
+        return;
+      }
       if (studentNotFound) {
-        localStorage.removeItem('student_slug');
+        clearSession();
         content.innerHTML = `
           <section class="status-error">
             <p>No encontramos tu matrícula. Vuelve a matricularte para continuar.</p>
@@ -292,9 +372,13 @@ async function loadDashboard() {
     }
     const student = data.student;
     const completed = data.completed || [];
-    const currentSlug = localStorage.getItem('student_slug');
+    const currentSlug = getStoredSlug();
     if (!currentSlug || currentSlug !== initialSlug) {
       return;
+    }
+    const canonicalSlug = student && student.slug ? student.slug : slug;
+    if (canonicalSlug && canonicalSlug !== currentSlug) {
+      storeSession(canonicalSlug, token);
     }
     renderDashboard(student, completed);
   } catch (err) {
@@ -380,7 +464,7 @@ function renderDashboard(student, completed) {
   html += '</section>';
   content.innerHTML = html;
   $('#logoutBtn').onclick = () => {
-    localStorage.removeItem('student_slug');
+    clearSession();
     renderLoginForm();
   };
 }
@@ -391,8 +475,10 @@ function renderDashboard(student, completed) {
  * @param {HTMLElement} resultContainer
  */
 async function verifyMission(missionId, resultContainer) {
-  const slug = localStorage.getItem('student_slug');
-  if (!slug) {
+  const slug = getStoredSlug();
+  const token = getStoredToken();
+  if (!slug || !token) {
+    clearSession();
     resultContainer.textContent = 'Debes volver a matricularte.';
     return;
   }
@@ -402,10 +488,22 @@ async function verifyMission(missionId, resultContainer) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ slug, mission_id: missionId }),
     });
-    const data = await res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      data = {};
+    }
+    if (res.status === 401) {
+      clearSession();
+      resultContainer.innerHTML =
+        '<p class="error">Tu sesión expiró o es inválida. Vuelve a iniciar sesión en el portal.</p>';
+      return;
+    }
     if (res.ok) {
       if (data.verified) {
         resultContainer.innerHTML = `<p class="success">¡Misión verificada con éxito! Puedes volver al portal.</p>`;
@@ -441,13 +539,13 @@ function setupAccessLinks() {
 
   const enrollLinks = document.querySelectorAll('[data-action="enroll"]');
   attachHandler(enrollLinks, () => {
-    localStorage.removeItem('student_slug');
+    clearSession();
     renderEnrollForm();
   });
 
   const loginLinks = document.querySelectorAll('[data-action="login"]');
   attachHandler(loginLinks, () => {
-    localStorage.removeItem('student_slug');
+    clearSession();
     renderLoginForm();
   });
 
@@ -456,7 +554,7 @@ function setupAccessLinks() {
     link.href = '#';
   });
   attachHandler(legacyEnrollLinks, () => {
-    localStorage.removeItem('student_slug');
+    clearSession();
     renderEnrollForm();
   });
 }
@@ -476,12 +574,14 @@ function initializeLandingView() {
   }
   const searchParams = new URLSearchParams(window.location.search);
   if (searchParams.has('enroll')) {
-    localStorage.removeItem('student_slug');
+    clearSession();
     renderEnrollForm();
     return;
   }
-  const slug = localStorage.getItem('student_slug');
-  if (!slug) {
+  const slug = getStoredSlug();
+  const token = getStoredToken();
+  if (!slug || !token) {
+    clearSession();
     renderLoginForm();
     return;
   }
