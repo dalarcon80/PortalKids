@@ -136,6 +136,18 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json({"student": student, "completed": completed})
             return
+        if path == '/api/students':
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor(row_factory=dict_row) as cur:
+                        cur.execute('SELECT slug, name FROM students ORDER BY name')
+                        students = [dict(row) for row in cur.fetchall()]
+            except Exception as exc:
+                print(f"Database error on /api/students: {exc}", file=sys.stderr)
+                self._send_json({"error": "Database connection error."}, status=500)
+                return
+            self._send_json({"students": students})
+            return
         # Serve static files
         # Root or index
         if path == '/' or path == '' or path == '/index.html':
