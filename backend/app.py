@@ -71,55 +71,189 @@ def init_db():
     db_name = os.environ.get("DB_NAME")
     if not db_name:
         raise RuntimeError("DB_NAME must be configured before initializing the database.")
+
+    def ensure_column(cur, table: str, column: str, definition: str) -> None:
+        cur.execute(
+            """
+            SELECT 1
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = %s
+              AND TABLE_NAME = %s
+              AND COLUMN_NAME = %s
+            """,
+            (db_name, table, column),
+        )
+        if cur.fetchone():
+            cur.execute(f"ALTER TABLE {table} MODIFY COLUMN {column} {definition}")
+        else:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    def ensure_primary_key(cur, table: str, columns: List[str]) -> None:
+        cur.execute(
+            """
+            SELECT COLUMN_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = %s
+              AND TABLE_NAME = %s
+              AND CONSTRAINT_NAME = 'PRIMARY'
+            ORDER BY ORDINAL_POSITION
+            """,
+            (db_name, table),
+        )
+        existing = [row["COLUMN_NAME"] for row in cur.fetchall()]
+        if existing != columns:
+            if existing:
+                cur.execute(f"ALTER TABLE {table} DROP PRIMARY KEY")
+            cols_formatted = ", ".join(columns)
+            cur.execute(f"ALTER TABLE {table} ADD PRIMARY KEY ({cols_formatted})")
+
+    def ensure_unique_index(cur, table: str, index: str, columns: List[str]) -> None:
+        cur.execute(
+            """
+            SELECT COLUMN_NAME
+            FROM information_schema.STATISTICS
+            WHERE TABLE_SCHEMA = %s
+              AND TABLE_NAME = %s
+              AND INDEX_NAME = %s
+            ORDER BY SEQ_IN_INDEX
+            """,
+            (db_name, table, index),
+        )
+        existing = [row["COLUMN_NAME"] for row in cur.fetchall()]
+        if existing != columns:
+            if existing:
+                cur.execute(f"ALTER TABLE {table} DROP INDEX {index}")
+            cols_formatted = ", ".join(columns)
+            cur.execute(
+                f"ALTER TABLE {table} ADD UNIQUE INDEX {index} ({cols_formatted})"
+            )
+
+    def ensure_foreign_key(
+        cur,
+        table: str,
+        constraint: str,
+        column: str,
+        ref_table: str,
+        ref_column: str,
+        on_delete: str,
+    ) -> None:
+        cur.execute(
+            """
+            SELECT rc.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu.REFERENCED_TABLE_NAME,
+                   kcu.REFERENCED_COLUMN_NAME
+            FROM information_schema.REFERENTIAL_CONSTRAINTS rc
+            JOIN information_schema.KEY_COLUMN_USAGE kcu
+              ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
+             AND rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
+            WHERE rc.CONSTRAINT_SCHEMA = %s
+              AND rc.TABLE_NAME = %s
+              AND rc.CONSTRAINT_NAME = %s
+            """,
+            (db_name, table, constraint),
+        )
+        row = cur.fetchone()
+        if not row or (
+            row["COLUMN_NAME"] != column
+            or row["REFERENCED_TABLE_NAME"] != ref_table
+            or row["REFERENCED_COLUMN_NAME"] != ref_column
+        ):
+            if row:
+                cur.execute(f"ALTER TABLE {table} DROP FOREIGN KEY {constraint}")
+            cur.execute(
+                f"ALTER TABLE {table} ADD CONSTRAINT {constraint} FOREIGN KEY ({column}) "
+                f"REFERENCES {ref_table}({ref_column}) ON DELETE {on_delete}"
+            )
+
+    def ensure_table_options(cur, table: str) -> None:
+        cur.execute(
+            """
+            SELECT ENGINE, TABLE_COLLATION
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = %s
+              AND TABLE_NAME = %s
+            """,
+            (db_name, table),
+        )
+        row = cur.fetchone()
+        if row and row.get("ENGINE", "").lower() != "innodb":
+            cur.execute(f"ALTER TABLE {table} ENGINE=InnoDB")
+        collation = (row or {}).get("TABLE_COLLATION")
+        if not collation or not collation.lower().startswith("utf8mb4"):
+            cur.execute(f"ALTER TABLE {table} CONVERT TO CHARACTER SET utf8mb4")
+
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS students (
-                    slug VARCHAR(255) PRIMARY KEY,
+                    slug VARCHAR(255) NOT NULL PRIMARY KEY,
                     name VARCHAR(255),
                     role VARCHAR(100),
                     workdir VARCHAR(255),
                     email VARCHAR(255),
                     password_hash VARCHAR(255),
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
+            ensure_table_options(cur, "students")
+            ensure_column(cur, "students", "slug", "VARCHAR(255) NOT NULL")
+            ensure_column(cur, "students", "name", "VARCHAR(255)")
+            ensure_column(cur, "students", "role", "VARCHAR(100)")
+            ensure_column(cur, "students", "workdir", "VARCHAR(255)")
+            ensure_column(cur, "students", "email", "VARCHAR(255)")
+            ensure_column(cur, "students", "password_hash", "VARCHAR(255)")
+            ensure_column(
+                cur,
+                "students",
+                "created_at",
+                "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            )
+            ensure_primary_key(cur, "students", ["slug"])
+
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS completed_missions (
-                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    id BIGINT NOT NULL AUTO_INCREMENT,
                     student_slug VARCHAR(255) NOT NULL,
                     mission_id VARCHAR(255) NOT NULL,
-                    completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
                     UNIQUE KEY uniq_student_mission (student_slug, mission_id),
                     CONSTRAINT fk_completed_student
                         FOREIGN KEY (student_slug)
                         REFERENCES students(slug)
                         ON DELETE CASCADE
-                ) ENGINE=InnoDB
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             )
-            for column_name, column_definition in [
-                ("email", "VARCHAR(255)"),
-                ("password_hash", "VARCHAR(255)"),
-            ]:
-                cur.execute(
-                    """
-                    SELECT COUNT(*) AS column_count
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = %s
-                      AND TABLE_NAME = 'students'
-                      AND COLUMN_NAME = %s
-                    """,
-                    (db_name, column_name),
-                )
-                result = cur.fetchone() or {}
-                if not result.get("column_count"):
-                    cur.execute(
-                        f"ALTER TABLE students ADD COLUMN {column_name} {column_definition}"
-                    )
+            ensure_table_options(cur, "completed_missions")
+            ensure_column(cur, "completed_missions", "id", "BIGINT NOT NULL AUTO_INCREMENT")
+            ensure_column(
+                cur, "completed_missions", "student_slug", "VARCHAR(255) NOT NULL"
+            )
+            ensure_column(
+                cur, "completed_missions", "mission_id", "VARCHAR(255) NOT NULL"
+            )
+            ensure_column(
+                cur,
+                "completed_missions",
+                "completed_at",
+                "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            )
+            ensure_primary_key(cur, "completed_missions", ["id"])
+            ensure_unique_index(
+                cur, "completed_missions", "uniq_student_mission", ["student_slug", "mission_id"]
+            )
+            ensure_foreign_key(
+                cur,
+                "completed_missions",
+                "fk_completed_student",
+                "student_slug",
+                "students",
+                "slug",
+                "CASCADE",
+            )
 
 
 def hash_password(raw_password):
