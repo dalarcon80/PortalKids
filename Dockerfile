@@ -16,4 +16,4 @@ COPY frontend/ ./frontend/
 
 EXPOSE 8080
 
-CMD ["gunicorn", "-w", "2", "-k", "gthread", "-b", "0.0.0.0:${PORT}", "backend.wsgi:app"]
+CMD ["sh", "-c", "exec gunicorn -w ${WEB_CONCURRENCY:-2} -k gthread -b 0.0.0.0:${PORT:-8080} backend.wsgi:app"]
