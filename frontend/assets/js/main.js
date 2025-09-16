@@ -106,6 +106,11 @@ function renderLoginForm() {
       <h2>Ingresar</h2>
       <p>Ingresa tu slug para acceder al portal.</p>
       <form id="loginForm">
+        <label>Selecciona tu usuario:<br />
+          <select id="studentSelect">
+            <option value="">Cargando estudiantes...</option>
+          </select>
+        </label><br />
         <label>Slug:<br /><input type="text" id="loginSlug" required /></label><br />
         <button type="submit">Ingresar</button>
       </form>
@@ -116,18 +121,20 @@ function renderLoginForm() {
   if (!loginForm) {
     return;
   }
-  loginForm.onsubmit = async (e) => {
-    e.preventDefault();
-    const slugInput = $('#loginSlug');
-    const msg = $('#loginMsg');
+  const slugInput = $('#loginSlug');
+  const msg = $('#loginMsg');
+  const studentSelect = $('#studentSelect');
+
+  const attemptLogin = async (slugValue) => {
     if (!slugInput || !msg) {
       return;
     }
-    const slug = slugInput.value.trim();
+    const slug = (slugValue || '').trim();
     if (!slug) {
       msg.textContent = 'Debes ingresar tu slug.';
       return;
     }
+    slugInput.value = slug;
     msg.textContent = 'Verificando tus datos...';
     try {
       const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`);
@@ -151,6 +158,58 @@ function renderLoginForm() {
       msg.textContent = 'Error de conexión. Intenta nuevamente.';
     }
   };
+
+  loginForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const currentSlug = slugInput ? slugInput.value : '';
+    await attemptLogin(currentSlug);
+  };
+
+  if (studentSelect) {
+    studentSelect.disabled = true;
+    studentSelect.onchange = () => {
+      const selectedSlug = studentSelect.value;
+      if (!selectedSlug) {
+        if (slugInput) {
+          slugInput.value = '';
+        }
+        return;
+      }
+      if (slugInput) {
+        slugInput.value = selectedSlug;
+      }
+      attemptLogin(selectedSlug);
+    };
+    (async () => {
+      try {
+        const res = await fetch('/api/students');
+        if (!res.ok) {
+          throw new Error('Failed to load students');
+        }
+        const data = await res.json();
+        const students = Array.isArray(data.students) ? data.students : [];
+        if (students.length === 0) {
+          studentSelect.innerHTML = '<option value="">No hay estudiantes registrados.</option>';
+          studentSelect.disabled = true;
+          return;
+        }
+        studentSelect.innerHTML = '<option value="">Selecciona tu usuario</option>';
+        students.forEach((student) => {
+          if (!student || !student.slug || !student.name) {
+            return;
+          }
+          const option = document.createElement('option');
+          option.value = student.slug;
+          option.textContent = student.name;
+          studentSelect.appendChild(option);
+        });
+        studentSelect.disabled = false;
+      } catch (err) {
+        studentSelect.innerHTML = '<option value="">No pudimos cargar los estudiantes.</option>';
+        studentSelect.disabled = true;
+      }
+    })();
+  }
 }
 
 /**
