@@ -84,18 +84,6 @@ function renderEnrollForm() {
   };
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const enrollLink = document.querySelector('a[href="m1.html"]');
-  if (enrollLink) {
-    enrollLink.href = '#';
-    enrollLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      localStorage.removeItem('student_slug');
-      renderEnrollForm();
-    });
-  }
-});
-
 /**
  * Renderiza el formulario para ingresar con un slug existente.
  */
@@ -431,25 +419,76 @@ function renderAccessOptions() {
   }
 }
 
-// Al cargar la página, decide qué mostrar
-window.addEventListener('load', () => {
+function setupAccessLinks() {
+  const attachHandler = (elements, handler) => {
+    elements.forEach((element) => {
+      if (!element || element.dataset.accessHandlerBound === 'true') {
+        return;
+      }
+      element.addEventListener('click', (event) => {
+        event.preventDefault();
+        handler(event, element);
+      });
+      element.dataset.accessHandlerBound = 'true';
+    });
+  };
+
+  const enrollLinks = document.querySelectorAll('[data-action="enroll"]');
+  attachHandler(enrollLinks, () => {
+    localStorage.removeItem('student_slug');
+    renderEnrollForm();
+  });
+
+  const loginLinks = document.querySelectorAll('[data-action="login"]');
+  attachHandler(loginLinks, () => {
+    localStorage.removeItem('student_slug');
+    renderLoginForm();
+  });
+
+  const legacyEnrollLinks = document.querySelectorAll('a[href="m1.html"]');
+  legacyEnrollLinks.forEach((link) => {
+    link.href = '#';
+  });
+  attachHandler(legacyEnrollLinks, () => {
+    localStorage.removeItem('student_slug');
+    renderEnrollForm();
+  });
+}
+
+function isLandingPage() {
+  const path = typeof window !== 'undefined' && window.location ? window.location.pathname || '' : '';
+  if (!path || path === '/') {
+    return true;
+  }
+  const normalizedPath = path.toLowerCase();
+  return normalizedPath.endsWith('/index.html') || normalizedPath.endsWith('index.html');
+}
+
+function initializeLandingView() {
+  if (!isLandingPage()) {
+    return;
+  }
   const searchParams = new URLSearchParams(window.location.search);
-  const forceEnroll = searchParams.has('enroll');
-  if (forceEnroll) {
+  if (searchParams.has('enroll')) {
     localStorage.removeItem('student_slug');
     renderEnrollForm();
     return;
   }
   const slug = localStorage.getItem('student_slug');
-  if (
-    window.location.pathname.endsWith('index.html') ||
-    window.location.pathname === '/' ||
-    window.location.pathname === ''
-  ) {
-    if (!slug) {
-      renderAccessOptions();
-    } else {
-      loadDashboard();
-    }
+  if (!slug) {
+    renderAccessOptions();
+    return;
+  }
+  loadDashboard();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setupAccessLinks();
+  initializeLandingView();
+});
+
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    initializeLandingView();
   }
 });
