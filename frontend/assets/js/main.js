@@ -244,7 +244,7 @@ async function loadDashboard() {
   const slug = localStorage.getItem('student_slug');
   const initialSlug = slug;
   if (!slug) {
-    renderAccessOptions();
+    renderLoginForm();
     return;
   }
   const content = $('#content');
@@ -383,7 +383,7 @@ function renderDashboard(student, completed) {
   content.innerHTML = html;
   $('#logoutBtn').onclick = () => {
     localStorage.removeItem('student_slug');
-    renderAccessOptions();
+    renderLoginForm();
   };
 }
 
@@ -424,35 +424,6 @@ async function verifyMission(missionId, resultContainer) {
     }
   } catch (err) {
     resultContainer.textContent = 'Error de conexión durante la verificación.';
-  }
-}
-
-/**
- * Muestra las opciones iniciales para matricularse o ingresar.
- */
-function renderAccessOptions() {
-  const content = getContentContainer();
-  content.innerHTML = `
-    <section class="access-options">
-      <h2>Bienvenido al Portal de Misiones</h2>
-      <p>Selecciona una opción para continuar.</p>
-      <div class="access-options__actions">
-        <button id="accessEnrollBtn">Matricularme</button>
-        <button id="accessLoginBtn">Ya estoy matriculado</button>
-      </div>
-    </section>
-  `;
-  const enrollBtn = $('#accessEnrollBtn');
-  if (enrollBtn) {
-    enrollBtn.onclick = () => {
-      renderEnrollForm();
-    };
-  }
-  const loginBtn = $('#accessLoginBtn');
-  if (loginBtn) {
-    loginBtn.onclick = () => {
-      renderLoginForm();
-    };
   }
 }
 
@@ -513,7 +484,7 @@ function initializeLandingView() {
   }
   const slug = localStorage.getItem('student_slug');
   if (!slug) {
-    renderAccessOptions();
+    renderLoginForm();
     return;
   }
   loadDashboard();
