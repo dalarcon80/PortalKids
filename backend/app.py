@@ -1,53 +1,81 @@
 import os
 import sys
 import json
-import sqlite3
-import datetime
 import subprocess
+import psycopg
+from psycopg.rows import dict_row
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
-DB_PATH = os.path.join(BASE_DIR, 'database.db')
 CONTRACTS_PATH = os.path.join(BASE_DIR, 'missions_contracts.json')
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
 
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    db_config = {
+        'dbname': os.environ.get('DB_NAME'),
+        'user': os.environ.get('DB_USER'),
+        'password': os.environ.get('DB_PASSWORD'),
+    }
+
+    missing = [key for key, value in db_config.items() if not value]
+    if missing:
+        raise RuntimeError(
+            'Missing required database configuration values: '
+            + ', '.join(missing)
+        )
+
+    host = os.environ.get('DB_HOST')
+    instance_connection = os.environ.get('DB_INSTANCE_CONNECTION_NAME')
+
+    if host:
+        db_config['host'] = host
+        db_config['port'] = os.environ.get('DB_PORT', '5432')
+    elif instance_connection:
+        socket_dir = os.environ.get('DB_SOCKET_DIR', '/cloudsql')
+        db_config['host'] = os.path.join(socket_dir, instance_connection)
+    else:
+        raise RuntimeError('DB_HOST or DB_INSTANCE_CONNECTION_NAME must be provided.')
+
+    connect_timeout = os.environ.get('DB_CONNECT_TIMEOUT')
+    if connect_timeout:
+        db_config['connect_timeout'] = int(connect_timeout)
+
+    sslmode = os.environ.get('DB_SSLMODE')
+    if sslmode:
+        db_config['sslmode'] = sslmode
+
+    return psycopg.connect(**db_config)
 
 
 def init_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS students (
-            slug TEXT PRIMARY KEY,
-            name TEXT,
-            role TEXT,
-            workdir TEXT,
-            created_at TEXT
-        )
-        """
-    )
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS completed_missions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_slug TEXT,
-            mission_id TEXT,
-            completed_at TEXT,
-            FOREIGN KEY(student_slug) REFERENCES students(slug)
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS students (
+                    slug TEXT PRIMARY KEY,
+                    name TEXT,
+                    role TEXT,
+                    workdir TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS completed_missions (
+                    id BIGSERIAL PRIMARY KEY,
+                    student_slug TEXT NOT NULL REFERENCES students(slug) ON DELETE CASCADE,
+                    mission_id TEXT NOT NULL,
+                    completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (student_slug, mission_id)
+                )
+                """
+            )
 
 
 def load_contracts():
@@ -85,18 +113,27 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             if not slug:
                 self._send_json({"error": "Missing slug."}, status=400)
                 return
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute('SELECT * FROM students WHERE slug = ?', (slug,))
-            row = cur.fetchone()
-            if not row:
-                conn.close()
-                self._send_json({"error": "Student not found."}, status=404)
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor(row_factory=dict_row) as cur:
+                        cur.execute(
+                            'SELECT slug, name, role, workdir, created_at FROM students WHERE slug = %s',
+                            (slug,),
+                        )
+                        row = cur.fetchone()
+                        if not row:
+                            self._send_json({"error": "Student not found."}, status=404)
+                            return
+                        student = dict(row)
+                        cur.execute(
+                            'SELECT mission_id FROM completed_missions WHERE student_slug = %s ORDER BY completed_at',
+                            (slug,),
+                        )
+                        completed = [r['mission_id'] for r in cur.fetchall()]
+            except Exception as exc:
+                print(f"Database error on /api/status: {exc}", file=sys.stderr)
+                self._send_json({"error": "Database connection error."}, status=500)
                 return
-            student = {k: row[k] for k in row.keys()}
-            cur.execute('SELECT mission_id FROM completed_missions WHERE student_slug = ?', (slug,))
-            completed = [r['mission_id'] for r in cur.fetchall()]
-            conn.close()
             self._send_json({"student": student, "completed": completed})
             return
         # Serve static files
@@ -135,18 +172,24 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             if not slug or not name or not role or not workdir:
                 self._send_json({"error": "Missing required fields."}, status=400)
                 return
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO students (slug, name, role, workdir, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(slug) DO UPDATE SET name=excluded.name, role=excluded.role, workdir=excluded.workdir
-                """,
-                (slug, name, role, workdir, datetime.datetime.utcnow().isoformat()),
-            )
-            conn.commit()
-            conn.close()
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            INSERT INTO students (slug, name, role, workdir)
+                            VALUES (%s, %s, %s, %s)
+                            ON CONFLICT (slug) DO UPDATE
+                            SET name = EXCLUDED.name,
+                                role = EXCLUDED.role,
+                                workdir = EXCLUDED.workdir
+                            """,
+                            (slug, name, role, workdir),
+                        )
+            except Exception as exc:
+                print(f"Database error on /api/enroll: {exc}", file=sys.stderr)
+                self._send_json({"error": "Database connection error."}, status=500)
+                return
             self._send_json({"status": "ok"})
             return
         if path == '/api/verify_mission':
@@ -156,16 +199,19 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": "Missing slug or mission_id."}, status=400)
                 return
             # Fetch student workdir
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute('SELECT workdir FROM students WHERE slug = ?', (slug,))
-            row = cur.fetchone()
-            if not row:
-                conn.close()
-                self._send_json({"error": "Student not found."}, status=404)
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor(row_factory=dict_row) as cur:
+                        cur.execute('SELECT workdir FROM students WHERE slug = %s', (slug,))
+                        row = cur.fetchone()
+                        if not row:
+                            self._send_json({"error": "Student not found."}, status=404)
+                            return
+                        workdir = row['workdir']
+            except Exception as exc:
+                print(f"Database error on /api/verify_mission lookup: {exc}", file=sys.stderr)
+                self._send_json({"error": "Database connection error."}, status=500)
                 return
-            workdir = row['workdir']
-            conn.close()
             # Load contracts
             contracts = load_contracts()
             contract = contracts.get(mission_id)
@@ -184,16 +230,21 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             # If passed, record mission
             if passed:
-                conn = get_db_connection()
-                cur = conn.cursor()
-                cur.execute('SELECT 1 FROM completed_missions WHERE student_slug = ? AND mission_id = ?', (slug, mission_id))
-                if not cur.fetchone():
-                    cur.execute(
-                        'INSERT INTO completed_missions (student_slug, mission_id, completed_at) VALUES (?, ?, ?)',
-                        (slug, mission_id, datetime.datetime.utcnow().isoformat()),
-                    )
-                    conn.commit()
-                conn.close()
+                try:
+                    with get_db_connection() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                """
+                                INSERT INTO completed_missions (student_slug, mission_id)
+                                VALUES (%s, %s)
+                                ON CONFLICT (student_slug, mission_id) DO NOTHING
+                                """,
+                                (slug, mission_id),
+                            )
+                except Exception as exc:
+                    print(f"Database error on /api/verify_mission record: {exc}", file=sys.stderr)
+                    self._send_json({"error": "Database connection error."}, status=500)
+                    return
             self._send_json({"verified": passed, "feedback": feedback})
             return
         # Unknown POST path
