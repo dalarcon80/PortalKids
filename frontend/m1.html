@@ -9,12 +9,37 @@
  
 </head>
 <body>
-  <header>
-      <nav>
-    <a href="index.html">Inicio</a>
-    <a href="m1.html">Inscribirme</a>
-  </nav>
-    <h1>M1 — La Puerta de la Base (VS Code + Python)</h1>
+  <header class="portal-header">
+    <div class="portal-header__top">
+      <div class="portal-header__brand">
+        <span class="portal-header__logo" aria-hidden="true">BC</span>
+        <div class="portal-header__brand-text">
+          <span class="portal-header__brand-title">Portal de Misiones</span>
+          <span class="portal-header__brand-subtitle">BlockCorp</span>
+        </div>
+      </div>
+      <nav class="portal-header__nav" aria-label="Navegación principal">
+        <a class="portal-header__link" href="index.html">Inicio</a>
+        <a class="portal-header__link portal-header__link--active" href="m1.html" aria-current="page">Inscribirme</a>
+      </nav>
+      <div class="portal-header__user">
+        <div class="portal-header__user-info">
+          <span class="portal-header__user-label">Sesión activa</span>
+          <span class="portal-header__user-name">agente.nova</span>
+        </div>
+        <div class="portal-header__actions">
+          <button class="portal-header__action portal-header__action--ghost" type="button">
+            Centro de ayuda
+          </button>
+          <button class="portal-header__action" type="button">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="portal-header__body">
+      <h1 class="portal-header__heading">M1 — La Puerta de la Base (VS Code + Python)</h1>
+    </div>
   </header>
   <main>
     <section class="mission">
