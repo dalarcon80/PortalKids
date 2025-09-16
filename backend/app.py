@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import Dict, List
 
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, render_template, flash, redirect, request, url_for
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")
