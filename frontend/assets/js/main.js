@@ -89,6 +89,7 @@ function renderEnrollForm() {
  */
 async function loadDashboard() {
   const slug = localStorage.getItem('student_slug');
+  const initialSlug = slug;
   if (!slug) {
     renderEnrollForm();
     return;
@@ -105,6 +106,10 @@ async function loadDashboard() {
     }
     const student = data.student;
     const completed = data.completed || [];
+    const currentSlug = localStorage.getItem('student_slug');
+    if (!currentSlug || currentSlug !== initialSlug) {
+      return;
+    }
     renderDashboard(student, completed);
   } catch (err) {
     content.innerHTML = '<p>Error al obtener el estado del usuario.</p>';
