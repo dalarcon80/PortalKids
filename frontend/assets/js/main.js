@@ -100,7 +100,9 @@ function renderLoginForm() {
           </select>
         </label><br />
         <label>Slug:<br /><input type="text" id="loginSlug" required /></label><br />
+        <label>Contraseña:<br /><input type="password" id="loginPassword" required /></label><br />
         <button type="submit">Ingresar</button>
+        <button type="button" id="registerBtn">Registrarse</button>
       </form>
       <div id="loginMsg" class="msg"></div>
     </section>
@@ -110,75 +112,58 @@ function renderLoginForm() {
     return;
   }
   const slugInput = $('#loginSlug');
+  const passwordInput = $('#loginPassword');
   const msg = $('#loginMsg');
   const studentSelect = $('#studentSelect');
+  const registerBtn = $('#registerBtn');
 
-  const attemptLogin = async (slugValue) => {
+  const attemptLogin = async () => {
     if (!slugInput || !msg) {
       return;
     }
-    const slug = (slugValue || '').trim();
+    const slug = (slugInput.value || '').trim();
+    const password = passwordInput ? passwordInput.value : '';
     if (!slug) {
       msg.textContent = 'Debes ingresar tu slug.';
+      return;
+    }
+    if (!password) {
+      msg.textContent = 'Debes ingresar tu contraseña.';
       return;
     }
     slugInput.value = slug;
     msg.textContent = 'Verificando tus datos...';
     try {
-      const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`);
-      if (res.ok) {
-        localStorage.setItem('student_slug', slug);
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ slug, password }),
+      });
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        data = {};
+      }
+      const authenticated = Boolean(data && data.authenticated);
+      if (res.ok && authenticated) {
+        const confirmedSlug =
+          data && data.student && data.student.slug
+            ? data.student.slug
+            : slug;
+        localStorage.setItem('student_slug', confirmedSlug);
         msg.textContent = 'Ingreso exitoso. Cargando tu portal...';
         loadDashboard();
         return;
       }
-      let errorMessage = 'No pudimos verificar tus datos.';
-      let backendError = '';
-      try {
-        const data = await res.json();
-        if (data && typeof data.error === 'string') {
-          backendError = data.error;
-          if (backendError.trim()) {
-            errorMessage = backendError;
-          }
-        }
-      } catch (parseErr) {
-        // Ignorar errores de parseo y usar el mensaje predeterminado.
+      localStorage.removeItem('student_slug');
+      if (passwordInput) {
+        passwordInput.value = '';
       }
-      const normalizedError = backendError ? backendError.toLowerCase() : '';
-      const shouldOfferEnroll =
-        res.status === 404 || normalizedError.includes('student not found');
-      if (shouldOfferEnroll) {
-        localStorage.removeItem('student_slug');
-        if (msg) {
-          msg.textContent = '';
-          const infoParagraph = document.createElement('p');
-          let displayMessage = errorMessage;
-          if (
-            res.status === 404 ||
-            normalizedError.includes('student not found') ||
-            !displayMessage ||
-            displayMessage === 'No pudimos verificar tus datos.'
-          ) {
-            displayMessage =
-              'No encontramos tu matrícula. Haz clic en "Matricularme" para registrarte.';
-          }
-          infoParagraph.textContent = displayMessage;
-          msg.appendChild(infoParagraph);
-          const enrollBtn = document.createElement('button');
-          enrollBtn.type = 'button';
-          enrollBtn.id = 'goToEnrollBtn';
-          enrollBtn.textContent = 'Matricularme';
-          enrollBtn.onclick = (event) => {
-            event.preventDefault();
-            localStorage.removeItem('student_slug');
-            renderEnrollForm();
-          };
-          msg.appendChild(enrollBtn);
-        }
-        return;
-      }
-      msg.textContent = errorMessage;
+      const backendError = data && typeof data.error === 'string' ? data.error.trim() : '';
+      msg.textContent = backendError || 'Credenciales incorrectas. Verifica tus datos.';
     } catch (err) {
       msg.textContent = 'Error de conexión. Intenta nuevamente.';
     }
@@ -186,9 +171,16 @@ function renderLoginForm() {
 
   loginForm.onsubmit = async (e) => {
     e.preventDefault();
-    const currentSlug = slugInput ? slugInput.value : '';
-    await attemptLogin(currentSlug);
+    await attemptLogin();
   };
+
+  if (registerBtn) {
+    registerBtn.onclick = (event) => {
+      event.preventDefault();
+      localStorage.removeItem('student_slug');
+      renderEnrollForm();
+    };
+  }
 
   if (studentSelect) {
     studentSelect.disabled = true;
@@ -203,7 +195,9 @@ function renderLoginForm() {
       if (slugInput) {
         slugInput.value = selectedSlug;
       }
-      attemptLogin(selectedSlug);
+      if (passwordInput) {
+        passwordInput.focus();
+      }
     };
     (async () => {
       try {
