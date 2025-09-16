@@ -1,21 +1,19 @@
-# Use official Python runtime as a parent image
 FROM python:3.11-slim
 
-# Set working directory
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080 \
+    WEB_CONCURRENCY=2
+
 WORKDIR /app
 
-# Copy requirements file first to leverage caching
 COPY backend/requirements.txt ./backend/requirements.txt
 
-# Install dependencies
 RUN pip install --no-cache-dir -r backend/requirements.txt
 
-# Copy application source code explicitly
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 
-# Set the port the container will listen on
-ENV PORT 8080
+EXPOSE 8080
 
-# Command to run the application
-CMD ["python", "backend/app.py"]
+CMD ["gunicorn", "-w", "2", "-k", "gthread", "-b", "0.0.0.0:${PORT}", "backend.wsgi:app"]
