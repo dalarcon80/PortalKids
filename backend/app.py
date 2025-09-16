@@ -304,12 +304,15 @@ def _get_env_bool(name: str, default: bool = False) -> bool:
 
 
 app = Flask(__name__, static_folder="../frontend", static_url_path="/")
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", secrets.token_hex(16))
-app.config["SESSION_COOKIE_HTTPONLY"] = _get_env_bool(
-    "SESSION_COOKIE_HTTPONLY", True
-)
-app.config["SESSION_COOKIE_SECURE"] = _get_env_bool("SESSION_COOKIE_SECURE", False)
-app.config["SESSION_COOKIE_SAMESITE"] = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
+secret_key = os.environ.get("SECRET_KEY")
+if not secret_key:
+    raise RuntimeError(
+        "SECRET_KEY environment variable must be set before starting the application."
+    )
+app.config["SECRET_KEY"] = secret_key
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
 app.config["SESSION_COOKIE_PATH"] = os.environ.get("SESSION_COOKIE_PATH", "/")
 app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "session")
 

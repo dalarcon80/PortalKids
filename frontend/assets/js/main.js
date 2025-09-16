@@ -97,6 +97,7 @@ function renderEnrollForm() {
     try {
       const res = await fetch('/api/enroll', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -108,6 +109,7 @@ function renderEnrollForm() {
         try {
           const loginRes = await fetch('/api/login', {
             method: 'POST',
+            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
             },
@@ -196,6 +198,7 @@ function renderLoginForm() {
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -262,7 +265,9 @@ function renderLoginForm() {
     };
     (async () => {
       try {
-        const res = await fetch('/api/students');
+        const res = await fetch('/api/students', {
+          credentials: 'include',
+        });
         if (!res.ok) {
           throw new Error('Failed to load students');
         }
@@ -313,6 +318,7 @@ async function loadDashboard() {
         }
       : {};
     const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`, {
+      credentials: 'include',
       headers,
     });
     let data = {};
@@ -488,6 +494,7 @@ async function verifyMission(missionId, resultContainer) {
   try {
     const res = await fetch('/api/verify_mission', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
