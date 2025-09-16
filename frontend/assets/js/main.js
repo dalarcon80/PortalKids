@@ -84,6 +84,18 @@ function renderEnrollForm() {
   };
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+  const enrollLink = document.querySelector('a[href="m1.html"]');
+  if (enrollLink) {
+    enrollLink.href = '#';
+    enrollLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      localStorage.removeItem('student_slug');
+      renderEnrollForm();
+    });
+  }
+});
+
 /**
  * Carga el tablero de misiones según el estudiante.
  */
