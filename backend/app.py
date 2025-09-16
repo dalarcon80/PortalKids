@@ -1,17 +1,25 @@
 import os
 import sys
 import json
+import secrets
 import subprocess
+import time
 import psycopg
 from psycopg.rows import dict_row
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
+
+import bcrypt
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 CONTRACTS_PATH = os.path.join(BASE_DIR, 'missions_contracts.json')
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
+
+
+SESSION_DURATION_SECONDS = 60 * 60 * 8
+ACTIVE_SESSIONS = {}
 
 
 def get_db_connection():
@@ -61,9 +69,17 @@ def init_db():
                     name TEXT,
                     role TEXT,
                     workdir TEXT,
+                    email TEXT,
+                    password_hash TEXT,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
+            )
+            cur.execute(
+                "ALTER TABLE students ADD COLUMN IF NOT EXISTS email TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT"
             )
             cur.execute(
                 """
@@ -85,6 +101,38 @@ def load_contracts():
         return json.load(f)
 
 
+def create_session(slug):
+    now = time.time()
+    expired_tokens = [
+        token
+        for token, info in ACTIVE_SESSIONS.items()
+        if not info or now - (info.get('created_at') or 0) > SESSION_DURATION_SECONDS
+    ]
+    for token in expired_tokens:
+        ACTIVE_SESSIONS.pop(token, None)
+    token = secrets.token_urlsafe(32)
+    ACTIVE_SESSIONS[token] = {
+        'slug': slug,
+        'created_at': now,
+    }
+    return token
+
+
+def validate_session(token, slug=None):
+    if not token:
+        return False
+    session = ACTIVE_SESSIONS.get(token)
+    if not session:
+        return False
+    created_at = session.get('created_at') or 0
+    if time.time() - created_at > SESSION_DURATION_SECONDS:
+        ACTIVE_SESSIONS.pop(token, None)
+        return False
+    if slug and session.get('slug') != slug:
+        return False
+    return True
+
+
 class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
     """
     Maneja solicitudes HTTP para el portal.
@@ -101,6 +149,19 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
         self._set_headers(status, 'application/json')
         self.wfile.write(resp.encode('utf-8'))
 
+    def _extract_token(self, params=None):
+        header_token = ''
+        if hasattr(self, 'headers') and self.headers:
+            auth_header = self.headers.get('Authorization', '')
+            if auth_header and auth_header.lower().startswith('bearer '):
+                header_token = auth_header[7:].strip()
+            else:
+                header_token = auth_header.strip()
+        query_token = ''
+        if params:
+            query_token = (params.get('token', ['']) or [''])[0].strip()
+        return header_token or query_token
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -113,11 +174,15 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             if not slug:
                 self._send_json({"error": "Missing slug."}, status=400)
                 return
+            token = self._extract_token(params)
+            if not validate_session(token, slug):
+                self._send_json({"error": "Unauthorized."}, status=401)
+                return
             try:
                 with get_db_connection() as conn:
                     with conn.cursor(row_factory=dict_row) as cur:
                         cur.execute(
-                            'SELECT slug, name, role, workdir, created_at FROM students WHERE slug = %s',
+                            'SELECT slug, name, role, workdir, email, created_at FROM students WHERE slug = %s',
                             (slug,),
                         )
                         row = cur.fetchone()
@@ -181,22 +246,48 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             name = (data.get('name') or '').strip()
             role = (data.get('role') or '').strip()
             workdir = (data.get('workdir') or '').strip()
-            if not slug or not name or not role or not workdir:
+            email = (data.get('email') or '').strip()
+            password_raw = data.get('password') or ''
+            if not isinstance(password_raw, str):
+                password_raw = str(password_raw or '')
+            password = password_raw
+            if (
+                not slug
+                or not name
+                or not role
+                or not workdir
+                or not email
+                or not password
+                or not password.strip()
+            ):
                 self._send_json({"error": "Missing required fields."}, status=400)
+                return
+            try:
+                password_bytes = password.encode('utf-8')
+            except Exception:
+                self._send_json({"error": "Invalid password encoding."}, status=400)
+                return
+            try:
+                password_hash = bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode('utf-8')
+            except (ValueError, TypeError) as exc:
+                print(f"Password hashing error on /api/enroll: {exc}", file=sys.stderr)
+                self._send_json({"error": "Failed to process password."}, status=500)
                 return
             try:
                 with get_db_connection() as conn:
                     with conn.cursor() as cur:
                         cur.execute(
                             """
-                            INSERT INTO students (slug, name, role, workdir)
-                            VALUES (%s, %s, %s, %s)
+                            INSERT INTO students (slug, name, role, workdir, email, password_hash)
+                            VALUES (%s, %s, %s, %s, %s, %s)
                             ON CONFLICT (slug) DO UPDATE
                             SET name = EXCLUDED.name,
                                 role = EXCLUDED.role,
-                                workdir = EXCLUDED.workdir
+                                workdir = EXCLUDED.workdir,
+                                email = EXCLUDED.email,
+                                password_hash = EXCLUDED.password_hash
                             """,
-                            (slug, name, role, workdir),
+                            (slug, name, role, workdir, email, password_hash),
                         )
             except Exception as exc:
                 print(f"Database error on /api/enroll: {exc}", file=sys.stderr)
@@ -204,11 +295,70 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             self._send_json({"status": "ok"})
             return
+        if path == '/api/login':
+            slug = (data.get('slug') or '').strip()
+            password_raw = data.get('password') or ''
+            if not isinstance(password_raw, str):
+                password_raw = str(password_raw or '')
+            password = password_raw
+            if not slug or not password or not password.strip():
+                self._send_json({"error": "Missing slug or password."}, status=400)
+                return
+            try:
+                password_bytes = password.encode('utf-8')
+            except Exception:
+                self._send_json({"error": "Invalid password encoding."}, status=400)
+                return
+            try:
+                with get_db_connection() as conn:
+                    with conn.cursor(row_factory=dict_row) as cur:
+                        cur.execute(
+                            'SELECT slug, name, role, workdir, email, password_hash, created_at FROM students WHERE slug = %s',
+                            (slug,),
+                        )
+                        row = cur.fetchone()
+            except Exception as exc:
+                print(f"Database error on /api/login lookup: {exc}", file=sys.stderr)
+                self._send_json({"error": "Database connection error."}, status=500)
+                return
+            if not row or not row.get('password_hash'):
+                self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
+                return
+            stored_hash = row['password_hash'] or ''
+            if isinstance(stored_hash, bytes):
+                stored_hash = stored_hash.decode('utf-8')
+            try:
+                password_matches = bcrypt.checkpw(
+                    password_bytes,
+                    stored_hash.encode('utf-8'),
+                )
+            except (ValueError, TypeError, AttributeError) as exc:
+                print(f"Password verification error on /api/login: {exc}", file=sys.stderr)
+                self._send_json({"error": "Failed to verify credentials."}, status=500)
+                return
+            if not password_matches:
+                self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
+                return
+            token = create_session(slug)
+            student = {
+                'slug': row.get('slug'),
+                'name': row.get('name'),
+                'role': row.get('role'),
+                'workdir': row.get('workdir'),
+                'email': row.get('email'),
+                'created_at': row.get('created_at').isoformat() if row.get('created_at') else None,
+            }
+            self._send_json({"authenticated": True, "token": token, "student": student})
+            return
         if path == '/api/verify_mission':
             slug = (data.get('slug') or '').strip()
             mission_id = (data.get('mission_id') or '').strip()
             if not slug or not mission_id:
                 self._send_json({"error": "Missing slug or mission_id."}, status=400)
+                return
+            token = self._extract_token()
+            if not validate_session(token, slug):
+                self._send_json({"error": "Unauthorized."}, status=401)
                 return
             # Fetch student workdir
             try:
