@@ -133,13 +133,50 @@ function renderLoginForm() {
         return;
       }
       let errorMessage = 'No pudimos verificar tus datos.';
+      let backendError = '';
       try {
         const data = await res.json();
-        if (data && data.error) {
-          errorMessage = data.error;
+        if (data && typeof data.error === 'string') {
+          backendError = data.error;
+          if (backendError.trim()) {
+            errorMessage = backendError;
+          }
         }
       } catch (parseErr) {
         // Ignorar errores de parseo y usar el mensaje predeterminado.
+      }
+      const normalizedError = backendError ? backendError.toLowerCase() : '';
+      const shouldOfferEnroll =
+        res.status === 404 || normalizedError.includes('student not found');
+      if (shouldOfferEnroll) {
+        localStorage.removeItem('student_slug');
+        if (msg) {
+          msg.textContent = '';
+          const infoParagraph = document.createElement('p');
+          let displayMessage = errorMessage;
+          if (
+            res.status === 404 ||
+            normalizedError.includes('student not found') ||
+            !displayMessage ||
+            displayMessage === 'No pudimos verificar tus datos.'
+          ) {
+            displayMessage =
+              'No encontramos tu matrícula. Haz clic en "Matricularme" para registrarte.';
+          }
+          infoParagraph.textContent = displayMessage;
+          msg.appendChild(infoParagraph);
+          const enrollBtn = document.createElement('button');
+          enrollBtn.type = 'button';
+          enrollBtn.id = 'goToEnrollBtn';
+          enrollBtn.textContent = 'Matricularme';
+          enrollBtn.onclick = (event) => {
+            event.preventDefault();
+            localStorage.removeItem('student_slug');
+            renderEnrollForm();
+          };
+          msg.appendChild(enrollBtn);
+        }
+        return;
       }
       msg.textContent = errorMessage;
     } catch (err) {
