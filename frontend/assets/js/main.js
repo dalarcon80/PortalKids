@@ -85,13 +85,70 @@ function renderEnrollForm() {
 }
 
 /**
+ * Renderiza el formulario para ingresar con un slug existente.
+ */
+function renderLoginForm() {
+  const content = getContentContainer();
+  content.innerHTML = `
+    <section class="login">
+      <h2>Ingresar</h2>
+      <p>Ingresa tu slug para acceder al portal.</p>
+      <form id="loginForm">
+        <label>Slug:<br /><input type="text" id="loginSlug" required /></label><br />
+        <button type="submit">Ingresar</button>
+      </form>
+      <div id="loginMsg" class="msg"></div>
+    </section>
+  `;
+  const loginForm = $('#loginForm');
+  if (!loginForm) {
+    return;
+  }
+  loginForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const slugInput = $('#loginSlug');
+    const msg = $('#loginMsg');
+    if (!slugInput || !msg) {
+      return;
+    }
+    const slug = slugInput.value.trim();
+    if (!slug) {
+      msg.textContent = 'Debes ingresar tu slug.';
+      return;
+    }
+    msg.textContent = 'Verificando tus datos...';
+    try {
+      const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`);
+      if (res.ok) {
+        localStorage.setItem('student_slug', slug);
+        msg.textContent = 'Ingreso exitoso. Cargando tu portal...';
+        loadDashboard();
+        return;
+      }
+      let errorMessage = 'No pudimos verificar tus datos.';
+      try {
+        const data = await res.json();
+        if (data && data.error) {
+          errorMessage = data.error;
+        }
+      } catch (parseErr) {
+        // Ignorar errores de parseo y usar el mensaje predeterminado.
+      }
+      msg.textContent = errorMessage;
+    } catch (err) {
+      msg.textContent = 'Error de conexión. Intenta nuevamente.';
+    }
+  };
+}
+
+/**
  * Carga el tablero de misiones según el estudiante.
  */
 async function loadDashboard() {
   const slug = localStorage.getItem('student_slug');
   const initialSlug = slug;
   if (!slug) {
-    renderEnrollForm();
+    renderAccessOptions();
     return;
   }
   const content = $('#content');
@@ -230,7 +287,7 @@ function renderDashboard(student, completed) {
   content.innerHTML = html;
   $('#logoutBtn').onclick = () => {
     localStorage.removeItem('student_slug');
-    renderEnrollForm();
+    renderAccessOptions();
   };
 }
 
@@ -274,6 +331,35 @@ async function verifyMission(missionId, resultContainer) {
   }
 }
 
+/**
+ * Muestra las opciones iniciales para matricularse o ingresar.
+ */
+function renderAccessOptions() {
+  const content = getContentContainer();
+  content.innerHTML = `
+    <section class="access-options">
+      <h2>Bienvenido al Portal de Misiones</h2>
+      <p>Selecciona una opción para continuar.</p>
+      <div class="access-options__actions">
+        <button id="accessEnrollBtn">Matricularme</button>
+        <button id="accessLoginBtn">Ya estoy matriculado</button>
+      </div>
+    </section>
+  `;
+  const enrollBtn = $('#accessEnrollBtn');
+  if (enrollBtn) {
+    enrollBtn.onclick = () => {
+      renderEnrollForm();
+    };
+  }
+  const loginBtn = $('#accessLoginBtn');
+  if (loginBtn) {
+    loginBtn.onclick = () => {
+      renderLoginForm();
+    };
+  }
+}
+
 // Al cargar la página, decide qué mostrar
 window.addEventListener('load', () => {
   const searchParams = new URLSearchParams(window.location.search);
@@ -290,7 +376,7 @@ window.addEventListener('load', () => {
     window.location.pathname === ''
   ) {
     if (!slug) {
-      renderEnrollForm();
+      renderAccessOptions();
     } else {
       loadDashboard();
     }
