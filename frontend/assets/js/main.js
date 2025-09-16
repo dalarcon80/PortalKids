@@ -98,10 +98,45 @@ async function loadDashboard() {
   content.innerHTML = '<p>Cargando tu información...</p>';
   try {
     const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`);
-    const data = await res.json();
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseError) {
+      data = {};
+    }
+    const backendMessage = typeof data.error === 'string' ? data.error : '';
+    const studentNotFound =
+      res.status === 404 && backendMessage.toLowerCase().includes('student not found');
     if (!res.ok) {
-      content.innerHTML = `<p>Error: ${data.error || 'No se encontró el estudiante.'}</p>`;
-      localStorage.removeItem('student_slug');
+      if (studentNotFound) {
+        localStorage.removeItem('student_slug');
+        content.innerHTML = `
+          <section class="status-error">
+            <p>No encontramos tu matrícula. Vuelve a matricularte para continuar.</p>
+            <button id="retryEnrollBtn">Matricularme de nuevo</button>
+          </section>
+        `;
+        const retryEnrollBtn = $('#retryEnrollBtn');
+        if (retryEnrollBtn) {
+          retryEnrollBtn.onclick = () => {
+            renderEnrollForm();
+          };
+        }
+        return;
+      }
+      const errorMessage = backendMessage || 'No pudimos obtener tu información en este momento.';
+      content.innerHTML = `
+        <section class="status-error">
+          <p>${errorMessage}</p>
+          <button id="retryStatusBtn">Reintentar</button>
+        </section>
+      `;
+      const retryBtn = $('#retryStatusBtn');
+      if (retryBtn) {
+        retryBtn.onclick = () => {
+          loadDashboard();
+        };
+      }
       return;
     }
     const student = data.student;
@@ -112,7 +147,18 @@ async function loadDashboard() {
     }
     renderDashboard(student, completed);
   } catch (err) {
-    content.innerHTML = '<p>Error al obtener el estado del usuario.</p>';
+    content.innerHTML = `
+      <section class="status-error">
+        <p>No pudimos comunicarnos con el servidor. Por favor verifica tu conexión e intenta nuevamente.</p>
+        <button id="retryStatusBtn">Reintentar</button>
+      </section>
+    `;
+    const retryBtn = $('#retryStatusBtn');
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        loadDashboard();
+      };
+    }
   }
 }
 
