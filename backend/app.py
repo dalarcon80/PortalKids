@@ -7,8 +7,8 @@ import time
 from typing import List, Tuple
 
 import bcrypt
-import psycopg
-from psycopg.rows import dict_row
+import pymysql
+from pymysql.cursors import DictCursor
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
@@ -34,9 +34,12 @@ class PasswordVerificationError(RuntimeError):
 
 def get_db_connection():
     db_config = {
-        "dbname": os.environ.get("DB_NAME"),
+        "database": os.environ.get("DB_NAME"),
         "user": os.environ.get("DB_USER"),
         "password": os.environ.get("DB_PASSWORD"),
+        "cursorclass": DictCursor,
+        "charset": "utf8mb4",
+        "autocommit": True,
     }
 
     missing = [key for key, value in db_config.items() if not value]
@@ -50,10 +53,10 @@ def get_db_connection():
 
     if host:
         db_config["host"] = host
-        db_config["port"] = os.environ.get("DB_PORT", "5432")
+        db_config["port"] = int(os.environ.get("DB_PORT", "3306"))
     elif instance_connection:
         socket_dir = os.environ.get("DB_SOCKET_DIR", "/cloudsql")
-        db_config["host"] = os.path.join(socket_dir, instance_connection)
+        db_config["unix_socket"] = os.path.join(socket_dir, instance_connection)
     else:
         raise RuntimeError("DB_HOST or DB_INSTANCE_CONNECTION_NAME must be provided.")
 
@@ -61,46 +64,62 @@ def get_db_connection():
     if connect_timeout:
         db_config["connect_timeout"] = int(connect_timeout)
 
-    sslmode = os.environ.get("DB_SSLMODE")
-    if sslmode:
-        db_config["sslmode"] = sslmode
-
-    return psycopg.connect(**db_config)
+    return pymysql.connect(**db_config)
 
 
 def init_db():
+    db_name = os.environ.get("DB_NAME")
+    if not db_name:
+        raise RuntimeError("DB_NAME must be configured before initializing the database.")
     with get_db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS students (
-                    slug TEXT PRIMARY KEY,
-                    name TEXT,
-                    role TEXT,
-                    workdir TEXT,
-                    email TEXT,
-                    password_hash TEXT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
+                    slug VARCHAR(255) PRIMARY KEY,
+                    name VARCHAR(255),
+                    role VARCHAR(100),
+                    workdir VARCHAR(255),
+                    email VARCHAR(255),
+                    password_hash VARCHAR(255),
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB
                 """
-            )
-            cur.execute(
-                "ALTER TABLE students ADD COLUMN IF NOT EXISTS email TEXT"
-            )
-            cur.execute(
-                "ALTER TABLE students ADD COLUMN IF NOT EXISTS password_hash TEXT"
             )
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS completed_missions (
-                    id BIGSERIAL PRIMARY KEY,
-                    student_slug TEXT NOT NULL REFERENCES students(slug) ON DELETE CASCADE,
-                    mission_id TEXT NOT NULL,
-                    completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    UNIQUE (student_slug, mission_id)
-                )
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    student_slug VARCHAR(255) NOT NULL,
+                    mission_id VARCHAR(255) NOT NULL,
+                    completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_student_mission (student_slug, mission_id),
+                    CONSTRAINT fk_completed_student
+                        FOREIGN KEY (student_slug)
+                        REFERENCES students(slug)
+                        ON DELETE CASCADE
+                ) ENGINE=InnoDB
                 """
             )
+            for column_name, column_definition in [
+                ("email", "VARCHAR(255)"),
+                ("password_hash", "VARCHAR(255)"),
+            ]:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) AS column_count
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = %s
+                      AND TABLE_NAME = 'students'
+                      AND COLUMN_NAME = %s
+                    """,
+                    (db_name, column_name),
+                )
+                result = cur.fetchone() or {}
+                if not result.get("column_count"):
+                    cur.execute(
+                        f"ALTER TABLE students ADD COLUMN {column_name} {column_definition}"
+                    )
 
 
 def hash_password(raw_password):
@@ -345,7 +364,7 @@ def api_status():
     try:
         init_db()
         with get_db_connection() as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
+            with conn.cursor() as cur:
                 cur.execute(
                     "SELECT slug, name, role, workdir, email, created_at FROM students WHERE slug = %s",
                     (slug,),
@@ -370,9 +389,9 @@ def api_students():
     try:
         init_db()
         with get_db_connection() as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
+            with conn.cursor() as cur:
                 cur.execute("SELECT slug, name FROM students ORDER BY name")
-                students = [dict(row) for row in cur.fetchall()]
+                students = list(cur.fetchall())
     except Exception as exc:
         print(f"Database error on /api/students: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
@@ -416,12 +435,12 @@ def api_enroll():
                     """
                     INSERT INTO students (slug, name, role, workdir, email, password_hash)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (slug) DO UPDATE
-                    SET name = EXCLUDED.name,
-                        role = EXCLUDED.role,
-                        workdir = EXCLUDED.workdir,
-                        email = EXCLUDED.email,
-                        password_hash = EXCLUDED.password_hash
+                    ON DUPLICATE KEY UPDATE
+                        name = VALUES(name),
+                        role = VALUES(role),
+                        workdir = VALUES(workdir),
+                        email = VALUES(email),
+                        password_hash = VALUES(password_hash)
                     """,
                     (slug, name, role, workdir, email, password_hash),
                 )
@@ -446,7 +465,7 @@ def api_login():
     try:
         init_db()
         with get_db_connection() as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
+            with conn.cursor() as cur:
                 cur.execute(
                     "SELECT slug, name, role, workdir, email, password_hash, created_at FROM students WHERE slug = %s",
                     (slug,),
@@ -510,7 +529,7 @@ def api_verify_mission():
     try:
         init_db()
         with get_db_connection() as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
+            with conn.cursor() as cur:
                 cur.execute("SELECT workdir FROM students WHERE slug = %s", (slug,))
                 row = cur.fetchone()
                 if not row:
@@ -546,9 +565,8 @@ def api_verify_mission():
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        INSERT INTO completed_missions (student_slug, mission_id)
+                        INSERT IGNORE INTO completed_missions (student_slug, mission_id)
                         VALUES (%s, %s)
-                        ON CONFLICT (student_slug, mission_id) DO NOTHING
                         """,
                         (slug, mission_id),
                     )
