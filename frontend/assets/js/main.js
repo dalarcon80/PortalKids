@@ -37,6 +37,8 @@ function renderEnrollForm() {
       <p>Ingresa tus datos para comenzar.</p>
       <form id="enrollForm">
         <label>Nombre:<br /><input type="text" id="name" required /></label><br />
+        <label>Correo electrónico:<br /><input type="email" id="email" required /></label><br />
+        <label>Contraseña:<br /><input type="password" id="password" required /></label><br />
         <label>Slug (sin espacios, ej: juan-perez):<br /><input type="text" id="slug" required /></label><br />
         <label>Rol:<br />
           <select id="role" required>
@@ -53,10 +55,12 @@ function renderEnrollForm() {
   $('#enrollForm').onsubmit = async (e) => {
     e.preventDefault();
     const name = $('#name').value.trim();
+    const email = $('#email').value.trim();
+    const password = $('#password').value;
     const slug = $('#slug').value.trim();
     const role = $('#role').value;
     const workdir = $('#workdir').value.trim();
-    if (!name || !slug || !role || !workdir) {
+    if (!name || !email || !password || !slug || !role || !workdir) {
       $('#enrollMsg').textContent = 'Todos los campos son obligatorios.';
       return;
     }
@@ -66,7 +70,7 @@ function renderEnrollForm() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, slug, role, workdir }),
+        body: JSON.stringify({ name, email, password, slug, role, workdir }),
       });
       const data = await res.json();
       if (res.ok) {
