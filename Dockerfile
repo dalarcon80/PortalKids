@@ -17,5 +17,5 @@ COPY frontend/ ./frontend/
 # Set the port the container will listen on
 ENV PORT 8080
 
-# Command to run the application
-CMD ["python", "backend/app.py"]
+# Command to run the application using Gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:8080", "backend.app:app"]
