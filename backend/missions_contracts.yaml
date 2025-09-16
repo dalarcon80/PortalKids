@@ -1,0 +1,93 @@
+m1:
+  verification_type: evidence
+  deliverables:
+    - type: file_exists
+      path: "docs/m1_vscode_ok.txt"
+      feedback_fail: "No encontré tu archivo 'm1_vscode_ok.txt' en la carpeta 'docs'."
+    - type: file_contains
+      path: "docs/m1_workspace_ok.txt"
+      content: "workspace: C:\\MinecraftShop\\minecraft_shop_project"
+      feedback_fail: "El archivo 'm1_workspace_ok.txt' no contiene la línea exacta requerida."
+    - type: file_exists
+      path: "docs/m1_notes.md"
+      feedback_fail: "No encontré tus notas de investigación m1."
+
+m2:
+  verification_type: evidence
+  deliverables:
+    - type: file_exists
+      path: "docs/m2_python_version.txt"
+      feedback_fail: "No encontré tu archivo 'm2_python_version.txt'."
+    - type: file_contains
+      path: "docs/m2_python_version.txt"
+      content: "Python"
+      feedback_fail: "El archivo 'm2_python_version.txt' no contiene la palabra 'Python'."
+    - type: file_exists
+      path: "docs/m2_hello.txt"
+      feedback_fail: "No encontré tu archivo 'm2_hello.txt'."
+    - type: file_exists
+      path: "docs/m2_notes.md"
+      feedback_fail: "No encontré tus notas de investigación m2."
+
+m3:
+  verification_type: script_output
+  script_path: "scripts/m3_explorer.py"
+  validations:
+    - type: output_contains
+      text: "Shape: "
+      feedback_fail: "La salida de tu script no muestra el 'shape' correcto de los datos."
+    - type: output_contains
+      text: "Columns:"
+      feedback_fail: "La lista de columnas en la salida de tu script no es la esperada."
+
+m4:
+  verification_type: evidence
+  deliverables:
+    - type: file_exists
+      path: "reports/m4_preview.txt"
+      feedback_fail: "No encontré el archivo de preview de Bronze (m4_preview.txt)."
+    - type: file_exists
+      path: "reports/m4_verify.txt"
+      feedback_fail: "No encontré tu archivo de verificación m4 (m4_verify.txt)."
+
+m5:
+  verification_type: llm_evaluation
+  deliverable_path: "docs/m5_notes.md"
+  expected_keywords:
+    - "limpieza"
+    - "tipos"
+    - "duplicados"
+  feedback_fail: "La evaluación automática de tus notas indica que necesitan más detalle o claridad en limpieza, tipos y duplicados."
+
+m6v:
+  verification_type: evidence
+  deliverables:
+    - type: file_exists
+      path: "data/gold/ventas_por_dia.csv"
+      feedback_fail: "No encontré tu archivo 'ventas_por_dia.csv' en data/gold."
+    - type: file_exists
+      path: "data/gold/top_productos.csv"
+      feedback_fail: "No encontré tu archivo 'top_productos.csv' en data/gold."
+    - type: file_exists
+      path: "data/gold/ventas_por_ciudad.csv"
+      feedback_fail: "No encontré tu archivo 'ventas_por_ciudad.csv' en data/gold."
+
+m6o:
+  verification_type: evidence
+  deliverables:
+    - type: file_exists
+      path: "data/gold/envios_por_ciudad.csv"
+      feedback_fail: "No encontré tu archivo 'envios_por_ciudad.csv' en data/gold."
+    - type: file_exists
+      path: "data/gold/envios_por_dia.csv"
+      feedback_fail: "No encontré tu archivo 'envios_por_dia.csv' en data/gold."
+    - type: file_exists
+      path: "data/gold/backlog_por_dia.csv"
+      feedback_fail: "No encontré tu archivo 'backlog_por_dia.csv' en data/gold."
+
+m7:
+  verification_type: evidence
+  deliverables:
+    - type: file_exists
+      path: "reports/BlockCorp.pbix"
+      feedback_fail: "No encontré tu informe de Power BI (BlockCorp.pbix)."

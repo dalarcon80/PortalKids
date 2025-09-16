@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M7 — Consejo de la Tienda</title>
+  <!--  <link rel="stylesheet" href="assets/css/style.css" />
+  <!--  <link rel="stylesheet" href="assets/css/style.css" />-->
+  <link rel="stylesheet" href="assets/css/style-dark.css">
+</head>
+<body>
+  <header class="portal-header">
+    <div class="portal-header__top">
+      <div class="portal-header__brand">
+        <span class="portal-header__logo" aria-hidden="true">BC</span>
+        <div class="portal-header__brand-text">
+          <span class="portal-header__brand-title">Portal de Misiones</span>
+          <span class="portal-header__brand-subtitle">BlockCorp</span>
+        </div>
+      </div>
+      <nav class="portal-header__nav" aria-label="Navegación principal">
+        <a class="portal-header__link" href="/index.html">Inicio</a>
+        <a class="portal-header__link"
+           href="#"
+           onclick="localStorage.removeItem('student_slug'); renderEnrollForm(); return false;">
+          Inscribirme
+        </a>
+      </nav>
+      <div class="portal-header__user">
+        <div class="portal-header__user-info">
+          <span class="portal-header__user-label">Sesión activa</span>
+          <span class="portal-header__user-name">agente.nova</span>
+        </div>
+        <div class="portal-header__actions">
+          <button class="portal-header__action portal-header__action--ghost" type="button">
+            Centro de ayuda
+          </button>
+          <button class="portal-header__action" type="button">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="portal-header__body">
+      <h1 class="portal-header__heading">M7 — Consejo de la Tienda (Power BI)</h1>
+    </div>
+  </header>
+  <main>
+    <section class="mission">
+      <h2>Historia</h2>
+      <p>La última sala es un auditorio. El Consejo de la Tienda aguarda. “Llegaron hasta aquí porque supieron preparar su taller, leer cofres, copiar con cuidado, limpiar con criterio y medir con precisión”, sonríe Byte.</p>
+      <p>“Ahora deben contar la historia con claridad. Un buen gráfico no grita, aclara. Elijan barras cuando comparen cantidades por categoría; usen líneas cuando la fecha marque el ritmo. Revisen que los números del panel coincidan con sus CSV y concluyan con recomendaciones concretas. Lo que no se entiende, no se ejecuta. Hoy ustedes transforman datos en decisiones.”</p>
+      <h2>¿Para qué sirve?</h2>
+      <p>Comunicar con claridad: convertir métricas en gráficos simples y en un informe con 3 recomendaciones.</p>
+      <h2>Al final podrás…</h2>
+      <ul>
+        <li>Importar CSV de Gold en Power BI.</li>
+        <li>Construir 2 visuales legibles por rol.</li>
+        <li>Verificar números y redactar un informe breve con 3 acciones.</li>
+      </ul>
+      <h2>Videos</h2>
+      <ul>
+        <li><a href="https://www.youtube.com/watch?v=8LU3gjaPtaE" target="_blank">Conectar Power BI con archivo CSV</a></li>
+        <li><a href="https://www.youtube.com/watch?v=LQzh0XG_MZA" target="_blank">Importar CSV a Power BI Desktop</a></li>
+        <li><a href="https://www.youtube.com/watch?v=rNasYMbzPrY" target="_blank">Gráfico de barras: cuándo usar</a></li>
+        <li><a href="https://www.youtube.com/watch?v=D70LOsWSsBs" target="_blank">Gráfico de líneas: conceptos básicos</a></li>
+        <li><a href="https://www.youtube.com/watch?v=LuOHufhVmEU" target="_blank">Etiquetas y buenas prácticas</a></li>
+      </ul>
+      <h2>Investigación — Fichas</h2>
+      <p>Completa 3 fichas: Importar CSV, Barras vs Líneas, 3 reglas de presentación. Para cada ficha incluye:</p>
+      <ul>
+        <li>Definición</li>
+        <li>Ejemplo en este proyecto (qué gráfico usarás y por qué)</li>
+        <li>Error común (por ejemplo, ejes mal elegidos)</li>
+        <li>Fuente vista</li>
+      </ul>
+      <h2>Práctica — Contrato</h2>
+      <p><strong>Entrada:</strong> CSV de tu rol en <code>data/gold/</code>.</p>
+      <p><strong>Logro:</strong> 2 visuales mínimos por rol, con títulos/ejes/etiquetas correctos y validación numérica contra CSV.</p>
+      <p><strong>Salida:</strong> <code>reports/BlockCorp.pbix</code>.</p>
+      <h2>Parte aplicada (detallada)</h2>
+      <p><strong>Situación:</strong> El Consejo tomará decisiones a partir de tu informe.</p>
+      <p><strong>Qué debes hacer:</strong></p>
+      <ul>
+        <li><strong>Ventas:</strong> Barras por <code>order_date</code> con <code>total_ingreso</code> + línea con <code>total_items</code>; valida sumas totales con una tarjeta/tabla.</li>
+        <li><strong>Operaciones:</strong> Barras por <code>city</code> con envíos + línea por <code>order_date</code> con envíos y pendientes; valida totales contra CSV.</li>
+        <li>Revisa legibilidad: títulos claros, ejes correctos, etiquetas visibles.</li>
+        <li>Escribe <code>tasks/final_report.md</code> con Bronze (qué copiaste) → Silver (qué limpiaste) → Gold (qué uniste/mediste) → 3 recomendaciones concretas (qué, dónde, cuándo).</li>
+      </ul>
+      <p><strong>Criterio de aceptación:</strong> visuales consistentes con CSV, informe con 3 acciones accionables.</p>
+      <h2>Entregables</h2>
+      <p>reports/BlockCorp.pbix, docs/m7_notes.md, tasks/final_report.md.</p>
+      <h2>Verificación</h2>
+      <p>Archivo BlockCorp.pbix existe.</p>
+      <h2>Micro‑quiz (5)</h2>
+      <ol>
+        <li>¿Cómo importas un CSV en Power BI?</li>
+        <li>¿Cuándo usar un gráfico de barras y cuándo uno de líneas?</li>
+        <li>¿Por qué validar cifras con el CSV original?</li>
+        <li>Menciona una regla de presentación efectiva.</li>
+        <li>¿Qué recomendaciones podrías dar al Consejo?</li>
+      </ol>
+      <h2>Checklist</h2>
+      <ul>
+        <li>Videos vistos</li>
+        <li>Fichas completadas</li>
+        <li>Visuales creados</li>
+        <li>Informe escrito</li>
+      </ul>
+      <h2>Rúbrica (10)</h2>
+      <ul>
+        <li>Fichas (3)</li>
+        <li>Práctica (4)</li>
+        <li>Evidencias (2)</li>
+        <li>Orden (1)</li>
+      </ul>
+      <h2>Errores comunes</h2>
+      <ul>
+        <li>No validar cifras con el CSV</li>
+        <li>Usar el tipo de gráfico incorrecto</li>
+        <li>Etiquetas o ejes confusos</li>
+      </ul>
+    </section>
+    <section class="verification">
+      <button id="verifyBtn">Verificar y Entregar Misión</button>
+      <div id="verifyResult"></div>
+    </section>
+  </main>
+  <script src="assets/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const resultDiv = document.getElementById('verifyResult');
+      document.getElementById('verifyBtn').addEventListener('click', () => {
+        verifyMission('m7', resultDiv);
+      });
+    });
+  </script>
+</body>
+</html>

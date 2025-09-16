@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M1 — La Puerta de la Base</title>
+ <!--   <link rel="stylesheet" href="assets/css/style.css" /> />-->
+  <link rel="stylesheet" href="assets/css/style-dark.css" />
+ 
+</head>
+<body>
+  <header class="portal-header">
+    <div class="portal-header__top">
+      <div class="portal-header__brand">
+        <span class="portal-header__logo" aria-hidden="true">BC</span>
+        <div class="portal-header__brand-text">
+          <span class="portal-header__brand-title">Portal de Misiones</span>
+          <span class="portal-header__brand-subtitle">BlockCorp</span>
+        </div>
+      </div>
+      <nav class="portal-header__nav" aria-label="Navegación principal">
+        <a class="portal-header__link" href="/index.html">Inicio</a>
+        <a class="portal-header__link"
+           href="#"
+           onclick="localStorage.removeItem('student_slug'); renderEnrollForm(); return false;">
+          Inscribirme
+        </a>
+      </nav>
+      <div class="portal-header__user">
+        <div class="portal-header__user-info">
+          <span class="portal-header__user-label">Sesión activa</span>
+          <span class="portal-header__user-name">agente.nova</span>
+        </div>
+        <div class="portal-header__actions">
+          <button class="portal-header__action portal-header__action--ghost" type="button">
+            Centro de ayuda
+          </button>
+          <button class="portal-header__action" type="button">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="portal-header__body">
+      <h1 class="portal-header__heading">M1 — La Puerta de la Base (VS Code + Python)</h1>
+    </div>
+  </header>
+  <main>
+    <section class="mission">
+      <h2>Historia</h2>
+      <p>La Base Central se ilumina cuando llegan. En el centro, una mesa con dos piezas clave: una libreta brillante y un cristal con forma de serpiente.</p>
+      <p>“Bienvenidos”, dice el Mentor Byte. “Antes de abrir los cofres de datos, necesitamos un taller confiable. La libreta es VS Code, tu cuaderno inteligente para escribir instrucciones claras. El cristal es Python, el intérprete que entiende y ejecuta tu lenguaje. Sin estas dos piezas, el mapa de la tienda es solo ruido.”</p>
+      <p>Byte señala una compu: “Hoy aprenderán a confiar su carpeta del proyecto, abrirán la terminal en el lugar correcto y registrarán la versión de sus herramientas. Cuando el taller queda listo, todo lo demás es más fácil: los comandos funcionan, los archivos aparecen donde deben y ustedes avanzan sin perderse.”</p>
+      <h2>¿Para qué sirve?</h2>
+      <p>VS Code es el cuaderno inteligente para escribir programas. Python ejecuta tu código. Sin estas dos piezas no podrás leer ni transformar datos del caso real.</p>
+      <h2>Al final podrás…</h2>
+      <ul>
+        <li>Abrir la carpeta del proyecto en VS Code y confiarla.</li>
+        <li>Abrir una terminal integrada en la ruta correcta.</li>
+        <li>Ver la versión de VS Code y de Python.</li>
+        <li>Dejar evidencias en docs.</li>
+      </ul>
+      <h2>Videos</h2>
+      <ul>
+        <li><a href="https://www.youtube.com/watch?v=CxF3ykWP1H4" target="_blank">VS Code (introducción para principiantes)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=fg6dVf-aHqk" target="_blank">Instalar VS Code en Windows 11 (paso a paso)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=3xQRR3iNqDQ" target="_blank">¿Qué es la terminal/PowerShell?</a></li>
+        <li><a href="https://www.youtube.com/watch?v=M9YRgYe4FPg" target="_blank">¿Qué es el PATH en Windows?</a></li>
+        <li><a href="https://www.youtube.com/watch?v=eqm_D-vrfPo" target="_blank">Intérprete de Python (explicado)</a></li>
+      </ul>
+      <h2>Investigación — Fichas</h2>
+      <p>Completa 5 fichas: editor, VS Code, intérprete, PATH, terminal. Para cada ficha incluye en bullets:</p>
+      <ul>
+        <li>Definición (1–2 líneas, en tus palabras)</li>
+        <li>Ejemplo en este proyecto</li>
+        <li>Error común</li>
+        <li>Fuente vista (video)</li>
+      </ul>
+      <h2>Práctica — Contrato</h2>
+      <p><strong>Entrada:</strong> C:\\MinecraftShop\\minecraft_shop_project.</p>
+      <p><strong>Logro:</strong> taller listo y evidencias.</p>
+      <p><strong>Salidas:</strong></p>
+      <ul>
+        <li><code>docs/m1_vscode_ok.txt</code> (escribe la versión de VS Code)</li>
+        <li><code>docs/m1_workspace_ok.txt</code> con la línea exacta: <code>workspace: C:\\MinecraftShop\\minecraft_shop_project</code></li>
+        <li><code>docs/m1_notes.md</code> (tus 5 fichas)</li>
+      </ul>
+      <h2>Parte aplicada (detallada, sin código)</h2>
+      <p><strong>Situación:</strong> necesitarás ejecutar comandos del proyecto (activar el venv, correr scripts) siempre desde la carpeta correcta.</p>
+      <p><strong>Qué debes hacer hoy:</strong></p>
+      <ul>
+        <li>Verifica que la terminal integrada abre en la ruta del proyecto; si no, muévela a esa carpeta y anota el comando que usaste.</li>
+        <li>Comprueba que VS Code está en PATH (puedes ver la versión por terminal o desde “Ayuda → Acerca de”).</li>
+        <li>Documenta en <code>m1_notes.md</code> cualquier ajuste que hiciste (1–2 líneas).</li>
+      </ul>
+      <p><strong>Meta de calidad:</strong> que mañana puedas crear el venv (M2) sin errores por rutas o PATH.</p>
+      <h2>Entregables</h2>
+      <p><code>m1_vscode_ok.txt</code>, <code>m1_workspace_ok.txt</code>, <code>m1_notes.md</code>.</p>
+      <h2>Verificación</h2>
+      <p>Terminal en la ruta del proyecto; 3 archivos existen; la línea exacta está correcta.</p>
+      <h2>Micro‑quiz (5)</h2>
+      <ol>
+        <li>¿Qué es el PATH?</li>
+        <li>Editor vs intérprete</li>
+        <li>¿Para qué sirve la terminal integrada?</li>
+        <li>¿Qué pasa si VS Code no está en PATH?</li>
+        <li>¿Por qué confiar la carpeta?</li>
+      </ol>
+      <h2>Checklist</h2>
+      <ul>
+        <li>Vi los videos</li>
+        <li>5 fichas completas</li>
+        <li>3 evidencias</li>
+        <li>Ruta verificada</li>
+      </ul>
+      <h2>Rúbrica (10)</h2>
+      <ul>
+        <li>Fichas (3)</li>
+        <li>Práctica (4)</li>
+        <li>Evidencias (2)</li>
+        <li>Orden (1)</li>
+      </ul>
+      <h2>Errores comunes</h2>
+      <ul>
+        <li>VS Code fuera de PATH</li>
+        <li>Terminal abierta en otra ruta</li>
+      </ul>
+    </section>
+    <section class="verification">
+      <button id="verifyBtn">Verificar y Entregar Misión</button>
+      <div id="verifyResult"></div>
+    </section>
+  </main>
+  <script src="assets/js/main.js"></script>
+  <script>
+    // Comprueba acceso y configura el botón de verificación
+    document.addEventListener('DOMContentLoaded', () => {
+      const resultDiv = document.getElementById('verifyResult');
+      const btn = document.getElementById('verifyBtn');
+      btn.addEventListener('click', () => {
+        verifyMission('m1', resultDiv);
+      });
+    });
+  </script>
+</body>
+</html>

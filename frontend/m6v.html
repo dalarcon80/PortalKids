@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M6 — Gold Ventas: Une y mide</title>
+ <!-- <link rel="stylesheet" href="assets/css/style.css" />
+  <!--  <link rel="stylesheet" href="assets/css/style.css" />-->
+  <link rel="stylesheet" href="assets/css/style-dark.css">
+</head>
+<body>
+  <header class="portal-header">
+    <div class="portal-header__top">
+      <div class="portal-header__brand">
+        <span class="portal-header__logo" aria-hidden="true">BC</span>
+        <div class="portal-header__brand-text">
+          <span class="portal-header__brand-title">Portal de Misiones</span>
+          <span class="portal-header__brand-subtitle">BlockCorp</span>
+        </div>
+      </div>
+      <nav class="portal-header__nav" aria-label="Navegación principal">
+        <a class="portal-header__link" href="/index.html">Inicio</a>
+        <a class="portal-header__link"
+           href="#"
+           onclick="localStorage.removeItem('student_slug'); renderEnrollForm(); return false;">
+          Inscribirme
+        </a>
+      </nav>
+      <div class="portal-header__user">
+        <div class="portal-header__user-info">
+          <span class="portal-header__user-label">Sesión activa</span>
+          <span class="portal-header__user-name">agente.nova</span>
+        </div>
+        <div class="portal-header__actions">
+          <button class="portal-header__action portal-header__action--ghost" type="button">
+            Centro de ayuda
+          </button>
+          <button class="portal-header__action" type="button">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="portal-header__body">
+      <h1 class="portal-header__heading">M6 — Gold (VENTAS): Une y mide</h1>
+    </div>
+  </header>
+  <main>
+    <section class="mission">
+      <h2>Historia</h2>
+      <p>Llegan al Salón del Mercado. Tres caminos desembocan en una mesa de unión: pedidos, productos y clientes. “El consejo no quiere anécdotas; quiere medidas”, dice Byte. “En Gold (Ventas) unirás con joins left para no perder pedidos. Crearás la runa clave: ingreso = quantity × price. Luego generarás ventas por día, top productos y ventas por ciudad. Si un nombre de producto o una ciudad aparece vacío, la historia está incompleta: revisa claves y tipo de join.”</p>
+      <h2>¿Para qué sirve?</h2>
+      <p>Integrar tablas para calcular ingreso y generar métricas útiles.</p>
+      <h2>Al final podrás…</h2>
+      <ul>
+        <li>Hacer joins left con claves correctas.</li>
+        <li>Crear ingreso = quantity * price.</li>
+        <li>Generar 3 métricas y documentar el modelo.</li>
+      </ul>
+      <h2>Videos</h2>
+      <ul>
+        <li><a href="https://www.youtube.com/watch?v=mEmNiPoqKAo" target="_blank">merge (joins) en pandas</a></li>
+        <li><a href="https://www.youtube.com/watch?v=THh7H3ZsSbE" target="_blank">groupby (sum, count, ordenar)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=vFn1y47SXRU" target="_blank">PK/FK (llave primaria y foránea)</a></li>
+        <li><a href="https://pandas.pydata.org/docs/reference/api/pandas.merge.html" target="_blank">pandas.merge (oficial)</a></li>
+      </ul>
+      <h2>Investigación — Fichas</h2>
+      <p>Completa 4 fichas: PK/FK, merge left on, groupby, ingreso. Para cada ficha incluye: definición, ejemplo en este proyecto, error común, fuente vista. Además, redacta tu plan (6–8 líneas): orden de uniones, columna ingreso, métricas y archivos.</p>
+      <h2>Práctica — Contrato</h2>
+      <p><strong>Entrada:</strong> (Silver Ventas): orders_v_clean.csv, products_v_clean.csv, customers_v_clean.csv.</p>
+      <p><strong>Logro:</strong> en <code>data/gold/</code>:</p>
+      <ul>
+        <li><code>ventas_por_dia.csv</code> (por order_date: total_items, total_pedidos, total_ingreso)</li>
+        <li><code>top_productos.csv</code> (por product_id/product_name: total_items, total_ingreso, ranking desc)</li>
+        <li><code>ventas_por_ciudad.csv</code> (por city: total_items, total_pedidos, total_ingreso)</li>
+        <li><code>v_model.json</code> (fuentes, joins, métricas, fórmula)</li>
+      </ul>
+      <h2>Parte aplicada (detallada)</h2>
+      <p><strong>Situación:</strong> el Consejo pedirá las 3 vistas para evaluar decisiones.</p>
+      <p><strong>Qué debes hacer:</strong></p>
+      <ul>
+        <li>Verifica que los joins sean left (no pierdas pedidos) y que los campos clave (product_id, customer_id) coincidan en nombre y tipo.</li>
+        <li>Valida ingreso en una muestra (toma 2–3 filas y calcula a mano).</li>
+        <li>Ordena correctamente (por fecha en ventas por día; por ingreso desc en top productos).</li>
+        <li>Revisa nulos en product_name o city; si los hay, ajusta el plan de uniones y documenta la causa y solución (2–3 líneas).</li>
+      </ul>
+      <p><strong>Criterio de aceptación:</strong> métricas coherentes, ranking correcto, <code>v_model.json</code> claro.</p>
+      <h2>Entregables</h2>
+      <p>ventas_por_dia.csv, top_productos.csv, ventas_por_ciudad.csv, v_model.json, docs/m6_ventas_notes.md.</p>
+      <h2>Verificación</h2>
+      <p>Archivos de ventas por día, top productos y ventas por ciudad existen.</p>
+      <h2>Micro‑quiz (5)</h2>
+      <ol>
+        <li>¿Qué es un join left?</li>
+        <li>¿Cómo calculas el ingreso?</li>
+        <li>¿Para qué sirve groupby?</li>
+        <li>¿Qué es una clave primaria y foránea?</li>
+        <li>¿Por qué ordenar por ingreso descendente en top productos?</li>
+      </ol>
+      <h2>Checklist</h2>
+      <ul>
+        <li>Videos vistos</li>
+        <li>Fichas completadas</li>
+        <li>Plan redactado</li>
+        <li>Archivos generados</li>
+      </ul>
+      <h2>Rúbrica (10)</h2>
+      <ul>
+        <li>Fichas (3)</li>
+        <li>Práctica (4)</li>
+        <li>Evidencias (2)</li>
+        <li>Orden (1)</li>
+      </ul>
+      <h2>Errores comunes</h2>
+      <ul>
+        <li>Usar join inner y perder pedidos</li>
+        <li>No validar el cálculo de ingreso</li>
+        <li>No ordenar correctamente los rankings</li>
+      </ul>
+    </section>
+    <section class="verification">
+      <button id="verifyBtn">Verificar y Entregar Misión</button>
+      <div id="verifyResult"></div>
+    </section>
+  </main>
+  <script src="assets/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const resultDiv = document.getElementById('verifyResult');
+      document.getElementById('verifyBtn').addEventListener('click', () => {
+        verifyMission('m6v', resultDiv);
+      });
+    });
+  </script>
+</body>
+</html>

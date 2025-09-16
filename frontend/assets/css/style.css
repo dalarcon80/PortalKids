@@ -1,0 +1,259 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
+
+:root {
+  --bg: #f4f6fb;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --card-bg: #ffffff;
+  --card-border: rgba(15, 23, 42, 0.08);
+  --card-shadow: 0 18px 45px -20px rgba(15, 23, 42, 0.45);
+  --card-shadow-hover: 0 22px 60px -24px rgba(15, 23, 42, 0.6);
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-contrast: #f8fafc;
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
+  --locked-bg: #f8fafc;
+  --locked-border: rgba(148, 163, 184, 0.4);
+  --unlocked-bg: #eff6ff;
+  --unlocked-border: rgba(37, 99, 235, 0.35);
+  --completed-bg: #ecfdf5;
+  --completed-border: rgba(22, 163, 74, 0.45);
+  --radius: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  background: linear-gradient(135deg, var(--accent), #1e3a8a);
+  color: var(--accent-contrast);
+  padding: 2.5rem 1rem;
+  text-align: center;
+  box-shadow: 0 18px 35px -24px rgba(15, 23, 42, 0.65);
+}
+
+header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  font-weight: 700;
+}
+
+main {
+  padding: clamp(1.5rem, 3vw, 3rem) 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+section.enroll,
+section.dashboard,
+section.mission {
+  background-color: var(--card-bg);
+  padding: clamp(1.75rem, 2.5vw, 2.5rem);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--card-border);
+}
+
+section.enroll h2,
+section.dashboard h2,
+section.mission h2 {
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  font-size: clamp(1.5rem, 2vw, 1.75rem);
+  font-weight: 700;
+}
+
+section.enroll p,
+section.dashboard p,
+section.mission p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--muted);
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+form input,
+form select,
+form button {
+  padding: 0.75rem 0.9rem;
+  margin-top: 0.45rem;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background-color: #f9fafc;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+form input,
+form select {
+  color: var(--text);
+}
+
+form input:focus,
+form select:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.6);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  background-color: #ffffff;
+}
+
+form button {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 15px 35px -18px rgba(37, 99, 235, 0.75);
+}
+
+form button:hover {
+  background-color: var(--accent-hover);
+}
+
+.missions-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.25rem;
+}
+
+.missions-grid > li {
+  list-style: none;
+  margin: 0;
+}
+
+.mission-card {
+  padding: 1.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  background-color: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  color: var(--text);
+}
+
+.mission-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--card-shadow-hover);
+}
+
+.mission-card a {
+  text-decoration: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.mission-card a:hover {
+  color: var(--accent-hover);
+}
+
+.mission-card .status {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mission-card.locked {
+  background-color: var(--locked-bg);
+  border-color: var(--locked-border);
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.mission-card.locked a {
+  color: var(--muted);
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.mission-card.locked .status {
+  color: var(--muted);
+}
+
+.mission-card.unlocked {
+  background-color: var(--unlocked-bg);
+  border-color: var(--unlocked-border);
+}
+
+.mission-card.unlocked .status {
+  color: var(--warning);
+}
+
+.mission-card.completed {
+  background-color: var(--completed-bg);
+  border-color: var(--completed-border);
+}
+
+.mission-card.completed .status {
+  color: var(--success);
+}
+
+.success {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.fail {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+button#logoutBtn {
+  margin-top: 1.5rem;
+  background-color: var(--danger);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 12px 30px -18px rgba(220, 38, 38, 0.75);
+}
+
+button#logoutBtn:hover {
+  background-color: #b91c1c;
+}
+
+@media (max-width: 640px) {
+  header {
+    padding: 2rem 1rem;
+  }
+
+  main {
+    padding: 1.5rem 1rem 2rem;
+  }
+
+  .missions-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+}

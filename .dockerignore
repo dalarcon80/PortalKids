@@ -1,0 +1,32 @@
+# Ignore Python cache and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# Ignore virtual environments
+.venv/
+env/
+.venv.bak/
+
+# Ignore git files and OS-specific files
+.git/
+.gitignore
+*.DS_Store
+
+# Ignore archives
+*.zip
+*.tar
+*.gz
+
+# Ignore editor and IDE files
+.vscode/
+.idea/
+
+# Ignore node modules if accidentally included
+node_modules/
+
+# Legacy directory from previous builds
+portal_educativo/

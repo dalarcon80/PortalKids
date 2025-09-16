@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M2 — Despierta a tu Aliado</title>
+  <!-- <link rel="stylesheet" href="assets/css/style.css" />
+   <!--  <link rel="stylesheet" href="assets/css/style.css" />-->
+  <link rel="stylesheet" href="assets/css/style-dark.css" />
+</head>
+<body>
+  <header class="portal-header">
+    <div class="portal-header__top">
+      <div class="portal-header__brand">
+        <span class="portal-header__logo" aria-hidden="true">BC</span>
+        <div class="portal-header__brand-text">
+          <span class="portal-header__brand-title">Portal de Misiones</span>
+          <span class="portal-header__brand-subtitle">BlockCorp</span>
+        </div>
+      </div>
+      <nav class="portal-header__nav" aria-label="Navegación principal">
+        <a class="portal-header__link" href="/index.html">Inicio</a>
+        <a class="portal-header__link"
+           href="#"
+           onclick="localStorage.removeItem('student_slug'); renderEnrollForm(); return false;">
+          Inscribirme
+        </a>
+      </nav>
+      <div class="portal-header__user">
+        <div class="portal-header__user-info">
+          <span class="portal-header__user-label">Sesión activa</span>
+          <span class="portal-header__user-name">agente.nova</span>
+        </div>
+        <div class="portal-header__actions">
+          <button class="portal-header__action portal-header__action--ghost" type="button">
+            Centro de ayuda
+          </button>
+          <button class="portal-header__action" type="button">
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="portal-header__body">
+      <h1 class="portal-header__heading">M2 — Despierta a tu Aliado (venv)</h1>
+    </div>
+  </header>
+  <main>
+    <section class="mission">
+      <h2>Historia</h2>
+      <p>En una sala contigua, Byte abre un armario con frascos parecidos: “A simple vista, todos son Python, pero cada proyecto necesita su propio espacio para no mezclar recetas”. Señala un círculo protector: “Ese campo es tu .venv. Dentro de él, pip instala ingredientes exactos sin contaminar otras recetas.</p>
+      <p>“¿Ves el anillo (.venv) al inicio de la terminal? Es la marca de que estás dentro del cuarto seguro. Y en VS Code debes elegir el intérprete correcto para que el editor use ese mismo Python. Si hoy aprendes a activar tu aliado y a apuntar a él, mañana podrás instalar librerías sin romper nada.”</p>
+      <h2>¿Para qué sirve?</h2>
+      <p>Aísla dependencias y evita conflictos entre proyectos. pip instala dentro del venv activo y VS Code usa ese intérprete.</p>
+      <h2>Al final podrás…</h2>
+      <ul>
+        <li>Crear y activar .venv.</li>
+        <li>Seleccionar en VS Code el intérprete del venv.</li>
+        <li>Registrar la versión de Python y crear un archivo hello.</li>
+      </ul>
+      <h2>Videos</h2>
+      <ul>
+        <li><a href="https://www.youtube.com/watch?v=MmUKJqjPiHo" target="_blank">Crear/activar venv (Windows)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=XTmS37AxM3Q" target="_blank">ExecutionPolicy: habilitar scripts en PowerShell</a></li>
+        <li><a href="https://www.youtube.com/watch?v=k_istKV16dg" target="_blank">¿Qué es pip y cómo usarlo?</a></li>
+        <li><a href="https://www.youtube.com/watch?v=eFThEXvuZaM" target="_blank">VS Code: seleccionar intérprete de Python</a></li>
+      </ul>
+      <h2>Investigación — Fichas</h2>
+      <p>Completa 3 fichas: venv, pip, selección de intérprete. Para cada ficha incluye:</p>
+      <ul>
+        <li>Definición en tus palabras</li>
+        <li>Ejemplo en este proyecto (qué harás con ello)</li>
+        <li>Error común (por ejemplo, instalar fuera de .venv)</li>
+        <li>Fuente vista (video)</li>
+        <li>Señal de activación: anota cómo se ve (.venv) en el prompt</li>
+      </ul>
+      <h2>Práctica — Contrato</h2>
+      <p><strong>Entrada:</strong> terminal en la carpeta del proyecto.</p>
+      <p><strong>Logro:</strong> .venv creado/activo y VS Code apuntando a ese intérprete.</p>
+      <p><strong>Salidas:</strong></p>
+      <ul>
+        <li><code>docs/m2_python_version.txt</code> (versión de Python)</li>
+        <li><code>docs/m2_hello.txt</code> (“Hello VS Code”)</li>
+        <li>(Opcional) <code>.vscode/settings.json</code> con el intérprete</li>
+        <li><code>docs/m2_notes.md</code> (tus 3 fichas)</li>
+      </ul>
+      <h2>Parte aplicada (detallada)</h2>
+      <p><strong>Situación:</strong> a partir de M3 instalarás pandas; si el intérprete no es el del venv, fallará.</p>
+      <p><strong>Qué debes hacer hoy:</strong></p>
+      <ul>
+        <li>Comprueba que al ejecutar comandos ves el prefijo (.venv).</li>
+        <li>Cambia el intérprete en VS Code si aún no apunta a .venv.</li>
+        <li>Anota un comando que confirme dónde está tu Python (por ejemplo, el que lista la ruta del intérprete) y qué salida obtuviste (1–2 líneas en tus notas).</li>
+      </ul>
+      <p><strong>Meta de calidad:</strong> mañana podrás instalar librerías y correr tus scripts dentro del venv.</p>
+      <h2>Entregables</h2>
+      <p>m2_python_version.txt, m2_hello.txt, (opcional) .vscode/settings.json, m2_notes.md.</p>
+      <h2>Verificación</h2>
+      <p>Terminal con prefijo (.venv); archivos existen.</p>
+      <h2>Micro‑quiz (5)</h2>
+      <ol>
+        <li>¿Para qué sirve un entorno virtual (.venv)?</li>
+        <li>¿Qué hace pip?</li>
+        <li>¿Cómo seleccionas el intérprete correcto en VS Code?</li>
+        <li>¿Por qué es importante activar el venv antes de instalar librerías?</li>
+        <li>¿Cómo sabes si estás dentro del venv?</li>
+      </ol>
+      <h2>Checklist</h2>
+      <ul>
+        <li>Videos vistos</li>
+        <li>Fichas completadas</li>
+        <li>Entorno .venv creado y activo</li>
+        <li>Interprete seleccionado en VS Code</li>
+      </ul>
+      <h2>Rúbrica (10)</h2>
+      <ul>
+        <li>Fichas (3)</li>
+        <li>Práctica (4)</li>
+        <li>Evidencias (2)</li>
+        <li>Orden (1)</li>
+      </ul>
+      <h2>Errores comunes</h2>
+      <ul>
+        <li>Instalar paquetes fuera del venv</li>
+        <li>No activar el venv antes de ejecutar scripts</li>
+        <li>Seleccionar el intérprete equivocado en VS Code</li>
+      </ul>
+    </section>
+    <section class="verification">
+      <button id="verifyBtn">Verificar y Entregar Misión</button>
+      <div id="verifyResult"></div>
+    </section>
+  </main>
+  <script src="assets/js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const resultDiv = document.getElementById('verifyResult');
+      document.getElementById('verifyBtn').addEventListener('click', () => {
+        verifyMission('m2', resultDiv);
+      });
+    });
+  </script>
+</body>
+</html>
