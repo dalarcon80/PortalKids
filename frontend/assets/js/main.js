@@ -150,7 +150,7 @@ function renderLoginForm() {
   content.innerHTML = `
     <section class="login">
       <h2>Ingresar</h2>
-      <p>Ingresa tu slug para acceder al portal.</p>
+      <p>Ingresa tu slug y contraseña para acceder al portal.</p>
       <form id="loginForm">
         <label>Selecciona tu usuario:<br />
           <select id="studentSelect">
