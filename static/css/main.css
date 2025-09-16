@@ -125,3 +125,115 @@ a:focus {
     padding: 1.5rem;
   }
 }
+
+.form-card {
+  background-color: #1e1e1e;
+  border-radius: 18px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.form-grid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.form-field label {
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.form-field input {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: rgba(18, 18, 18, 0.9);
+  color: #f5f5f5;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-field input:focus {
+  outline: none;
+  border-color: rgba(128, 216, 255, 0.8);
+  box-shadow: 0 0 0 3px rgba(128, 216, 255, 0.25);
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 1.5rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.button-primary {
+  background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+  color: #0a0a0a;
+  box-shadow: 0 12px 24px rgba(79, 195, 247, 0.35);
+}
+
+.button-primary:hover,
+.button-primary:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(79, 195, 247, 0.45);
+}
+
+.button-secondary {
+  background: transparent;
+  color: #80d8ff;
+  border: 1px solid rgba(128, 216, 255, 0.4);
+}
+
+.button-secondary:hover,
+.button-secondary:focus {
+  transform: translateY(-2px);
+  border-color: rgba(128, 216, 255, 0.8);
+  box-shadow: 0 12px 24px rgba(128, 216, 255, 0.2);
+}
+
+.form-error {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: rgba(244, 67, 54, 0.15);
+  color: #ff8a80;
+  border: 1px solid rgba(244, 67, 54, 0.4);
+  border-radius: 12px;
+}
+
+@media (max-width: 480px) {
+  .form-card {
+    padding: 1.5rem;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-actions .button {
+    width: 100%;
+  }
+}

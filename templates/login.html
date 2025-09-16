@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acceso al Portal</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/main.css') }}"
+    />
+  </head>
+  <body>
+    <main class="page-container">
+      <header class="page-header">
+        <h1>Portal de la Tripulación</h1>
+        <p>Inicia sesión con tu identificador espacial para continuar.</p>
+      </header>
+
+      <section aria-label="Formulario de acceso" class="form-card">
+        <form method="post" class="form-grid">
+          <div class="form-field">
+            <label for="slug">Identificador</label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              placeholder="capitana-nova"
+              required
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="password">Contraseña</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="••••••••"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+
+          {% if error %}
+          <p class="form-error" role="alert">{{ error }}</p>
+          {% endif %}
+
+          <div class="form-actions">
+            <button type="submit" class="button button-primary">Entrar</button>
+            <a class="button button-secondary" href="{{ url_for('inscripcion') }}"
+              >Registrarse</a
+            >
+          </div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>
