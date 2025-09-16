@@ -363,6 +363,8 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
             if not slug or not password_for_check or not password_for_check.strip():
                 self._send_json({"error": "Missing slug or password."}, status=400)
                 return
+            row = None
+            completed = []
             try:
                 with get_db_connection() as conn:
                     with conn.cursor(row_factory=dict_row) as cur:
@@ -371,6 +373,12 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                             (slug,),
                         )
                         row = cur.fetchone()
+                        if row:
+                            cur.execute(
+                                'SELECT mission_id FROM completed_missions WHERE student_slug = %s ORDER BY completed_at',
+                                (slug,),
+                            )
+                            completed = [r['mission_id'] for r in cur.fetchall()]
             except Exception as exc:
                 print(f"Database error on /api/login lookup: {exc}", file=sys.stderr)
                 self._send_json({"error": "Database connection error."}, status=500)
@@ -379,11 +387,20 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
                 return
             try:
-                password_matches = verify_password(password_raw, row.get('password_hash'))
-            except PasswordValidationError as exc:
-                self._send_json({"error": str(exc)}, status=400)
+                password_bytes = password_for_check.encode('utf-8')
+            except Exception:
+                self._send_json({"error": "Formato de contraseña inválido."}, status=400)
                 return
-            except PasswordVerificationError as exc:
+            stored_hash = row.get('password_hash')
+            if isinstance(stored_hash, str):
+                stored_hash_bytes = stored_hash.encode('utf-8')
+            elif isinstance(stored_hash, bytes):
+                stored_hash_bytes = stored_hash
+            else:
+                stored_hash_bytes = str(stored_hash or '').encode('utf-8')
+            try:
+                password_matches = bcrypt.checkpw(password_bytes, stored_hash_bytes)
+            except (ValueError, TypeError, AttributeError) as exc:
                 print(f"Password verification error on /api/login: {exc}", file=sys.stderr)
                 self._send_json({"error": "Failed to verify credentials."}, status=500)
                 return
@@ -399,7 +416,12 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                 'email': row.get('email'),
                 'created_at': row.get('created_at').isoformat() if row.get('created_at') else None,
             }
-            self._send_json({"authenticated": True, "token": token, "student": student})
+            self._send_json({
+                "authenticated": True,
+                "token": token,
+                "student": student,
+                "completed": completed,
+            })
             return
         if path == '/api/verify_mission':
             slug = (data.get('slug') or '').strip()
