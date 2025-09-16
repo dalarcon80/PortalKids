@@ -317,39 +317,60 @@ class PortalHTTPRequestHandler(SimpleHTTPRequestHandler):
                             (slug,),
                         )
                         row = cur.fetchone()
+                        if not row or not row.get('password_hash'):
+                            self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
+                            return
+                        stored_hash_value = row.get('password_hash')
+                        if isinstance(stored_hash_value, (bytes, bytearray, memoryview)):
+                            stored_hash_bytes = bytes(stored_hash_value)
+                        elif isinstance(stored_hash_value, str):
+                            stored_hash_bytes = stored_hash_value.encode('utf-8')
+                        else:
+                            stored_hash_bytes = str(stored_hash_value or '').encode('utf-8')
+                        if not stored_hash_bytes:
+                            self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
+                            return
+                        try:
+                            password_matches = bcrypt.checkpw(
+                                password_bytes,
+                                stored_hash_bytes,
+                            )
+                        except (ValueError, TypeError, AttributeError) as exc:
+                            print(f"Password verification error on /api/login: {exc}", file=sys.stderr)
+                            self._send_json({"error": "Failed to verify credentials."}, status=500)
+                            return
+                        if not password_matches:
+                            self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
+                            return
+                        canonical_slug = row.get('slug') or slug
+                        cur.execute(
+                            'SELECT mission_id FROM completed_missions WHERE student_slug = %s ORDER BY completed_at',
+                            (canonical_slug,),
+                        )
+                        completed_rows = cur.fetchall()
+                        completed = [r['mission_id'] for r in completed_rows]
+                        token = create_session(canonical_slug)
+                        student = {
+                            'slug': canonical_slug,
+                            'name': row.get('name'),
+                            'role': row.get('role'),
+                            'workdir': row.get('workdir'),
+                            'email': row.get('email'),
+                            'created_at': row.get('created_at').isoformat() if row.get('created_at') else None,
+                        }
+                        self._send_json(
+                            {
+                                "authenticated": True,
+                                "token": token,
+                                "student": student,
+                                "completed": completed,
+                            }
+                        )
+                        return
             except Exception as exc:
-                print(f"Database error on /api/login lookup: {exc}", file=sys.stderr)
+                print(f"Database error on /api/login: {exc}", file=sys.stderr)
                 self._send_json({"error": "Database connection error."}, status=500)
                 return
-            if not row or not row.get('password_hash'):
-                self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
-                return
-            stored_hash = row['password_hash'] or ''
-            if isinstance(stored_hash, bytes):
-                stored_hash = stored_hash.decode('utf-8')
-            try:
-                password_matches = bcrypt.checkpw(
-                    password_bytes,
-                    stored_hash.encode('utf-8'),
-                )
-            except (ValueError, TypeError, AttributeError) as exc:
-                print(f"Password verification error on /api/login: {exc}", file=sys.stderr)
-                self._send_json({"error": "Failed to verify credentials."}, status=500)
-                return
-            if not password_matches:
-                self._send_json({"authenticated": False, "error": "Invalid credentials."}, status=401)
-                return
-            token = create_session(slug)
-            student = {
-                'slug': row.get('slug'),
-                'name': row.get('name'),
-                'role': row.get('role'),
-                'workdir': row.get('workdir'),
-                'email': row.get('email'),
-                'created_at': row.get('created_at').isoformat() if row.get('created_at') else None,
-            }
-            self._send_json({"authenticated": True, "token": token, "student": student})
-            return
         if path == '/api/verify_mission':
             slug = (data.get('slug') or '').strip()
             mission_id = (data.get('mission_id') or '').strip()

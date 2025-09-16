@@ -103,6 +103,7 @@ function renderEnrollForm() {
       const data = await res.json();
       if (res.ok) {
         let sessionToken = '';
+        let loginPayload = null;
         try {
           const loginRes = await fetch('/api/login', {
             method: 'POST',
@@ -112,19 +113,38 @@ function renderEnrollForm() {
             body: JSON.stringify({ slug, password }),
           });
           if (loginRes.ok) {
-            const loginData = await loginRes.json();
-            if (loginData && loginData.authenticated && loginData.token) {
-              sessionToken = loginData.token;
+            try {
+              const loginData = await loginRes.json();
+              if (loginData && loginData.authenticated && loginData.token) {
+                sessionToken = loginData.token;
+                loginPayload = loginData;
+              }
+            } catch (parseLoginErr) {
+              console.warn('No pudimos interpretar la respuesta de /api/login.', parseLoginErr);
             }
           }
         } catch (loginErr) {
           console.warn('No se pudo iniciar sesión automáticamente tras la matrícula.', loginErr);
         }
         if (sessionToken) {
-          storeSession(slug, sessionToken);
+          const canonicalSlug =
+            loginPayload &&
+            loginPayload.student &&
+            loginPayload.student.slug
+              ? loginPayload.student.slug
+              : slug;
+          storeSession(canonicalSlug, sessionToken);
           $('#enrollMsg').textContent = '¡Matrícula exitosa! Redirigiendo...';
           setTimeout(() => {
-            loadDashboard();
+            if (
+              loginPayload &&
+              loginPayload.student &&
+              Array.isArray(loginPayload.completed)
+            ) {
+              renderDashboard(loginPayload.student, loginPayload.completed);
+            } else {
+              loadDashboard();
+            }
           }, 1000);
         } else {
           clearSession();
@@ -150,7 +170,7 @@ function renderLoginForm() {
   content.innerHTML = `
     <section class="login">
       <h2>Ingresar</h2>
-      <p>Ingresa tu slug para acceder al portal.</p>
+      <p>Ingresa tu slug y contraseña para acceder al portal.</p>
       <form id="loginForm">
         <label>Selecciona tu usuario:<br />
           <select id="studentSelect">
@@ -212,9 +232,23 @@ function renderLoginForm() {
             ? data.student.slug
             : slug;
         const sessionToken = data && data.token ? data.token : '';
+        if (!sessionToken) {
+          clearSession();
+          msg.textContent = 'No recibimos un token de sesión. Intenta nuevamente.';
+          return;
+        }
         storeSession(confirmedSlug, sessionToken);
         msg.textContent = 'Ingreso exitoso. Cargando tu portal...';
-        loadDashboard();
+        const canRenderDashboard =
+          data &&
+          data.student &&
+          typeof data.student === 'object' &&
+          Array.isArray(data.completed);
+        if (canRenderDashboard) {
+          renderDashboard(data.student, data.completed);
+        } else {
+          loadDashboard();
+        }
         return;
       }
       clearSession();
