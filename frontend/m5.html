@@ -20,10 +20,11 @@
       </div>
       <nav class="portal-header__nav" aria-label="Navegación principal">
         <a class="portal-header__link" href="/index.html">Inicio</a>
-        <a
-          class="portal-header__link"
-          href="/index.html?enroll"
-          >Inscribirme</a>
+        <a class="portal-header__link"
+           href="#"
+           onclick="localStorage.removeItem('student_slug'); renderEnrollForm(); return false;">
+          Inscribirme
+        </a>
       </nav>
       <div class="portal-header__user">
         <div class="portal-header__user-info">
