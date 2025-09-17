@@ -1,6 +1,57 @@
 // main.js - lógica del portal de misiones
 
 const API_BASE = '';
+
+function getApiBase() {
+  if (typeof API_BASE !== 'undefined' && API_BASE) {
+    return API_BASE;
+  }
+  if (typeof window !== 'undefined' && window.API_BASE) {
+    return window.API_BASE;
+  }
+  return '';
+}
+
+function joinBase(base, path) {
+  const basePart = typeof base === 'string' ? base.trim() : '';
+  const pathPart = typeof path === 'string' ? path.trim() : '';
+  if (!pathPart) {
+    return basePart || '';
+  }
+  const needsLeadingSlash =
+    !pathPart.startsWith('/') &&
+    !pathPart.startsWith('http://') &&
+    !pathPart.startsWith('https://') &&
+    !pathPart.startsWith('//') &&
+    !pathPart.startsWith('data:') &&
+    !pathPart.startsWith('blob:') &&
+    !pathPart.startsWith('mailto:') &&
+    !pathPart.startsWith('?');
+  const normalizedPath = needsLeadingSlash ? `/${pathPart}` : pathPart;
+  if (!basePart) {
+    if (normalizedPath.startsWith('//')) {
+      return normalizedPath.replace(/^\/+/g, '/');
+    }
+    if (normalizedPath.startsWith('/') || normalizedPath.startsWith('?')) {
+      return normalizedPath;
+    }
+    return `/${normalizedPath}`;
+  }
+  try {
+    return new URL(normalizedPath, basePart).toString();
+  } catch (err) {
+    const cleanedBase = basePart.replace(/\/+$/g, '');
+    if (normalizedPath.startsWith('?')) {
+      return `${cleanedBase}${normalizedPath}`;
+    }
+    const cleanedPath = normalizedPath.replace(/^\/+/g, '');
+    return `${cleanedBase}/${cleanedPath}`;
+  }
+}
+
+function apiFetch(path, options) {
+  return fetch(joinBase(getApiBase(), path), options);
+}
 const STORAGE_KEYS = {
   slug: 'student_slug',
   token: 'session_token',
@@ -120,7 +171,7 @@ function renderEnrollForm() {
       return;
     }
     try {
-      const res = await fetch('/api/enroll', {
+      const res = await apiFetch('/api/enroll', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -132,7 +183,7 @@ function renderEnrollForm() {
       if (res.ok) {
         let sessionToken = '';
         try {
-          const loginRes = await fetch('/api/login', {
+          const loginRes = await apiFetch('/api/login', {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -221,7 +272,7 @@ function renderLoginForm() {
     slugInput.value = slug;
     msg.textContent = 'Verificando tus datos...';
     try {
-      const res = await fetch('/api/login', {
+      const res = await apiFetch('/api/login', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -290,7 +341,7 @@ function renderLoginForm() {
     };
     (async () => {
       try {
-        const res = await fetch('/api/students', {
+        const res = await apiFetch('/api/students', {
           credentials: 'include',
         });
         if (!res.ok) {
@@ -342,7 +393,8 @@ async function loadDashboard() {
           Authorization: `Bearer ${token}`,
         }
       : {};
-    const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`, {
+    const statusUrl = `/api/status?${new URLSearchParams({ slug })}`;
+    const res = await apiFetch(statusUrl, {
       credentials: 'include',
       headers,
     });
@@ -517,7 +569,7 @@ async function verifyMission(missionId, resultContainer) {
   }
   resultContainer.textContent = 'Verificando...';
   try {
-    const res = await fetch('/api/verify_mission', {
+    const res = await apiFetch('/api/verify_mission', {
       method: 'POST',
       credentials: 'include',
       headers: {
