@@ -6,15 +6,20 @@ from dataclasses import dataclass
 from typing import Dict
 from urllib.parse import quote
 
+
+class GitHubConfigurationError(RuntimeError):
+    """Raised when GitHub integration is misconfigured."""
+
+
 try:  # pragma: no cover - optional dependency
     import requests  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    class _MissingRequestsException(Exception):
+    class _MissingRequestsException(GitHubConfigurationError):
         """Raised when the optional 'requests' dependency is unavailable."""
 
     class _MissingRequestsSession:
         def __init__(self, *args, **kwargs) -> None:
-            raise RuntimeError(
+            raise _MissingRequestsException(
                 "El cliente de GitHub requiere la dependencia opcional 'requests'. "
                 "Instálala para habilitar las descargas remotas."
             )
@@ -26,10 +31,6 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
             return _MissingRequestsSession(*args, **kwargs)
 
     requests = _MissingRequestsModule()  # type: ignore[assignment]
-
-
-class GitHubConfigurationError(RuntimeError):
-    """Raised when GitHub integration is misconfigured."""
 
 
 class GitHubDownloadError(RuntimeError):
