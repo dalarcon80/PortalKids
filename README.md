@@ -4,23 +4,22 @@ Este proyecto implementa un portal web de entrenamiento basado en misiones. Los 
 
 ## Configuración de base de datos
 
-El servicio backend persiste estudiantes y misiones completadas en una base de datos PostgreSQL (por ejemplo, Cloud SQL). Antes de iniciar el servidor debes definir las siguientes variables de entorno:
+El servicio backend persiste estudiantes y misiones completadas en una base de datos MySQL (por ejemplo, Cloud SQL for MySQL). Antes de iniciar el servidor debes definir las siguientes variables de entorno:
 
 | Variable | Descripción |
 | --- | --- |
 | `DB_NAME` | Nombre de la base de datos. |
 | `DB_USER` | Usuario con permisos de lectura/escritura. |
 | `DB_PASSWORD` | Contraseña del usuario. |
-| `DB_HOST` | Host o IP del servidor PostgreSQL (usa `DB_PORT` para el puerto, por defecto 5432). |
-| `DB_INSTANCE_CONNECTION_NAME` | Alternativa a `DB_HOST` para conexiones vía socket de Cloud SQL (`<project>:<region>:<instance>`). |
+| `DB_HOST` | Host o IP del servidor MySQL (usa `DB_PORT` para el puerto, por defecto 3306). |
+| `DB_INSTANCE_CONNECTION_NAME` | Alternativa a `DB_HOST` para conexiones vía socket de Cloud SQL for MySQL (`<project>:<region>:<instance>`). |
 
 Variables opcionales:
 
 | Variable | Descripción |
 | --- | --- |
-| `DB_PORT` | Puerto TCP cuando se usa `DB_HOST`. |
+| `DB_PORT` | Puerto TCP cuando se usa `DB_HOST` (por defecto 3306). |
 | `DB_SOCKET_DIR` | Directorio del socket Unix para Cloud SQL (por defecto `/cloudsql`). |
-| `DB_SSLMODE` | Modo SSL de PostgreSQL (por defecto `prefer`). |
 | `DB_CONNECT_TIMEOUT` | Tiempo máximo de conexión en segundos. |
 
 Debes proporcionar `DB_HOST` o `DB_INSTANCE_CONNECTION_NAME`; si falta alguno el backend devolverá un error 500 al atender las peticiones.
