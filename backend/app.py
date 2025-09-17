@@ -11,10 +11,134 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable, List, Mapping, Optional, Tuple
 
 import bcrypt
-import pymysql
-from pymysql.cursors import DictCursor
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
+
+try:  # pragma: no cover - optional dependency
+    import pymysql  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    class _MissingPyMySQLError(Exception):
+        """Fallback error used when pymysql is not installed."""
+
+    class _MissingPyMySQLErrors:
+        IntegrityError = _MissingPyMySQLError
+
+    class _MissingPyMySQLModule:
+        err = _MissingPyMySQLErrors()
+
+    pymysql = _MissingPyMySQLModule()  # type: ignore[assignment]
+from flask import Flask, jsonify, make_response, request, send_from_directory
+
+try:  # pragma: no cover - optional dependency
+    from flask_cors import CORS
+except ModuleNotFoundError:  # pragma: no cover - simple fallback
+    def CORS(app, *args, **kwargs):
+        """Minimal CORS fallback when flask_cors is not installed."""
+
+        if getattr(app, "_fallback_cors_applied", False):  # pragma: no cover - idempotent
+            return app
+
+        origins_option = kwargs.get("origins", "*")
+        supports_credentials = bool(kwargs.get("supports_credentials", False))
+        allow_headers_option = kwargs.get("allow_headers")
+        expose_headers_option = kwargs.get("expose_headers")
+        methods_option = kwargs.get("methods")
+        max_age_option = kwargs.get("max_age")
+
+        def _normalize_values(value, default, *, allow_wildcard: bool = True):
+            if value is None:
+                return set(default)
+            if allow_wildcard and value == "*":
+                return {"*"}
+            if isinstance(value, (list, tuple, set)):
+                cleaned = {str(item).strip() for item in value if str(item).strip()}
+                if not cleaned:
+                    return set(default)
+                if allow_wildcard and "*" in cleaned:
+                    return {"*"}
+                return cleaned
+            single = str(value).strip()
+            if not single:
+                return set(default)
+            if allow_wildcard and single == "*":
+                return {"*"}
+            return {single}
+
+        allowed_origins = _normalize_values(origins_option, {"*"})
+        allowed_headers = _normalize_values(
+            allow_headers_option, {"Authorization", "Content-Type"}
+        )
+        exposed_headers = _normalize_values(
+            expose_headers_option, set(), allow_wildcard=False
+        )
+        allowed_methods = _normalize_values(
+            methods_option,
+            {"DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"},
+        )
+
+        allow_all_origins = "*" in allowed_origins
+
+        def _apply_vary_header(response, value: str) -> None:
+            if not value:
+                return
+            response.headers.add("Vary", value)
+
+        def _select_origin(origin: Optional[str]) -> Optional[str]:
+            if not origin:
+                return None if supports_credentials else ("*" if allow_all_origins else None)
+            origin = origin.strip()
+            if allow_all_origins:
+                return origin if supports_credentials else "*"
+            if origin in allowed_origins:
+                return origin
+            return None
+
+        def _apply_headers(response):
+            origin = request.headers.get("Origin")
+            selected_origin = _select_origin(origin)
+            if not selected_origin:
+                return response
+            response.headers["Access-Control-Allow-Origin"] = selected_origin
+            if supports_credentials:
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+            if not allow_all_origins or supports_credentials:
+                _apply_vary_header(response, "Origin")
+
+            if request.method == "OPTIONS":
+                request_headers = request.headers.get("Access-Control-Request-Headers")
+                if request_headers:
+                    response.headers["Access-Control-Allow-Headers"] = request_headers
+                elif allowed_headers:
+                    response.headers["Access-Control-Allow-Headers"] = ", ".join(
+                        sorted(allowed_headers)
+                    )
+                request_method = request.headers.get("Access-Control-Request-Method")
+                if request_method:
+                    response.headers["Access-Control-Allow-Methods"] = request_method
+                elif allowed_methods:
+                    response.headers["Access-Control-Allow-Methods"] = ", ".join(
+                        sorted(allowed_methods)
+                    )
+                if max_age_option is not None:
+                    response.headers["Access-Control-Max-Age"] = str(max_age_option)
+
+            if exposed_headers and not allow_all_origins:
+                response.headers["Access-Control-Expose-Headers"] = ", ".join(
+                    sorted(exposed_headers)
+                )
+            return response
+
+        @app.before_request  # pragma: no cover - runtime behavior
+        def _handle_preflight():
+            if request.method == "OPTIONS":
+                response = make_response("", 204)
+                return _apply_headers(response)
+            return None
+
+        @app.after_request  # pragma: no cover - runtime behavior
+        def _add_cors_headers(response):
+            return _apply_headers(response)
+
+        app._fallback_cors_applied = True  # type: ignore[attr-defined]
+        return app
 
 try:  # pragma: no cover - fallback for direct execution
     from .github_client import (
@@ -63,6 +187,18 @@ SESSION_DURATION_SECONDS = 60 * 60 * 8
 def _use_sqlite_backend() -> bool:
     required_keys = ["DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST"]
     return any(not os.environ.get(key) for key in required_keys)
+
+
+def _import_pymysql():
+    try:
+        import pymysql  # type: ignore
+        from pymysql.cursors import DictCursor  # type: ignore
+    except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+        raise RuntimeError(
+            "El backend de MySQL requiere el paquete 'pymysql'. "
+            "Instálalo o configura las variables de entorno para usar SQLite."
+        ) from exc
+    return pymysql, DictCursor
 
 
 class SQLiteCursorWrapper:
@@ -175,6 +311,7 @@ def get_db_connection():
             pass
         return SQLiteConnectionWrapper(connection)
 
+    pymysql, DictCursor = _import_pymysql()
     db_config = {
         "database": os.environ.get("DB_NAME"),
         "user": os.environ.get("DB_USER"),
