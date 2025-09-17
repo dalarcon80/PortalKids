@@ -4,6 +4,7 @@ const API_BASE = '';
 const STORAGE_KEYS = {
   slug: 'student_slug',
   token: 'session_token',
+  mission: 'current_mission',
 };
 
 function storeSession(slug, token) {
@@ -20,6 +21,22 @@ function storeSession(slug, token) {
 function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.slug);
   localStorage.removeItem(STORAGE_KEYS.token);
+}
+
+function setCurrentMission(missionId) {
+  if (missionId) {
+    localStorage.setItem(STORAGE_KEYS.mission, missionId);
+    return;
+  }
+  localStorage.removeItem(STORAGE_KEYS.mission);
+}
+
+function getCurrentMission() {
+  return localStorage.getItem(STORAGE_KEYS.mission);
+}
+
+function clearCurrentMission() {
+  localStorage.removeItem(STORAGE_KEYS.mission);
 }
 
 function getStoredSlug() {
@@ -59,9 +76,19 @@ function getContentContainer() {
  */
 function renderEnrollForm() {
   const content = getContentContainer();
+  const missionId = getCurrentMission();
+  let missionNotice = '';
+  if (missionId) {
+    const safeMissionId = missionId.replace(/[^a-z0-9_-]/gi, '').toUpperCase();
+    if (safeMissionId) {
+      missionNotice = `<p class="enroll__current-mission">Estás iniciando tu matrícula desde la misión <strong>${safeMissionId}</strong>.</p>`;
+    }
+  }
+  clearCurrentMission();
   content.innerHTML = `
     <section class="enroll">
       <h2>Matrícula</h2>
+      ${missionNotice}
       <p>Ingresa tus datos para comenzar.</p>
       <form id="enrollForm">
         <label>Nombre:<br /><input type="text" id="name" required /></label><br />
