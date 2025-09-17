@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from backend import app as backend_app
@@ -18,7 +16,7 @@ class _DummyCursor:
     def __exit__(self, exc_type, exc, tb) -> None:
         return None
 
-    def execute(self, query: str, params: Any) -> None:
+    def execute(self, query: str, params=None) -> None:
         return None
 
     def fetchone(self) -> dict:
@@ -46,7 +44,11 @@ class _DummyConnection:
 def _configure_app(monkeypatch):
     backend_app.app.config["TESTING"] = True
     monkeypatch.setattr(backend_app, "init_db", lambda: None)
-    monkeypatch.setattr(backend_app, "get_db_connection", lambda: _DummyConnection("ventas"))
+    monkeypatch.setattr(backend_app, "get_db_connection", lambda: _DummyConnection())
+    monkeypatch.setattr(backend_app, "_get_mission_by_id", lambda mission_id: None)
+    monkeypatch.setattr(
+        backend_app, "_fetch_missions_from_db", lambda mission_id=None: []
+    )
     monkeypatch.setattr(backend_app, "validate_session", lambda token, slug=None: True)
     import werkzeug
 
@@ -56,7 +58,11 @@ def _configure_app(monkeypatch):
 
 def _patch_contract(monkeypatch, verification_type: str) -> None:
     contract = {"verification_type": verification_type}
-    monkeypatch.setattr(backend_app, "load_contracts", lambda: {"mission": contract})
+    monkeypatch.setattr(
+        backend_app,
+        "_get_mission_by_id",
+        lambda mission_id: {"mission_id": mission_id, "content": contract},
+    )
 
 
 def _patch_client_failure(monkeypatch, message: str) -> None:
@@ -81,10 +87,7 @@ def test_verify_mission_returns_configuration_error(monkeypatch, verification_ty
     assert payload == {"verified": False, "feedback": ["sin requests"]}
 
 
-def test_verify_mission_handles_invalid_contract_json(monkeypatch, tmp_path):
-    invalid_contracts = tmp_path / "contracts.json"
-    invalid_contracts.write_text("{ invalid", encoding="utf-8")
-    monkeypatch.setattr(backend_app, "CONTRACTS_PATH", str(invalid_contracts))
+def test_verify_mission_handles_missing_contract():
     client = backend_app.app.test_client()
     response = client.post(
         "/api/verify_mission",
