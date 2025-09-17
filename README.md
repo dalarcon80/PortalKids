@@ -30,6 +30,16 @@ El backend persiste las sesiones de autenticación en la tabla `sessions` de la 
 
 Cuando un estudiante inicia sesión, `create_session` inserta una fila nueva con un token firmado aleatorio y marca la hora de creación con `UTC_TIMESTAMP()`. Cada llamada a `validate_session` consulta la tabla y elimina automáticamente los registros cuya antigüedad supere las ocho horas (`SESSION_DURATION_SECONDS`). Cuando se implemente un endpoint de cierre de sesión bastará con borrar la fila correspondiente (`DELETE FROM sessions WHERE token = ?`) para invalidar el token también en el resto de instancias.
 
+### Clave secreta de Flask (`SECRET_KEY`)
+
+La aplicación Flask utiliza `SECRET_KEY` para firmar las cookies de sesión y otros tokens. En producción debes fijar explícitamente una cadena aleatoria y mantenerla en secreto. Por ejemplo:
+
+```bash
+export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+```
+
+Si `SECRET_KEY` no está definida al iniciar el backend, este mostrará un aviso en los logs y generará automáticamente una clave segura. El valor se guardará en `backend/.flask_secret_key` para reutilizarlo en reinicios posteriores (con permisos `600` cuando el sistema lo permite). Si tampoco se pudiera escribir el archivo, el backend continuará usando una clave efímera y registrará la incidencia. Revisa los logs para confirmar qué ruta se está utilizando.
+
 ## Integración con repositorios remotos en GitHub
 
 La verificación automática de misiones se realiza leyendo los archivos del estudiante directamente desde GitHub. Configura las siguientes variables de entorno antes de iniciar el backend:

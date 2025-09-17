@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import secrets
 import sqlite3
@@ -52,6 +53,9 @@ except ImportError:  # pragma: no cover - allow "python backend/app.py"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONTRACTS_PATH = os.path.join(BASE_DIR, "missions_contracts.json")
+SECRET_KEY_FILE = Path(BASE_DIR) / ".flask_secret_key"
+
+logger = logging.getLogger(__name__)
 
 SESSION_DURATION_SECONDS = 60 * 60 * 8
 
@@ -992,18 +996,63 @@ def _get_env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "t", "yes", "on"}
 
 
-app = Flask(__name__, static_folder="../frontend", static_url_path="/")
-secret_key = os.environ.get("SECRET_KEY")
-if not secret_key:
-    raise RuntimeError(
-        "SECRET_KEY environment variable must be set before starting the application."
-    )
-app.config["SECRET_KEY"] = secret_key
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SECURE"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_PATH"] = os.environ.get("SESSION_COOKIE_PATH", "/")
-app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "session")
+def _load_secret_key() -> str:
+    env_secret = (os.environ.get("SECRET_KEY") or "").strip()
+    if env_secret:
+        return env_secret
+
+    try:
+        if SECRET_KEY_FILE.exists():
+            stored_secret = SECRET_KEY_FILE.read_text(encoding="utf-8").strip()
+            if stored_secret:
+                logger.warning(
+                    "SECRET_KEY environment variable not set; using fallback value stored in %s.",
+                    SECRET_KEY_FILE,
+                )
+                return stored_secret
+    except OSError as exc:
+        logger.warning(
+            "SECRET_KEY environment variable not set; failed to read fallback file %s: %s",
+            SECRET_KEY_FILE,
+            exc,
+        )
+
+    generated_secret = secrets.token_hex(32)
+    try:
+        SECRET_KEY_FILE.write_text(generated_secret, encoding="utf-8")
+        try:
+            os.chmod(SECRET_KEY_FILE, 0o600)
+        except OSError:
+            # Best effort on platforms that support chmod.
+            pass
+        logger.warning(
+            "SECRET_KEY environment variable not set; generated a new secret key and stored it in %s.",
+            SECRET_KEY_FILE,
+        )
+    except OSError as exc:
+        logger.warning(
+            "SECRET_KEY environment variable not set; generated an ephemeral secret key and could not persist it to %s: %s",
+            SECRET_KEY_FILE,
+            exc,
+        )
+    return generated_secret
+
+
+_SECRET_KEY = _load_secret_key()
+
+
+def _create_app() -> Flask:
+    app_instance = Flask(__name__, static_folder="../frontend", static_url_path="/")
+    app_instance.config["SECRET_KEY"] = _SECRET_KEY
+    app_instance.config["SESSION_COOKIE_HTTPONLY"] = True
+    app_instance.config["SESSION_COOKIE_SECURE"] = True
+    app_instance.config["SESSION_COOKIE_SAMESITE"] = "None"
+    app_instance.config["SESSION_COOKIE_PATH"] = os.environ.get("SESSION_COOKIE_PATH", "/")
+    app_instance.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "session")
+    return app_instance
+
+
+app = _create_app()
 
 cors_origins = os.environ.get("CORS_ORIGINS")
 if cors_origins:
