@@ -302,6 +302,26 @@ def init_db():
                     "CREATE UNIQUE INDEX IF NOT EXISTS uniq_student_mission_sqlite "
                     "ON completed_missions(student_slug, mission_id)"
                 )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS missions (
+                        mission_id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT,
+                        roles TEXT,
+                        content_json TEXT,
+                        updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+                    )
+                    """
+                )
+                ensure_column("missions", "mission_id", "TEXT NOT NULL")
+                ensure_column("missions", "title", "TEXT")
+                ensure_column("missions", "roles", "TEXT")
+                ensure_column("missions", "content_json", "TEXT")
+                ensure_column(
+                    "missions",
+                    "updated_at",
+                    "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)",
+                )
         return
 
     db_name = os.environ.get("DB_NAME")
@@ -526,6 +546,32 @@ def init_db():
                 "CASCADE",
             )
 
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS missions (
+                    mission_id VARCHAR(255) NOT NULL,
+                    title VARCHAR(255),
+                    roles TEXT,
+                    content_json LONGTEXT,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (mission_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            ensure_table_options(cur, "missions")
+            ensure_column(cur, "missions", "mission_id", "VARCHAR(255) NOT NULL")
+            ensure_column(cur, "missions", "title", "VARCHAR(255)")
+            ensure_column(cur, "missions", "roles", "TEXT")
+            ensure_column(cur, "missions", "content_json", "LONGTEXT")
+            ensure_column(
+                cur,
+                "missions",
+                "updated_at",
+                "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            )
+            ensure_primary_key(cur, "missions", ["mission_id"])
+
 
 def hash_password(raw_password):
     """Hash a password using bcrypt returning the hash as text."""
@@ -572,15 +618,287 @@ def verify_password(raw_password, stored_hash):
         raise PasswordVerificationError("No se pudo verificar la contraseña.") from exc
 
 
-def load_contracts():
+def _normalize_roles_input(raw_roles) -> List[str]:
+    if raw_roles is None:
+        return []
+    if isinstance(raw_roles, (list, tuple, set)):
+        result: List[str] = []
+        for item in raw_roles:
+            if isinstance(item, str):
+                candidate = item.strip()
+            else:
+                candidate = str(item).strip()
+            if candidate:
+                result.append(candidate)
+        return result
+    if isinstance(raw_roles, str):
+        text = raw_roles.strip()
+        if not text:
+            return []
+        try:
+            decoded = json.loads(text)
+        except json.JSONDecodeError:
+            return [part.strip() for part in text.split(",") if part.strip()]
+        return _normalize_roles_input(decoded)
+    return []
+
+
+def _parse_roles_from_storage(raw_roles) -> List[str]:
+    if raw_roles is None:
+        return []
+    if isinstance(raw_roles, (bytes, bytearray)):
+        raw_roles = raw_roles.decode("utf-8", errors="ignore")
+    if isinstance(raw_roles, str):
+        text = raw_roles.strip()
+        if not text:
+            return []
+        try:
+            decoded = json.loads(text)
+        except json.JSONDecodeError:
+            return [part.strip() for part in text.split(",") if part.strip()]
+        return _normalize_roles_input(decoded)
+    if isinstance(raw_roles, (list, tuple, set)):
+        return _normalize_roles_input(list(raw_roles))
+    return []
+
+
+def _serialize_mission_row(row: Mapping[str, object]) -> dict:
+    mission_id_raw = row.get("mission_id") if row else ""
+    if isinstance(mission_id_raw, (bytes, bytearray)):
+        mission_id_raw = mission_id_raw.decode("utf-8", errors="ignore")
+    mission_id = str(mission_id_raw or "").strip()
+    title_raw = row.get("title") if row else None
+    if isinstance(title_raw, (bytes, bytearray)):
+        title_raw = title_raw.decode("utf-8", errors="ignore")
+    title = str(title_raw or "").strip() or mission_id
+    roles = _parse_roles_from_storage(row.get("roles") if row else None)
+    content_raw = row.get("content_json") if row else None
+    if isinstance(content_raw, (bytes, bytearray)):
+        content_raw = content_raw.decode("utf-8", errors="ignore")
+    content: dict = {}
+    if isinstance(content_raw, str):
+        payload = content_raw.strip()
+        if payload:
+            try:
+                decoded = json.loads(payload)
+            except json.JSONDecodeError as exc:
+                logger.error(
+                    "Failed to decode mission %s content from storage: %s",
+                    mission_id or "<sin-id>",
+                    exc,
+                )
+            else:
+                if isinstance(decoded, dict):
+                    content = decoded
+                else:
+                    logger.error(
+                        "Mission %s content must be a JSON object, got %s.",
+                        mission_id or "<sin-id>",
+                        type(decoded).__name__,
+                    )
+    elif isinstance(content_raw, dict):
+        content = content_raw
+    updated_at = _parse_timestamp(row.get("updated_at")) if row else None
+    updated_at_iso = updated_at.isoformat() if updated_at else None
+    return {
+        "mission_id": mission_id,
+        "title": title,
+        "roles": roles,
+        "content": content,
+        "updated_at": updated_at_iso,
+    }
+
+
+def _seed_missions_from_file(cursor, is_sqlite: bool) -> None:
     if not os.path.exists(CONTRACTS_PATH):
-        return {}
+        return
     try:
         with open(CONTRACTS_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            payload = json.load(f)
+    except FileNotFoundError:
+        return
     except json.JSONDecodeError as exc:
         logger.error("Failed to decode missions contracts at %s: %s", CONTRACTS_PATH, exc)
-        return {}
+        return
+    if not isinstance(payload, dict):
+        logger.error(
+            "The missions contract file %s must contain a JSON object at the top level.",
+            CONTRACTS_PATH,
+        )
+        return
+    timestamp = _format_timestamp(datetime.utcnow())
+    for mission_id, contract in payload.items():
+        normalized_id = str(mission_id or "").strip()
+        if not normalized_id:
+            continue
+        contract_dict = contract if isinstance(contract, dict) else {}
+        title_raw = contract_dict.get("title") if isinstance(contract_dict, dict) else None
+        if isinstance(title_raw, (bytes, bytearray)):
+            title_raw = title_raw.decode("utf-8", errors="ignore")
+        title = str(title_raw or "").strip() or normalized_id
+        roles = _normalize_roles_input(contract_dict.get("roles") if isinstance(contract_dict, dict) else None)
+        try:
+            content_json = json.dumps(contract, ensure_ascii=False)
+        except TypeError as exc:
+            logger.error("Failed to serialize mission %s contract: %s", normalized_id, exc)
+            continue
+        roles_json = json.dumps(roles, ensure_ascii=False)
+        params = (normalized_id, title, roles_json, content_json, timestamp)
+        if is_sqlite:
+            cursor.execute(
+                """
+                INSERT INTO missions (mission_id, title, roles, content_json, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT(mission_id) DO UPDATE SET
+                    title = excluded.title,
+                    roles = excluded.roles,
+                    content_json = excluded.content_json,
+                    updated_at = excluded.updated_at
+                """,
+                params,
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO missions (mission_id, title, roles, content_json, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    roles = VALUES(roles),
+                    content_json = VALUES(content_json),
+                    updated_at = VALUES(updated_at)
+                """,
+                params,
+            )
+
+
+def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
+    try:
+        cursor.execute("SELECT COUNT(*) AS count FROM missions")
+        row = cursor.fetchone() or {}
+    except Exception as exc:
+        logger.error("Failed to inspect missions table: %s", exc)
+        return
+    count_value = row.get("count") if isinstance(row, Mapping) else None
+    if count_value is None and isinstance(row, Mapping):
+        count_value = row.get("COUNT(*)")
+    try:
+        count = int(count_value or 0)
+    except (TypeError, ValueError):
+        count = 0
+    if count > 0:
+        return
+    _seed_missions_from_file(cursor, is_sqlite)
+
+
+def _fetch_missions_from_db(mission_id: str | None = None) -> List[dict]:
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                is_sqlite = getattr(conn, "is_sqlite", False)
+                _ensure_missions_seeded(cur, is_sqlite)
+                if mission_id:
+                    cur.execute(
+                        """
+                        SELECT mission_id, title, roles, content_json, updated_at
+                        FROM missions
+                        WHERE mission_id = %s
+                        """,
+                        (mission_id,),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT mission_id, title, roles, content_json, updated_at
+                        FROM missions
+                        ORDER BY mission_id
+                        """
+                    )
+                rows = cur.fetchall()
+    except Exception as exc:
+        logger.error("Failed to load missions from database: %s", exc)
+        return []
+    missions: List[dict] = []
+    for row in rows:
+        try:
+            missions.append(_serialize_mission_row(row))
+        except Exception as exc:  # pragma: no cover - defensive serialization
+            logger.error("Failed to serialize mission row: %s", exc)
+    return missions
+
+
+def _get_mission_by_id(mission_id: str) -> Optional[dict]:
+    mission_key = (mission_id or "").strip()
+    if not mission_key:
+        return None
+    missions = _fetch_missions_from_db(mission_key)
+    return missions[0] if missions else None
+
+
+def _store_mission_record(
+    mission_id: str,
+    title: str,
+    roles: List[str],
+    content: Mapping[str, object],
+    *,
+    create: bool,
+) -> Optional[dict]:
+    normalized_id = (mission_id or "").strip()
+    if not normalized_id:
+        raise ValueError("El campo 'mission_id' es obligatorio.")
+    normalized_title = str(title or "").strip() or normalized_id
+    normalized_roles = _normalize_roles_input(roles)
+    content_dict = dict(content)
+    try:
+        content_json = json.dumps(content_dict, ensure_ascii=False)
+    except TypeError as exc:
+        raise ValueError(f"El contenido de la misión no es serializable: {exc}") from exc
+    roles_json = json.dumps(normalized_roles, ensure_ascii=False)
+    timestamp = _format_timestamp(datetime.utcnow())
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                if create:
+                    cur.execute(
+                        """
+                        INSERT INTO missions (mission_id, title, roles, content_json, updated_at)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (normalized_id, normalized_title, roles_json, content_json, timestamp),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        UPDATE missions
+                        SET title = %s, roles = %s, content_json = %s, updated_at = %s
+                        WHERE mission_id = %s
+                        """,
+                        (
+                            normalized_title,
+                            roles_json,
+                            content_json,
+                            timestamp,
+                            normalized_id,
+                        ),
+                    )
+                    if cur.rowcount == 0:
+                        return None
+    except Exception:
+        raise
+    return _get_mission_by_id(normalized_id)
+
+
+def load_contracts():
+    missions = _fetch_missions_from_db()
+    contracts: dict[str, dict] = {}
+    for mission in missions:
+        mission_id = (mission.get("mission_id") or "").strip()
+        content = mission.get("content")
+        if mission_id and isinstance(content, dict):
+            contracts[mission_id] = content
+    return contracts
 
 
 def _session_expiration_threshold() -> datetime:
@@ -638,6 +956,24 @@ def _purge_expired_sessions(cursor) -> None:
     cursor.execute("DELETE FROM sessions WHERE created_at < %s", (cutoff_str,))
 
 
+def _fetch_valid_session(cursor, token: str):
+    if not token:
+        return None
+    _purge_expired_sessions(cursor)
+    cursor.execute(
+        "SELECT student_slug, created_at FROM sessions WHERE token = %s",
+        (token,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    created_at = _parse_timestamp(row.get("created_at")) if isinstance(row, Mapping) else None
+    if created_at and created_at < _session_expiration_threshold():
+        cursor.execute("DELETE FROM sessions WHERE token = %s", (token,))
+        return None
+    return row
+
+
 def create_session(slug: str) -> str:
     try:
         init_db()
@@ -672,23 +1008,9 @@ def validate_session(token: str, slug: str | None = None) -> bool:
         init_db()
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                _purge_expired_sessions(cur)
-                cur.execute(
-                    "SELECT student_slug, created_at FROM sessions WHERE token = %s",
-                    (token,),
-                )
-                row = cur.fetchone()
+                row = _fetch_valid_session(cur, token)
                 if not row:
                     return False
-                created_at = _parse_timestamp(row.get("created_at"))
-                if created_at:
-                    expiration_threshold = _session_expiration_threshold()
-                    if created_at < expiration_threshold:
-                        cur.execute(
-                            "DELETE FROM sessions WHERE token = %s",
-                            (token,),
-                        )
-                        return False
                 if slug:
                     stored_slug = (row.get("student_slug") or "").strip()
                     if stored_slug != slug:
@@ -697,6 +1019,62 @@ def validate_session(token: str, slug: str | None = None) -> bool:
     except Exception as exc:
         print(f"Database error during session validation: {exc}", file=sys.stderr)
         return False
+
+
+def _get_student_for_token(token: str):
+    if not token:
+        return None
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                session_row = _fetch_valid_session(cur, token)
+                if not session_row:
+                    return None
+                slug = (session_row.get("student_slug") or "").strip()
+                if not slug:
+                    return None
+                cur.execute(
+                    """
+                    SELECT slug, name, role, workdir, email, created_at
+                    FROM students
+                    WHERE slug = %s
+                    """,
+                    (slug,),
+                )
+                return cur.fetchone()
+    except Exception as exc:
+        print(f"Database error while resolving session owner: {exc}", file=sys.stderr)
+        return None
+
+
+def _has_admin_privileges(role_value) -> bool:
+    if not role_value:
+        return False
+    if isinstance(role_value, str):
+        normalized = role_value.strip().lower()
+        return normalized in {"admin", "administrator", "administrador", "administradora"}
+    return False
+
+
+def _resolve_admin_request():
+    token = extract_token()
+    if not token:
+        return None, (jsonify({"error": "Unauthorized."}), 401)
+    student_row = _get_student_for_token(token)
+    if not student_row:
+        return None, (jsonify({"error": "Unauthorized."}), 401)
+    role_value = None
+    if isinstance(student_row, Mapping):
+        role_value = student_row.get("role")
+    else:
+        try:
+            role_value = student_row["role"]
+        except (TypeError, KeyError):  # pragma: no cover - defensive branch
+            role_value = None
+    if not _has_admin_privileges(role_value):
+        return None, (jsonify({"error": "Forbidden."}), 403)
+    return student_row, None
 
 
 def verify_evidence(
@@ -1282,6 +1660,111 @@ def api_login():
     )
 
 
+@app.route("/api/admin/missions", methods=["GET"])
+def api_admin_list_missions():
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    missions = _fetch_missions_from_db()
+    return jsonify({"missions": missions})
+
+
+@app.route("/api/admin/missions", methods=["POST"])
+def api_admin_create_mission():
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    data = get_request_json()
+    mission_id = (data.get("mission_id") or "").strip()
+    if not mission_id:
+        return jsonify({"error": "El campo 'mission_id' es obligatorio."}), 400
+    content = data.get("content")
+    if not isinstance(content, Mapping):
+        return jsonify({"error": "El campo 'content' debe ser un objeto."}), 400
+    title_value = str(data.get("title") or "").strip() or mission_id
+    roles_value = _normalize_roles_input(data.get("roles"))
+    try:
+        mission = _store_mission_record(
+            mission_id,
+            title_value,
+            roles_value,
+            dict(content),
+            create=True,
+        )
+    except (sqlite3.IntegrityError, pymysql.err.IntegrityError):
+        return jsonify({"error": f"La misión '{mission_id}' ya existe."}), 409
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        print(f"Database error on POST /api/admin/missions: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"mission": mission}), 201
+
+
+@app.route("/api/admin/missions/<mission_id>", methods=["PUT"])
+def api_admin_update_mission(mission_id: str):
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    data = get_request_json()
+    payload_id = (data.get("mission_id") or "").strip()
+    if payload_id and payload_id != mission_id:
+        return jsonify({"error": "El identificador de la misión no coincide."}), 400
+    existing = _get_mission_by_id(mission_id)
+    if not existing:
+        return jsonify({"error": "Misión no encontrada."}), 404
+    content = data.get("content")
+    if not isinstance(content, Mapping):
+        return jsonify({"error": "El campo 'content' debe ser un objeto."}), 400
+    title_value = data.get("title")
+    if title_value is None:
+        title_value = existing.get("title") or mission_id
+    else:
+        title_value = str(title_value or "").strip() or mission_id
+    roles_value = data.get("roles")
+    if roles_value is None:
+        roles_value = existing.get("roles") or []
+    normalized_roles = _normalize_roles_input(roles_value)
+    try:
+        mission = _store_mission_record(
+            mission_id,
+            title_value,
+            normalized_roles,
+            dict(content),
+            create=False,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        print(
+            f"Database error on PUT /api/admin/missions/{mission_id}: {exc}",
+            file=sys.stderr,
+        )
+        return jsonify({"error": "Database connection error."}), 500
+    if mission is None:
+        return jsonify({"error": "Misión no encontrada."}), 404
+    return jsonify({"mission": mission})
+
+
+@app.route("/api/missions", methods=["GET"])
+def api_public_missions():
+    role_filter = (request.args.get("role") or "").strip().lower()
+    missions = _fetch_missions_from_db()
+    if role_filter:
+        universal_tokens = {"*", "all", "todos", "todas"}
+        filtered: List[dict] = []
+        for mission in missions:
+            mission_roles = _normalize_roles_input(mission.get("roles"))
+            if not mission_roles:
+                filtered.append(mission)
+                continue
+            roles_lower = {role.lower() for role in mission_roles}
+            if role_filter in roles_lower or roles_lower.intersection(universal_tokens):
+                filtered.append(mission)
+        missions = filtered
+    return jsonify({"missions": missions})
+
+
 @app.route("/api/verify_mission", methods=["POST"])
 def api_verify_mission():
     data = get_request_json()
@@ -1305,17 +1788,22 @@ def api_verify_mission():
     except Exception as exc:
         print(f"Database error on /api/verify_mission lookup: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
-    contracts = load_contracts()
-    if not contracts:
+    mission_record = _get_mission_by_id(mission_id)
+    if not mission_record:
+        missions_snapshot = _fetch_missions_from_db()
+        if not missions_snapshot:
+            return jsonify(
+                {
+                    "verified": False,
+                    "feedback": [
+                        "No hay contratos de misión disponibles. Contacta a la persona administradora."
+                    ],
+                }
+            )
         return jsonify(
-            {
-                "verified": False,
-                "feedback": [
-                    "No hay contratos de misión disponibles. Contacta a la persona administradora."
-                ],
-            }
+            {"verified": False, "feedback": [f"No se encontró contrato para {mission_id}"]}
         )
-    contract = contracts.get(mission_id)
+    contract = mission_record.get("content") if isinstance(mission_record, Mapping) else None
     if not contract:
         return jsonify(
             {"verified": False, "feedback": [f"No se encontró contrato para {mission_id}"]}
