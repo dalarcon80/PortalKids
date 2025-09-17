@@ -79,7 +79,13 @@ except ModuleNotFoundError:  # pragma: no cover - simple fallback
         def _apply_vary_header(response, value: str) -> None:
             if not value:
                 return
-            response.headers.add("Vary", value)
+            existing = response.headers.get("Vary")
+            if not existing:
+                response.headers["Vary"] = value
+                return
+            vary_values = {item.strip() for item in existing.split(",") if item.strip()}
+            if value not in vary_values:
+                response.headers["Vary"] = f"{existing}, {value}"
 
         def _select_origin(origin: Optional[str]) -> Optional[str]:
             if not origin:
@@ -129,8 +135,7 @@ except ModuleNotFoundError:  # pragma: no cover - simple fallback
         @app.before_request  # pragma: no cover - runtime behavior
         def _handle_preflight():
             if request.method == "OPTIONS":
-                response = make_response("", 204)
-                return _apply_headers(response)
+                return make_response("", 204)
             return None
 
         @app.after_request  # pragma: no cover - runtime behavior
