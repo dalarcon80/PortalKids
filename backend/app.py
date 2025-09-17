@@ -1,12 +1,13 @@
 import json
 import os
 import secrets
+import sqlite3
 import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Mapping, Optional, Tuple
 
 import bcrypt
 import pymysql
@@ -55,6 +56,98 @@ CONTRACTS_PATH = os.path.join(BASE_DIR, "missions_contracts.json")
 SESSION_DURATION_SECONDS = 60 * 60 * 8
 
 
+def _use_sqlite_backend() -> bool:
+    required_keys = ["DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST"]
+    return any(not os.environ.get(key) for key in required_keys)
+
+
+class SQLiteCursorWrapper:
+    def __init__(self, cursor: sqlite3.Cursor) -> None:
+        self._cursor = cursor
+
+    def __enter__(self) -> "SQLiteCursorWrapper":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+    @staticmethod
+    def _normalize_query(query: str) -> str:
+        return query.replace("%s", "?")
+
+    def execute(self, query: str, params: Optional[Iterable] = None):
+        normalized_query = self._normalize_query(query)
+        if params is None:
+            params = []
+        self._cursor.execute(normalized_query, tuple(params))
+        return self
+
+    def executemany(self, query: str, seq_of_parameters):
+        normalized_query = self._normalize_query(query)
+        self._cursor.executemany(normalized_query, seq_of_parameters)
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def fetchall(self):
+        return [dict(row) for row in self._cursor.fetchall()]
+
+    @property
+    def rowcount(self) -> int:
+        return self._cursor.rowcount
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
+    def close(self) -> None:
+        try:
+            self._cursor.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+
+class SQLiteConnectionWrapper:
+    is_sqlite = True
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._connection = connection
+
+    def __enter__(self) -> "SQLiteConnectionWrapper":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        try:
+            if exc_type is None:
+                self._connection.commit()
+            else:
+                self._connection.rollback()
+        finally:
+            self.close()
+
+    def cursor(self) -> SQLiteCursorWrapper:
+        return SQLiteCursorWrapper(self._connection.cursor())
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+    def close(self) -> None:
+        try:
+            self._connection.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    def __getattr__(self, item):  # pragma: no cover - delegation helper
+        return getattr(self._connection, item)
+
+
 class PasswordValidationError(ValueError):
     """Raised when the provided password cannot be processed."""
 
@@ -68,32 +161,34 @@ class PasswordVerificationError(RuntimeError):
 
 
 def get_db_connection():
+    if _use_sqlite_backend():
+        sqlite_path = os.path.join(BASE_DIR, "database.db")
+        connection = sqlite3.connect(sqlite_path)
+        connection.row_factory = sqlite3.Row
+        try:
+            connection.execute("PRAGMA foreign_keys = ON")
+        except Exception:  # pragma: no cover - best-effort enforcement
+            pass
+        return SQLiteConnectionWrapper(connection)
+
     db_config = {
         "database": os.environ.get("DB_NAME"),
         "user": os.environ.get("DB_USER"),
         "password": os.environ.get("DB_PASSWORD"),
+        "host": os.environ.get("DB_HOST"),
         "cursorclass": DictCursor,
         "charset": "utf8mb4",
         "autocommit": True,
     }
 
-    missing = [key for key, value in db_config.items() if not value]
-    if missing:
-        raise RuntimeError(
-            "Missing required database configuration values: " + ", ".join(missing)
-        )
-
-    host = os.environ.get("DB_HOST")
     instance_connection = os.environ.get("DB_INSTANCE_CONNECTION_NAME")
-
-    if host:
-        db_config["host"] = host
-        db_config["port"] = int(os.environ.get("DB_PORT", "3306"))
-    elif instance_connection:
+    if instance_connection:
         socket_dir = os.environ.get("DB_SOCKET_DIR", "/cloudsql")
         db_config["unix_socket"] = os.path.join(socket_dir, instance_connection)
-    else:
-        raise RuntimeError("DB_HOST or DB_INSTANCE_CONNECTION_NAME must be provided.")
+
+    port_value = os.environ.get("DB_PORT")
+    if port_value:
+        db_config["port"] = int(port_value)
 
     connect_timeout = os.environ.get("DB_CONNECT_TIMEOUT")
     if connect_timeout:
@@ -103,6 +198,78 @@ def get_db_connection():
 
 
 def init_db():
+    if _use_sqlite_backend():
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                def ensure_column(table: str, column: str, definition: str) -> None:
+                    cur.execute(f"PRAGMA table_info({table})")
+                    existing = {row["name"] for row in cur.fetchall()}
+                    if column not in existing:
+                        cur.execute(
+                            f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+                        )
+
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS students (
+                        slug TEXT NOT NULL PRIMARY KEY,
+                        name TEXT,
+                        role TEXT,
+                        workdir TEXT,
+                        email TEXT,
+                        password_hash TEXT,
+                        created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+                    )
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS completed_missions (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        student_slug TEXT NOT NULL,
+                        mission_id TEXT NOT NULL,
+                        completed_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+                        UNIQUE (student_slug, mission_id),
+                        FOREIGN KEY (student_slug) REFERENCES students(slug) ON DELETE CASCADE
+                    )
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        token TEXT NOT NULL PRIMARY KEY,
+                        student_slug TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+                        FOREIGN KEY (student_slug) REFERENCES students(slug) ON DELETE CASCADE
+                    )
+                    """
+                )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_sessions_student_slug ON sessions(student_slug)"
+                )
+                ensure_column(
+                    "students", "created_at", "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
+                )
+                ensure_column("students", "password_hash", "TEXT")
+                ensure_column("students", "email", "TEXT")
+                ensure_column("students", "workdir", "TEXT")
+                ensure_column("students", "role", "TEXT")
+                ensure_column("students", "name", "TEXT")
+                ensure_column(
+                    "completed_missions",
+                    "completed_at",
+                    "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)",
+                )
+                ensure_column("completed_missions", "mission_id", "TEXT")
+                ensure_column("completed_missions", "student_slug", "TEXT")
+                ensure_column("sessions", "created_at", "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)")
+                ensure_column("sessions", "student_slug", "TEXT")
+                cur.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uniq_student_mission_sqlite "
+                    "ON completed_missions(student_slug, mission_id)"
+                )
+        return
+
     db_name = os.environ.get("DB_NAME")
     if not db_name:
         raise RuntimeError("DB_NAME must be configured before initializing the database.")
@@ -382,9 +549,55 @@ def _session_expiration_threshold() -> datetime:
     return datetime.utcnow() - timedelta(seconds=SESSION_DURATION_SECONDS)
 
 
+def _format_timestamp(value: datetime) -> str:
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_timestamp(value) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        candidate = value.strip()
+        if not candidate:
+            return None
+        try:
+            return datetime.fromisoformat(candidate)
+        except ValueError:
+            pass
+        try:
+            return datetime.fromisoformat(candidate.replace(" ", "T"))
+        except ValueError:
+            pass
+        for fmt in (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%d %H:%M:%S.%f",
+            "%Y-%m-%dT%H:%M:%S.%f",
+        ):
+            try:
+                return datetime.strptime(candidate, fmt)
+            except ValueError:
+                continue
+    return None
+
+
+def _serialize_student(row: Mapping[str, object]) -> dict:
+    created_at = _parse_timestamp(row.get("created_at")) if row else None
+    created_at_iso = created_at.isoformat() if created_at else None
+    return {
+        "slug": row.get("slug") if row else None,
+        "name": row.get("name") if row else None,
+        "role": row.get("role") if row else None,
+        "workdir": row.get("workdir") if row else None,
+        "email": row.get("email") if row else None,
+        "created_at": created_at_iso,
+    }
+
+
 def _purge_expired_sessions(cursor) -> None:
     cutoff = _session_expiration_threshold()
-    cursor.execute("DELETE FROM sessions WHERE created_at < %s", (cutoff,))
+    cutoff_str = _format_timestamp(cutoff)
+    cursor.execute("DELETE FROM sessions WHERE created_at < %s", (cutoff_str,))
 
 
 def create_session(slug: str) -> str:
@@ -402,12 +615,12 @@ def create_session(slug: str) -> str:
                         cur.execute(
                             """
                             INSERT INTO sessions (token, student_slug, created_at)
-                            VALUES (%s, %s, UTC_TIMESTAMP())
+                            VALUES (%s, %s, %s)
                             """,
-                            (token, slug),
+                            (token, slug, _format_timestamp(datetime.utcnow())),
                         )
                         return token
-                    except pymysql.err.IntegrityError:
+                    except (pymysql.err.IntegrityError, sqlite3.IntegrityError):
                         continue
     except Exception as exc:
         raise RuntimeError("Failed to create session.") from exc
@@ -429,8 +642,8 @@ def validate_session(token: str, slug: str | None = None) -> bool:
                 row = cur.fetchone()
                 if not row:
                     return False
-                created_at = row.get("created_at")
-                if isinstance(created_at, datetime):
+                created_at = _parse_timestamp(row.get("created_at"))
+                if created_at:
                     expiration_threshold = _session_expiration_threshold()
                     if created_at < expiration_threshold:
                         cur.execute(
@@ -829,7 +1042,7 @@ def api_status():
                 row = cur.fetchone()
                 if not row:
                     return jsonify({"error": "Student not found."}), 404
-                student = dict(row)
+                student = _serialize_student(row)
                 cur.execute(
                     "SELECT mission_id FROM completed_missions WHERE student_slug = %s ORDER BY completed_at",
                     (slug,),
@@ -888,19 +1101,35 @@ def api_enroll():
         init_db()
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO students (slug, name, role, workdir, email, password_hash)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        name = VALUES(name),
-                        role = VALUES(role),
-                        workdir = VALUES(workdir),
-                        email = VALUES(email),
-                        password_hash = VALUES(password_hash)
-                    """,
-                    (slug, name, role, workdir, email, password_hash),
-                )
+                params = (slug, name, role, workdir, email, password_hash)
+                if getattr(conn, "is_sqlite", False):
+                    cur.execute(
+                        """
+                        INSERT INTO students (slug, name, role, workdir, email, password_hash)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT(slug) DO UPDATE SET
+                            name = excluded.name,
+                            role = excluded.role,
+                            workdir = excluded.workdir,
+                            email = excluded.email,
+                            password_hash = excluded.password_hash
+                        """,
+                        params,
+                    )
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO students (slug, name, role, workdir, email, password_hash)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                            name = VALUES(name),
+                            role = VALUES(role),
+                            workdir = VALUES(workdir),
+                            email = VALUES(email),
+                            password_hash = VALUES(password_hash)
+                        """,
+                        params,
+                    )
     except Exception as exc:
         print(f"Database error on /api/enroll: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
@@ -959,14 +1188,7 @@ def api_login():
     except RuntimeError as exc:
         print(f"Session creation error on /api/login: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
-    student = {
-        "slug": row.get("slug"),
-        "name": row.get("name"),
-        "role": row.get("role"),
-        "workdir": row.get("workdir"),
-        "email": row.get("email"),
-        "created_at": row.get("created_at").isoformat() if row.get("created_at") else None,
-    }
+    student = _serialize_student(row)
     return jsonify(
         {
             "authenticated": True,
@@ -1043,13 +1265,23 @@ def api_verify_mission():
             init_db()
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT IGNORE INTO completed_missions (student_slug, mission_id)
-                        VALUES (%s, %s)
-                        """,
-                        (slug, mission_id),
-                    )
+                    params = (slug, mission_id)
+                    if getattr(conn, "is_sqlite", False):
+                        cur.execute(
+                            """
+                            INSERT OR IGNORE INTO completed_missions (student_slug, mission_id)
+                            VALUES (%s, %s)
+                            """,
+                            params,
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            INSERT IGNORE INTO completed_missions (student_slug, mission_id)
+                            VALUES (%s, %s)
+                            """,
+                            params,
+                        )
         except Exception as exc:
             print(
                 f"Database error on /api/verify_mission record: {exc}", file=sys.stderr
