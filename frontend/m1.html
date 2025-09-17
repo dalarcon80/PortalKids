@@ -42,89 +42,131 @@
       </div>
     </div>
     <div class="portal-header__body">
-      <h1 class="portal-header__heading">M1 — La Puerta de la Base (VS Code + Python + Git)</h1>
-    </div>
-  </header>
-  <main hidden>
-    <section class="mission">
-      <h2>Historia</h2>
-      <p>La Base Central se ilumina cuando llegan. En el centro, una mesa con dos piezas clave: una libreta brillante y un cristal con forma de serpiente.</p>
-      <p>“Bienvenidos”, dice el Mentor Byte. “Antes de abrir los cofres de datos, necesitamos un taller confiable. La libreta es VS Code, tu cuaderno inteligente para escribir instrucciones claras. El cristal es Python, el intérprete que entiende y ejecuta tu lenguaje. Sin estas dos piezas, el mapa de la tienda es solo ruido.”</p>
-      <p>Byte señala una compu: “Hoy aprenderán a confiar su carpeta del proyecto, abrirán la terminal en el lugar correcto y registrarán la versión de sus herramientas. Cuando el taller queda listo, todo lo demás es más fácil: los comandos funcionan, los archivos aparecen donde deben y ustedes avanzan sin perderse.”</p>
-      <h2>¿Para qué sirve?</h2>
-      <p>VS Code es el cuaderno inteligente para escribir programas. Python ejecuta tu código. Sin estas dos piezas no podrás leer ni transformar datos del caso real.</p>
-      <h2>Al final podrás…</h2>
-      <ul>
-        <li>Abrir la carpeta del proyecto en VS Code y confiarla.</li>
-        <li>Abrir una terminal integrada en la ruta correcta.</li>
-        <li>Ver la versión de VS Code y de Python.</li>
-        <li>Dejar evidencias en docs.</li>
-      </ul>
-      <h2>Videos</h2>
-      <ul>
-        <li><a href="https://www.youtube.com/watch?v=CxF3ykWP1H4" target="_blank">VS Code (introducción para principiantes)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=fg6dVf-aHqk" target="_blank">Instalar VS Code en Windows 11 (paso a paso)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=3xQRR3iNqDQ" target="_blank">¿Qué es la terminal/PowerShell?</a></li>
-        <li><a href="https://www.youtube.com/watch?v=M9YRgYe4FPg" target="_blank">¿Qué es el PATH en Windows?</a></li>
-        <li><a href="https://www.youtube.com/watch?v=eqm_D-vrfPo" target="_blank">Intérprete de Python (explicado)</a></li>
-      </ul>
-      <h2>Investigación — Fichas</h2>
-      <p>Completa 5 fichas: editor, VS Code, intérprete, PATH, terminal. Para cada ficha incluye en bullets:</p>
-      <ul>
-        <li>Definición (1–2 líneas, en tus palabras)</li>
-        <li>Ejemplo en este proyecto</li>
-        <li>Error común</li>
-        <li>Fuente vista (video)</li>
-      </ul>
-      <h2>Práctica — Contrato</h2>
-      <p><strong>Entrada:</strong> C:\\MinecraftShop\\minecraft_shop_project.</p>
-      <p><strong>Logro:</strong> taller listo y evidencias.</p>
-      <p><strong>Salidas:</strong></p>
-      <ul>
-        <li><code>docs/m1_vscode_ok.txt</code> (escribe la versión de VS Code)</li>
-        <li><code>docs/m1_workspace_ok.txt</code> con la línea exacta: <code>workspace: C:\\MinecraftShop\\minecraft_shop_project</code></li>
-        <li><code>docs/m1_notes.md</code> (tus 5 fichas)</li>
-      </ul>
-      <h2>Parte aplicada (detallada, sin código)</h2>
-      <p><strong>Situación:</strong> necesitarás ejecutar comandos del proyecto (activar el venv, correr scripts) siempre desde la carpeta correcta.</p>
-      <p><strong>Qué debes hacer hoy:</strong></p>
-      <ul>
-        <li>Verifica que la terminal integrada abre en la ruta del proyecto; si no, muévela a esa carpeta y anota el comando que usaste.</li>
-        <li>Comprueba que VS Code está en PATH (puedes ver la versión por terminal o desde “Ayuda → Acerca de”).</li>
-        <li>Documenta en <code>m1_notes.md</code> cualquier ajuste que hiciste (1–2 líneas).</li>
-      </ul>
-      <p><strong>Meta de calidad:</strong> que mañana puedas crear el venv (M2) sin errores por rutas o PATH.</p>
-      <h2>Entregables</h2>
-      <p><code>m1_vscode_ok.txt</code>, <code>m1_workspace_ok.txt</code>, <code>m1_notes.md</code>.</p>
-      <h2>Verificación</h2>
-      <p>Terminal en la ruta del proyecto; 3 archivos existen; la línea exacta está correcta.</p>
-      <h2>Micro‑quiz (5)</h2>
-      <ol>
-        <li>¿Qué es el PATH?</li>
-        <li>Editor vs intérprete</li>
-        <li>¿Para qué sirve la terminal integrada?</li>
-        <li>¿Qué pasa si VS Code no está en PATH?</li>
-        <li>¿Por qué confiar la carpeta?</li>
-      </ol>
-      <h2>Checklist</h2>
-      <ul>
-        <li>Vi los videos</li>
-        <li>5 fichas completas</li>
-        <li>3 evidencias</li>
-        <li>Ruta verificada</li>
-      </ul>
-      <h2>Rúbrica (10)</h2>
-      <ul>
-        <li>Fichas (3)</li>
-        <li>Práctica (4)</li>
-        <li>Evidencias (2)</li>
-        <li>Orden (1)</li>
-      </ul>
-      <h2>Errores comunes</h2>
-      <ul>
-        <li>VS Code fuera de PATH</li>
-        <li>Terminal abierta en otra ruta</li>
-      </ul>
+      <h2>M1 — La Puerta de la Base (VS Code + Python) — GitHub-first</h2>
+
+<h3>Historia</h3>
+<p>El Mentor Byte te da dos llaves: <strong>VS Code</strong> (tu cuaderno para escribir instrucciones) y <strong>Python</strong> (quien entiende y ejecuta esas instrucciones).</p>
+<p>Hoy armamos el taller para toda la aventura. Si el taller queda bien, todo lo demás fluye.</p>
+
+<h3>¿Para qué sirve?</h3>
+<ul>
+  <li>Abrir el proyecto en VS Code y confiarlo (trust).</li>
+  <li>Usar la terminal integrada en la carpeta exacta del proyecto.</li>
+  <li>Ver la versión de VS Code y de Python.</li>
+  <li>Subir evidencias a GitHub para revisión y nota.</li>
+</ul>
+
+<h3>Al final podrás…</h3>
+<ul>
+  <li>Confiar la carpeta del proyecto.</li>
+  <li>Abrir la terminal en la ruta correcta.</li>
+  <li>Ver versiones de VS Code y Python.</li>
+  <li>Subir 3 evidencias a GitHub (en tu carpeta de estudiante) y verificar que se sincronizaron.</li>
+</ul>
+
+<h3>Material de aprendizaje sugerido</h3>
+<ul>
+  <li><a href="https://www.youtube.com/watch?v=CxF3ykWP1H4" target="_blank">VS Code (introducción para principiantes)</a></li>
+  <li><a href="https://www.youtube.com/watch?v=fg6dVf-aHqk" target="_blank">Instalar VS Code en Windows 11 (paso a paso)</a></li>
+  <li><a href="https://www.youtube.com/watch?v=3xQRR3iNqDQ" target="_blank">¿Qué es la terminal/PowerShell?</a></li>
+  <li><a href="https://www.youtube.com/watch?v=M9YRgYe4FPg" target="_blank">¿Qué es el PATH en Windows?</a></li>
+  <li><a href="https://www.youtube.com/watch?v=eqm_D-vrfPo" target="_blank">Intérprete de Python (explicado)</a></li>
+  <li>Clave para esta misión (VS Code + GitHub):
+    <ul>
+      <li>¿Cómo trabajar con Git desde Visual Studio Code? — video en español (YouTube).</li>
+      <li>Clonar un repo de GitHub con VS Code — guía oficial en español (Microsoft Learn).</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>Investigación (Fichas)</h3>
+<p>Guarda tus 5 fichas en <code>students/&lt;usuario&gt;/docs/m1_notes.md</code> con el formato 1-2-1-1 (Definición, Ejemplo, Error común, Fuente).</p>
+<p>Los términos son: <strong>editor</strong>, <strong>VS Code</strong>, <strong>intérprete</strong>, <strong>PATH</strong>, <strong>terminal</strong>.</p>
+<pre><code># M1 — Fichas
+## editor
+- **Definición:** ...
+- **Ejemplo en este proyecto:** ...
+- **Error común:** ...
+- **Fuente:** ... (min aprox: ...)
+
+## VS Code
+...
+## intérprete
+...
+## PATH
+...
+## terminal
+...</code></pre>
+
+<h3>Práctica — Contrato</h3>
+<p>Paso 0: Fork → Clone → Rama <code>m1-&lt;usuario&gt;</code> → Commit/Push/Sync → Pull Request.</p>
+<p>En tu proyecto local, crea la estructura:</p>
+<pre><code>students/&lt;usuario&gt;/
+├─ docs/
+├─ reports/
+├─ data/bronze/
+├─ data/silver/
+├─ data/gold/
+└─ tasks/</code></pre>
+<p>Agrega un <code>.gitignore</code> para no subir <code>.venv</code>, <code>__pycache__</code>, etc.</p>
+<p>Define los entregables según tu perfil:</p>
+<ul>
+  <li><strong>Ventas:</strong> <code>docs/m1_vscode_ok.txt</code>, <code>docs/m1_workspace_ok.txt</code> (con la línea exacta <code>workspace: C:\\MinecraftShop\\PortalKidsVentas</code>), <code>docs/m1_notes.md</code>.</li>
+  <li><strong>Operaciones:</strong> <code>docs/m1_vscode_ok.txt</code>, <code>docs/m1_workspace_ok.txt</code> (línea exacta <code>workspace: C:\\MinecraftShop\\PortalKidsOperaciones</code>), <code>docs/m1_notes.md</code>.</li>
+</ul>
+<p>Verifica que la terminal esté en la carpeta correcta, observa las versiones de VS Code y Python, haz commit, sincroniza y revisa que tus archivos estén en GitHub.</p>
+
+<h3>Entregables obligatorios</h3>
+<ul>
+  <li><code>docs/m1_vscode_ok.txt</code></li>
+  <li><code>docs/m1_workspace_ok.txt</code></li>
+  <li><code>docs/m1_notes.md</code></li>
+</ul>
+
+<h3>Revisión en PR</h3>
+<ul>
+  <li>Terminal en la ruta correcta.</li>
+  <li>Existencia de los 3 archivos con nombres exactos.</li>
+  <li><code>m1_workspace_ok.txt</code> contiene la línea exacta.</li>
+  <li>Commit/Sync realizado.</li>
+</ul>
+
+<h3>Micro-quiz (5)</h3>
+<ol>
+  <li>¿Para qué sirve el PATH?</li>
+  <li>Editor vs intérprete.</li>
+  <li>¿Para qué sirve la terminal integrada?</li>
+  <li>Si <code>code</code> o <code>python</code> no se reconocen, ¿qué puede faltar?</li>
+  <li>¿Por qué hay que confiar (trust) la carpeta?</li>
+</ol>
+
+<h3>Checklist</h3>
+<ul>
+  <li>[ ] Vi los videos</li>
+  <li>[ ] Fichas en <code>docs/m1_notes.md</code></li>
+  <li>[ ] 3 evidencias subidas (rutas exactas)</li>
+  <li>[ ] Terminal verificada en la carpeta del repo</li>
+  <li>[ ] Commit &amp; Sync verificados</li>
+  <li>[ ] Quiz M1 aprobado (evidencia)</li>
+  <li>[ ] SHA final: &lt;aquí&gt;</li>
+</ul>
+
+<h3>Rúbrica (10)</h3>
+<ul>
+  <li>Fichas (3)</li>
+  <li>Práctica (4)</li>
+  <li>Evidencias (2)</li>
+  <li>Orden (1)</li>
+</ul>
+
+<h3>Errores comunes</h3>
+<ul>
+  <li>Commit sin Push/Sync.</li>
+  <li>Terminal abierta en otra ruta.</li>
+  <li>VS Code o Python fuera de PATH.</li>
+  <li>Subir <code>.venv</code> u otras carpetas no permitidas.</li>
+</ul>
+
     </section>
     <section class="verification">
       <button id="verifyBtn">Verificar y Entregar Misión</button>
