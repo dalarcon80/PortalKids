@@ -45,7 +45,7 @@
       <h1 class="portal-header__heading">M3 — Cofres CSV y DataFrames (pandas)</h1>
     </div>
   </header>
-  <main>
+  <main hidden>
     <section class="mission">
       <h2>Historia</h2>
       <p>El pasillo conduce a una bodega con cofres etiquetados: orders, products, customers. “Estos cofres son CSV”, explica Byte. “Parecen listas, pero esconden tablas. Para leerlos sin perdernos, usaremos una lupa especial: pandas. Con pandas, los cofres se transforman en DataFrames.”</p>
@@ -130,11 +130,51 @@
   </main>
   <script src="assets/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      const missionId = 'm3';
+      const mainContent = document.querySelector('main');
       const resultDiv = document.getElementById('verifyResult');
-      document.getElementById('verifyBtn').addEventListener('click', () => {
-        verifyMission('m3', resultDiv);
-      });
+      const verifyBtn = document.getElementById('verifyBtn');
+
+      const showMission = () => {
+        if (mainContent) {
+          mainContent.removeAttribute('hidden');
+        }
+        if (verifyBtn && resultDiv) {
+          verifyBtn.addEventListener('click', () => {
+            verifyMission(missionId, resultDiv);
+          });
+        }
+      };
+
+      const showMessage = (message) => {
+        document.body.innerHTML = `
+          <main class="mission-locked">
+            <section class="status-error">
+              <h2>Acceso restringido</h2>
+              <p>${message}</p>
+              <p><a href="index.html">Volver al portal</a></p>
+            </section>
+          </main>
+        `;
+      };
+
+      try {
+        const access = await ensureMissionUnlocked(missionId);
+        if (access.allowed) {
+          showMission();
+          return;
+        }
+        if (access.action === 'redirect' && access.redirectTo) {
+          window.location.href = access.redirectTo;
+          return;
+        }
+        showMessage(
+          access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.'
+        );
+      } catch (err) {
+        showMessage('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
+      }
     });
   </script>
 </body>

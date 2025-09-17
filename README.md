@@ -2,6 +2,12 @@
 
 Este proyecto implementa un portal web de entrenamiento basado en misiones. Los estudiantes se matriculan, avanzan por las misiones y deben cumplir contratos de entrega que se verifican de manera automática. Está dividido en frontend (HTML, CSS y JavaScript), backend (Python Flask) y un archivo de contratos en YAML. Puedes empaquetar y desplegar la aplicación en Windows IIS mediante el script `install_all.ps1`.
 
+## Flujo de acceso a misiones en el frontend
+
+La lógica que determina qué misiones están desbloqueadas vive en `frontend/assets/js/main.js` dentro del helper `ensureMissionUnlocked(missionId)`. Este helper lee el `slug` y `token` guardados, consulta `/api/status` y reconstruye el mapa de progreso según el rol del estudiante. Si la sesión no existe, expiró o falta completar la misión previa, limpia el almacenamiento local y devuelve una instrucción para redirigir de vuelta al portal o mostrar un aviso.
+
+Cada página de misión (por ejemplo `frontend/m3.html`) debe ocultar su `<main>` inicial usando el atributo `hidden` y, en `DOMContentLoaded`, llamar a `ensureMissionUnlocked`. Si la respuesta indica que el acceso es válido, la página quita el `hidden`, enlaza el botón de verificación y deja visible el contenido. Cuando el helper responde con una redirección se envía al estudiante a `index.html`; si se trata de progreso faltante, se reemplaza el cuerpo con un mensaje que invita a completar la misión anterior. Sigue este patrón para cualquier misión nueva para mantener una experiencia homogénea.
+
 ## Configuración de base de datos
 
 El servicio backend persiste estudiantes y misiones completadas en una base de datos MySQL (por ejemplo, Cloud SQL for MySQL). Antes de iniciar el servidor debes definir las siguientes variables de entorno:
