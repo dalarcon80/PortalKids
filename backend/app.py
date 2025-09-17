@@ -536,8 +536,26 @@ def serve_index():
 
 
 @app.route('/m/<path:filename>')
-def serve_mission_page(filename):
-    return _serve_frontend_file(os.path.join('m', filename))
+@app.route('/<mission_id>.html')
+def serve_mission_page(filename=None, mission_id=None):
+    if mission_id is not None:
+        target_filename = f'{mission_id}.html'
+    else:
+        target_filename = filename or ''
+
+    normalized = os.path.normpath(target_filename).lstrip(os.sep)
+    if not normalized:
+        abort(404)
+
+    base_name = os.path.basename(normalized)
+    if normalized != base_name:
+        abort(404)
+
+    base_lower = base_name.lower()
+    if not base_lower.startswith('m') or not base_lower.endswith('.html'):
+        abort(404)
+
+    return _serve_frontend_file(base_name)
 
 
 @app.route('/assets/<path:filename>')
