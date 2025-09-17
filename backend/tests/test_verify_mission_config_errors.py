@@ -48,6 +48,10 @@ def _configure_app(monkeypatch):
     monkeypatch.setattr(backend_app, "init_db", lambda: None)
     monkeypatch.setattr(backend_app, "get_db_connection", lambda: _DummyConnection("ventas"))
     monkeypatch.setattr(backend_app, "validate_session", lambda token, slug=None: True)
+    import werkzeug
+
+    if not hasattr(werkzeug, "__version__"):
+        monkeypatch.setattr(werkzeug, "__version__", "0", raising=False)
 
 
 def _patch_contract(monkeypatch, verification_type: str) -> None:
@@ -75,3 +79,22 @@ def test_verify_mission_returns_configuration_error(monkeypatch, verification_ty
     assert response.status_code == 200
     payload = response.get_json()
     assert payload == {"verified": False, "feedback": ["sin requests"]}
+
+
+def test_verify_mission_handles_invalid_contract_json(monkeypatch, tmp_path):
+    invalid_contracts = tmp_path / "contracts.json"
+    invalid_contracts.write_text("{ invalid", encoding="utf-8")
+    monkeypatch.setattr(backend_app, "CONTRACTS_PATH", str(invalid_contracts))
+    client = backend_app.app.test_client()
+    response = client.post(
+        "/api/verify_mission",
+        json={"slug": "student", "mission_id": "mission"},
+        headers={"Authorization": "Bearer token"},
+    )
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "verified": False,
+        "feedback": [
+            "No hay contratos de misión disponibles. Contacta a la persona administradora.",
+        ],
+    }
