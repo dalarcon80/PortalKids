@@ -1,6 +1,11 @@
 {
   "m1": {
     "verification_type": "evidence",
+    "source": {
+      "repository": "default",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "deliverables": [
       {
         "type": "file_exists",
@@ -22,6 +27,11 @@
   },
   "m2": {
     "verification_type": "evidence",
+    "source": {
+      "repository": "default",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "deliverables": [
       {
         "type": "file_exists",
@@ -48,6 +58,11 @@
   },
   "m3": {
     "verification_type": "script_output",
+    "source": {
+      "repository": "default",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "script_path": "scripts/m3_explorer.py",
     "validations": [
       {
@@ -64,6 +79,11 @@
   },
   "m4": {
     "verification_type": "evidence",
+    "source": {
+      "repository": "default",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "deliverables": [
       {
         "type": "file_exists",
@@ -79,12 +99,22 @@
   },
   "m5": {
     "verification_type": "llm_evaluation",
+    "source": {
+      "repository": "default",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "deliverable_path": "docs/m5_notes.md",
     "expected_keywords": ["limpieza", "tipos", "duplicados"],
     "feedback_fail": "La evaluación automática de tus notas indica que necesitan más detalle o claridad en limpieza, tipos y duplicados."
   },
   "m6v": {
     "verification_type": "evidence",
+    "source": {
+      "repository": "ventas",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "deliverables": [
       {
         "type": "file_exists",
@@ -105,6 +135,11 @@
   },
   "m6o": {
     "verification_type": "evidence",
+    "source": {
+      "repository": "operaciones",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "deliverables": [
       {
         "type": "file_exists",
@@ -125,6 +160,11 @@
   },
   "m7": {
     "verification_type": "evidence",
+    "source": {
+      "repository": "default",
+      "default_branch": "main",
+      "base_path": "students/{slug}"
+    },
     "deliverables": [
       {
         "type": "file_exists",
