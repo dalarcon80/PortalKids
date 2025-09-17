@@ -45,7 +45,7 @@
       <h1 class="portal-header__heading">M6 — Gold (VENTAS): Une y mide</h1>
     </div>
   </header>
-  <main>
+  <main hidden>
     <section class="mission">
       <h2>Historia</h2>
       <p>Llegan al Salón del Mercado. Tres caminos desembocan en una mesa de unión: pedidos, productos y clientes. “El consejo no quiere anécdotas; quiere medidas”, dice Byte. “En Gold (Ventas) unirás con joins left para no perder pedidos. Crearás la runa clave: ingreso = quantity × price. Luego generarás ventas por día, top productos y ventas por ciudad. Si un nombre de producto o una ciudad aparece vacío, la historia está incompleta: revisa claves y tipo de join.”</p>
@@ -125,11 +125,51 @@
   </main>
   <script src="assets/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      const missionId = 'm6v';
+      const mainContent = document.querySelector('main');
       const resultDiv = document.getElementById('verifyResult');
-      document.getElementById('verifyBtn').addEventListener('click', () => {
-        verifyMission('m6v', resultDiv);
-      });
+      const verifyBtn = document.getElementById('verifyBtn');
+
+      const showMission = () => {
+        if (mainContent) {
+          mainContent.removeAttribute('hidden');
+        }
+        if (verifyBtn && resultDiv) {
+          verifyBtn.addEventListener('click', () => {
+            verifyMission(missionId, resultDiv);
+          });
+        }
+      };
+
+      const showMessage = (message) => {
+        document.body.innerHTML = `
+          <main class="mission-locked">
+            <section class="status-error">
+              <h2>Acceso restringido</h2>
+              <p>${message}</p>
+              <p><a href="index.html">Volver al portal</a></p>
+            </section>
+          </main>
+        `;
+      };
+
+      try {
+        const access = await ensureMissionUnlocked(missionId);
+        if (access.allowed) {
+          showMission();
+          return;
+        }
+        if (access.action === 'redirect' && access.redirectTo) {
+          window.location.href = access.redirectTo;
+          return;
+        }
+        showMessage(
+          access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.'
+        );
+      } catch (err) {
+        showMessage('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
+      }
     });
   </script>
 </body>

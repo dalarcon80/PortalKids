@@ -45,7 +45,7 @@
       <h1 class="portal-header__heading">M5 — Silver: Limpieza y Tipos</h1>
     </div>
   </header>
-  <main>
+  <main hidden>
     <section class="mission">
       <h2>Historia</h2>
       <p>La siguiente puerta se abre a un taller plateado. “Silver es donde quitamos lo que estorba”, dice Byte. “Recortamos espacios, corregimos tipos y eliminamos duplicados. No adornamos los datos: los dejamos confiables para unir en Gold.”</p>
@@ -131,11 +131,51 @@
   </main>
   <script src="assets/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+      const missionId = 'm5';
+      const mainContent = document.querySelector('main');
       const resultDiv = document.getElementById('verifyResult');
-      document.getElementById('verifyBtn').addEventListener('click', () => {
-        verifyMission('m5', resultDiv);
-      });
+      const verifyBtn = document.getElementById('verifyBtn');
+
+      const showMission = () => {
+        if (mainContent) {
+          mainContent.removeAttribute('hidden');
+        }
+        if (verifyBtn && resultDiv) {
+          verifyBtn.addEventListener('click', () => {
+            verifyMission(missionId, resultDiv);
+          });
+        }
+      };
+
+      const showMessage = (message) => {
+        document.body.innerHTML = `
+          <main class="mission-locked">
+            <section class="status-error">
+              <h2>Acceso restringido</h2>
+              <p>${message}</p>
+              <p><a href="index.html">Volver al portal</a></p>
+            </section>
+          </main>
+        `;
+      };
+
+      try {
+        const access = await ensureMissionUnlocked(missionId);
+        if (access.allowed) {
+          showMission();
+          return;
+        }
+        if (access.action === 'redirect' && access.redirectTo) {
+          window.location.href = access.redirectTo;
+          return;
+        }
+        showMessage(
+          access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.'
+        );
+      } catch (err) {
+        showMessage('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
+      }
     });
   </script>
 </body>

@@ -74,6 +74,42 @@ function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.token);
 }
 
+const ALL_MISSIONS = [
+  { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm3', title: 'M3 — Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm4', title: 'M4 — Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm5', title: 'M5 — Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm6v', title: 'M6 — Gold (VENTAS): Une y mide', roles: ['Ventas'] },
+  { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
+  { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
+];
+
+function getMissionsForRole(role) {
+  if (!role) {
+    return [];
+  }
+  return ALL_MISSIONS.filter((mission) => mission.roles.includes(role));
+}
+
+function calculateUnlockedMissions(missionsForRole, completed) {
+  const unlocked = {};
+  if (!Array.isArray(missionsForRole) || missionsForRole.length === 0) {
+    return unlocked;
+  }
+  const completedSet = new Set(Array.isArray(completed) ? completed : []);
+  unlocked[missionsForRole[0].id] = true;
+  missionsForRole.forEach((mission, index) => {
+    if (completedSet.has(mission.id)) {
+      unlocked[mission.id] = true;
+      if (index + 1 < missionsForRole.length) {
+        unlocked[missionsForRole[index + 1].id] = true;
+      }
+    }
+  });
+  return unlocked;
+}
+
 function setCurrentMission(missionId) {
   if (missionId) {
     localStorage.setItem(STORAGE_KEYS.mission, missionId);
@@ -489,35 +525,8 @@ async function loadDashboard() {
  */
 function renderDashboard(student, completed) {
   const content = $('#content');
-  // Definición de las misiones y sus roles permitidos
-  const MISSIONS = [
-    { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm3', title: 'M3 — Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm4', title: 'M4 — Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm5', title: 'M5 — Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm6v', title: 'M6 — Gold (VENTAS): Une y mide', roles: ['Ventas'] },
-    { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
-    { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
-  ];
-  // Filtrar misiones según rol
-  const missionsForRole = MISSIONS.filter((m) => m.roles.includes(student.role));
-  // Determinar misiones desbloqueadas
-  const unlocked = {};
-  // La primera misión siempre se desbloquea
-  if (missionsForRole.length > 0) {
-    unlocked[missionsForRole[0].id] = true;
-  }
-  // Si completaste una misión, desbloquea la siguiente de tu rol
-  missionsForRole.forEach((m, idx) => {
-    if (completed.includes(m.id)) {
-      unlocked[m.id] = true;
-      // Desbloquea la siguiente misión
-      if (idx + 1 < missionsForRole.length) {
-        unlocked[missionsForRole[idx + 1].id] = true;
-      }
-    }
-  });
+  const missionsForRole = getMissionsForRole(student.role);
+  const unlocked = calculateUnlockedMissions(missionsForRole, completed);
   let html = `<section class="dashboard">
     <h2>Bienvenido, ${student.name}</h2>
     <p>Rol: ${student.role}</p>
@@ -552,6 +561,120 @@ function renderDashboard(student, completed) {
     clearSession();
     renderLoginForm();
   };
+}
+
+/**
+ * Confirma si una misión está desbloqueada para el estudiante actual.
+ * @param {string} missionId
+ * @returns {Promise<{allowed: boolean, action?: string, redirectTo?: string, message?: string, reason?: string}>}
+ */
+async function ensureMissionUnlocked(missionId) {
+  const slug = getStoredSlug();
+  const token = getStoredToken();
+  if (!slug || !token) {
+    clearSession();
+    return {
+      allowed: false,
+      reason: 'missing-session',
+      action: 'redirect',
+      redirectTo: 'index.html',
+      message: 'Debes iniciar sesión nuevamente desde el portal para continuar.',
+    };
+  }
+  const initialSlug = slug;
+  const headers = token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : {};
+  const statusUrl = `/api/status?${new URLSearchParams({ slug })}`;
+  try {
+    const res = await apiFetch(statusUrl, {
+      credentials: 'include',
+      headers,
+    });
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseError) {
+      data = {};
+    }
+    if (res.status === 401) {
+      clearSession();
+      return {
+        allowed: false,
+        reason: 'invalid-session',
+        action: 'redirect',
+        redirectTo: 'index.html',
+        message: 'Tu sesión expiró o no es válida. Vuelve a iniciar sesión desde el portal.',
+      };
+    }
+    if (!res.ok || !data.student) {
+      clearSession();
+      const backendMessage = typeof data.error === 'string' ? data.error : '';
+      return {
+        allowed: false,
+        reason: 'invalid-session',
+        action: 'redirect',
+        redirectTo: 'index.html',
+        message: backendMessage || 'No pudimos validar tu sesión. Ingresa desde el portal para continuar.',
+      };
+    }
+    const student = data.student;
+    const completed = Array.isArray(data.completed) ? data.completed : [];
+    const currentSlug = getStoredSlug();
+    if (!currentSlug || currentSlug !== initialSlug) {
+      clearSession();
+      return {
+        allowed: false,
+        reason: 'session-changed',
+        action: 'redirect',
+        redirectTo: 'index.html',
+        message: 'Detectamos un cambio de sesión. Ingresa nuevamente desde el portal.',
+      };
+    }
+    const canonicalSlug = student && student.slug ? student.slug : slug;
+    if (canonicalSlug && canonicalSlug !== currentSlug) {
+      storeSession(canonicalSlug, token);
+    }
+    const missionsForRole = getMissionsForRole(student.role);
+    const unlocked = calculateUnlockedMissions(missionsForRole, completed);
+    const mission = missionsForRole.find((m) => m.id === missionId);
+    if (!mission) {
+      return {
+        allowed: false,
+        reason: 'not-for-role',
+        action: 'message',
+        message: 'Esta misión no está disponible para tu rol actual.',
+      };
+    }
+    if (unlocked[missionId]) {
+      return {
+        allowed: true,
+        reason: 'unlocked',
+      };
+    }
+    clearSession();
+    const missionIndex = missionsForRole.findIndex((m) => m.id === missionId);
+    const previousMission = missionIndex > 0 ? missionsForRole[missionIndex - 1] : null;
+    let message = 'Debes completar la misión anterior antes de continuar.';
+    if (previousMission) {
+      message = `Debes completar la misión ${previousMission.title} antes de acceder a esta.`;
+    }
+    return {
+      allowed: false,
+      reason: 'locked',
+      action: 'message',
+      message,
+    };
+  } catch (err) {
+    return {
+      allowed: false,
+      reason: 'network-error',
+      action: 'message',
+      message: 'No pudimos validar tu acceso. Intenta abrir la misión desde el portal nuevamente.',
+    };
+  }
 }
 
 /**
