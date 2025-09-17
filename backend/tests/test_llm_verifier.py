@@ -5,7 +5,12 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("SECRET_KEY", "testing-secret")
 
 from backend.app import verify_llm
-from backend.llm import LLMEvaluationResponse
+from backend.llm import (
+    LLMConfigurationError,
+    LLMEvaluationResponse,
+    MISSING_OPENAI_DEPENDENCY_MESSAGE,
+    OpenAILLMClient,
+)
 
 
 class DummyFiles:
@@ -67,3 +72,35 @@ class VerifyLLMTests(unittest.TestCase):
         self.assertEqual(feedback, ["Falta detallar cómo tratas los tipos de datos."])
         mock_from_env.assert_called_once()
         mock_client.evaluate_deliverable.assert_called_once()
+
+    @patch("backend.app.OpenAILLMClient.from_env")
+    def test_verify_llm_returns_friendly_error_when_openai_missing(
+        self, mock_from_env: MagicMock
+    ) -> None:
+        mock_from_env.side_effect = LLMConfigurationError(MISSING_OPENAI_DEPENDENCY_MESSAGE)
+
+        files = DummyFiles("Notas incompletas.")
+        passed, feedback = verify_llm(files, self._build_contract())
+
+        self.assertFalse(passed)
+        self.assertEqual(feedback, [MISSING_OPENAI_DEPENDENCY_MESSAGE])
+        mock_from_env.assert_called_once()
+
+
+class OpenAILLMClientFromEnvTests(unittest.TestCase):
+    def test_from_env_propagates_missing_dependency_error(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "testing", "OPENAI_MODEL": "gpt-4"},
+            clear=False,
+        ):
+            with patch("backend.llm.OpenAI") as mock_openai:
+                mock_openai.side_effect = LLMConfigurationError(
+                    MISSING_OPENAI_DEPENDENCY_MESSAGE
+                )
+                with self.assertRaises(LLMConfigurationError) as ctx:
+                    OpenAILLMClient.from_env()
+
+        self.assertEqual(str(ctx.exception), MISSING_OPENAI_DEPENDENCY_MESSAGE)
+        mock_openai.assert_called_once()
+        self.assertEqual(mock_openai.call_args.kwargs.get("api_key"), "testing")
