@@ -7,10 +7,24 @@ import textwrap
 from dataclasses import dataclass
 from typing import Iterable, List, Sequence
 
+MISSING_OPENAI_DEPENDENCY_MESSAGE = (
+    "La evaluación con modelos de lenguaje requiere la dependencia opcional 'openai'. "
+    "Instálala para habilitar esta funcionalidad."
+)
+
+
+class LLMConfigurationError(RuntimeError):
+    """Raised when the OpenAI client cannot be configured."""
+
+
+class LLMEvaluationError(RuntimeError):
+    """Raised when the evaluation request fails or returns an invalid payload."""
+
+
 try:  # pragma: no cover - optional dependency
     from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    class _MissingOpenAIError(Exception):
+    class _MissingOpenAIError(LLMConfigurationError):
         """Raised when the optional 'openai' package is unavailable."""
 
     class _MissingOpenAIModule:
@@ -21,10 +35,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
 
         class _Client:
             def __init__(self, *args, **kwargs) -> None:
-                raise RuntimeError(
-                    "La evaluación con modelos de lenguaje requiere la dependencia opcional 'openai'. "
-                    "Instálala para habilitar esta funcionalidad."
-                )
+                raise _MissingOpenAIError(MISSING_OPENAI_DEPENDENCY_MESSAGE)
 
         def OpenAI(self, *args, **kwargs):  # type: ignore[override]
             return self._Client(*args, **kwargs)
@@ -46,16 +57,6 @@ SYSTEM_PROMPT = (
     "Marca 'status' como 'completado' cuando todos los criterios están cubiertos y "
     "'incompleto' cuando falta información, dando retroalimentación breve en español."
 )
-
-
-class LLMConfigurationError(RuntimeError):
-    """Raised when the OpenAI client cannot be configured."""
-
-
-class LLMEvaluationError(RuntimeError):
-    """Raised when the evaluation request fails or returns an invalid payload."""
-
-
 @dataclass
 class LLMEvaluationResponse:
     """Normalized response returned by the LLM evaluator."""
