@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>M2 — Despierta a tu Aliado</title>
-  <!-- <link rel="stylesheet" href="assets/css/style.css" />
-   <!--  <link rel="stylesheet" href="assets/css/style.css" />-->
+  <title>M2 — Despierta a tu Aliado (venv) — Tu cuarto seguro de Python</title>
   <link rel="stylesheet" href="assets/css/style-dark.css" />
 </head>
 <body>
@@ -42,95 +40,129 @@
       </div>
     </div>
     <div class="portal-header__body">
-      <h1 class="portal-header__heading">M2 — Despierta a tu Aliado (venv)</h1>
+      <h1 class="portal-header__heading">M2 — Despierta a tu Aliado (venv) — Tu cuarto seguro de Python</h1>
     </div>
   </header>
+
   <main hidden>
     <section class="mission">
-      <h2>Historia</h2>
-      <p>En una sala contigua, Byte abre un armario con frascos parecidos: “A simple vista, todos son Python, pero cada proyecto necesita su propio espacio para no mezclar recetas”. Señala un círculo protector: “Ese campo es tu .venv. Dentro de él, pip instala ingredientes exactos sin contaminar otras recetas.</p>
-      <p>“¿Ves el anillo (.venv) al inicio de la terminal? Es la marca de que estás dentro del cuarto seguro. Y en VS Code debes elegir el intérprete correcto para que el editor use ese mismo Python. Si hoy aprendes a activar tu aliado y a apuntar a él, mañana podrás instalar librerías sin romper nada.”</p>
-      <h2>¿Para qué sirve?</h2>
-      <p>Aísla dependencias y evita conflictos entre proyectos. pip instala dentro del venv activo y VS Code usa ese intérprete.</p>
-      <h2>Al final podrás…</h2>
+      <h2>¡Bienvenido a la Misión 2!</h2>
+      <p>Esta misión te ayudará a crear un entorno virtual seguro para tus proyectos de Python utilizando <code>venv</code>. Aprende a aislar tus dependencias, configurar tu entorno en VS Code, y dejar todo listo para instalar paquetes como pandas sin dañar tu sistema global.</p>
+
+      <h3>📚 Historia</h3>
+      <p>Byte te muestra un armario lleno de frascos etiquetados "Python". Cada frasco es distinto, aunque parezca igual. Tu misión es preparar un espacio (tu <code>.venv</code>) donde tu frasco funcione sin interferir con los demás.</p>
+
+      <h3>💡 ¿Para qué sirve?</h3>
       <ul>
-        <li>Crear y activar .venv.</li>
-        <li>Seleccionar en VS Code el intérprete del venv.</li>
-        <li>Registrar la versión de Python y crear un archivo hello.</li>
+        <li>Mantener tus paquetes separados de otros proyectos.</li>
+        <li>Evitar conflictos entre versiones de librerías.</li>
+        <li>Hacer que VS Code use tu entorno personalizado.</li>
       </ul>
-      <h2>Videos</h2>
+
+      <h3>🏆 Objetivos de esta misión</h3>
       <ul>
-        <li><a href="https://www.youtube.com/watch?v=MmUKJqjPiHo" target="_blank">Crear/activar venv (Windows)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=XTmS37AxM3Q" target="_blank">ExecutionPolicy: habilitar scripts en PowerShell</a></li>
-        <li><a href="https://www.youtube.com/watch?v=k_istKV16dg" target="_blank">¿Qué es pip y cómo usarlo?</a></li>
-        <li><a href="https://www.youtube.com/watch?v=eFThEXvuZaM" target="_blank">VS Code: seleccionar intérprete de Python</a></li>
+        <li>Crear y activar tu entorno virtual (<code>.venv</code>).</li>
+        <li>Configurar VS Code para que use ese entorno.</li>
+        <li>Registrar y guardar tus evidencias.</li>
+        <li>Hacer commit y sincronizar tu trabajo con GitHub.</li>
       </ul>
-      <h2>Investigación — Fichas</h2>
-      <p>Completa 3 fichas: venv, pip, selección de intérprete. Para cada ficha incluye:</p>
+
+      <h3>📕 Material recomendado</h3>
       <ul>
-        <li>Definición en tus palabras</li>
-        <li>Ejemplo en este proyecto (qué harás con ello)</li>
-        <li>Error común (por ejemplo, instalar fuera de .venv)</li>
-        <li>Fuente vista (video)</li>
-        <li>Señal de activación: anota cómo se ve (.venv) en el prompt</li>
+        <li><a href="https://www.youtube.com/watch?v=MmUKJqjPiHo" target="_blank">Crear y activar venv en Windows</a></li>
+        <li><a href="https://www.youtube.com/watch?v=XTmS37AxM3Q" target="_blank">Solución al error de ejecución de scripts en PowerShell</a></li>
+        <li><a href="https://www.youtube.com/watch?v=eFThEXvuZaM" target="_blank">Seleccionar intérprete en VS Code</a></li>
+        <li><a href="https://docs.python.org/es/3/library/venv.html" target="_blank">Documentación oficial de venv</a></li>
       </ul>
-      <h2>Práctica — Contrato</h2>
-      <p><strong>Entrada:</strong> terminal en la carpeta del proyecto.</p>
-      <p><strong>Logro:</strong> .venv creado/activo y VS Code apuntando a ese intérprete.</p>
-      <p><strong>Salidas:</strong></p>
-      <ul>
-        <li><code>docs/m2_python_version.txt</code> (versión de Python)</li>
-        <li><code>docs/m2_hello.txt</code> (“Hello VS Code”)</li>
-        <li>(Opcional) <code>.vscode/settings.json</code> con el intérprete</li>
-        <li><code>docs/m2_notes.md</code> (tus 3 fichas)</li>
-      </ul>
-      <h2>Parte aplicada (detallada)</h2>
-      <p><strong>Situación:</strong> a partir de M3 instalarás pandas; si el intérprete no es el del venv, fallará.</p>
-      <p><strong>Qué debes hacer hoy:</strong></p>
-      <ul>
-        <li>Comprueba que al ejecutar comandos ves el prefijo (.venv).</li>
-        <li>Cambia el intérprete en VS Code si aún no apunta a .venv.</li>
-        <li>Anota un comando que confirme dónde está tu Python (por ejemplo, el que lista la ruta del intérprete) y qué salida obtuviste (1–2 líneas en tus notas).</li>
-      </ul>
-      <p><strong>Meta de calidad:</strong> mañana podrás instalar librerías y correr tus scripts dentro del venv.</p>
-      <h2>Entregables</h2>
-      <p>m2_python_version.txt, m2_hello.txt, (opcional) .vscode/settings.json, m2_notes.md.</p>
-      <h2>Verificación</h2>
-      <p>Terminal con prefijo (.venv); archivos existen.</p>
-      <h2>Micro‑quiz (5)</h2>
+
+      <h3>📝 Investigación: Fichas de conceptos clave</h3>
+      <p>Debes crear 4 fichas en <code>students/&lt;usuario&gt;/docs/m2_notes.md</code> con el siguiente formato:</p>
+<pre><code>## &lt;término&gt;
+- **Definición:** Breve y clara (1–2 líneas).
+- **Ejemplo en este proyecto:** Cómo se usó aquí (1 línea).
+- **Error común:** Algo que puede salir mal (1 línea).
+- **Fuente:** Título + link + minuto del video.</code></pre>
+      <p><strong>Términos:</strong> <code>venv</code>, <code>pip</code>, <code>Intérprete en VS Code</code>, <code>ExecutionPolicy</code>.</p>
+
+      <h3>🔧 Práctica paso a paso</h3>
+      <p><strong>Terminal abierta en la raíz del repositorio. Rama:</strong> <code>m2-&lt;usuario&gt;</code></p>
       <ol>
-        <li>¿Para qué sirve un entorno virtual (.venv)?</li>
-        <li>¿Qué hace pip?</li>
-        <li>¿Cómo seleccionas el intérprete correcto en VS Code?</li>
-        <li>¿Por qué es importante activar el venv antes de instalar librerías?</li>
-        <li>¿Cómo sabes si estás dentro del venv?</li>
+        <li>Crear entorno virtual: <code>py -m venv .venv</code></li>
+        <li>Activar entorno: <code>.\.venv\Scripts\Activate.ps1</code></li>
+        <li>Si hay error de permisos: ejecutar <code>Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned</code></li>
+        <li>Verificar Python: <code>python --version</code> (guarda salida)</li>
+        <li>Seleccionar intérprete en VS Code: <code>Ctrl+Shift+P → Python: Select Interpreter</code></li>
+        <li>Crear archivo <code>hello.py</code> y ejecutarlo, guardar salida.</li>
       </ol>
-      <h2>Checklist</h2>
+
+      <h3>📄 Evidencias</h3>
       <ul>
-        <li>Videos vistos</li>
-        <li>Fichas completadas</li>
-        <li>Entorno .venv creado y activo</li>
-        <li>Interprete seleccionado en VS Code</li>
+        <li><code>students/&lt;usuario&gt;/docs/m2_python_version.txt</code></li>
+        <li><code>students/&lt;usuario&gt;/docs/m2_hello.txt</code></li>
+        <li><code>students/&lt;usuario&gt;/docs/m2_notes.md</code> (4 fichas)</li>
       </ul>
-      <h2>Rúbrica (10)</h2>
+
+      <h3>💾 Commit & Sync</h3>
       <ul>
-        <li>Fichas (3)</li>
-        <li>Práctica (4)</li>
-        <li>Evidencias (2)</li>
-        <li>Orden (1)</li>
+        <li>Haz commit y push desde VS Code o terminal.</li>
+        <li>Verifica en GitHub o usa:
+          <ul>
+            <li><code>git status</code></li>
+            <li><code>git branch --show-current</code></li>
+            <li><code>git log --oneline -n 1</code></li>
+          </ul>
+        </li>
       </ul>
-      <h2>Errores comunes</h2>
+
+      <h3>📑 Checklist final</h3>
       <ul>
-        <li>Instalar paquetes fuera del venv</li>
-        <li>No activar el venv antes de ejecutar scripts</li>
-        <li>Seleccionar el intérprete equivocado en VS Code</li>
+        <li>[ ] Fichas completas y subidas</li>
+        <li>[ ] venv creado y activo</li>
+        <li>[ ] VS Code usando el intérprete correcto</li>
+        <li>[ ] Archivos de evidencia presentes</li>
+        <li>[ ] Push hecho y confirmado</li>
+        <li>[ ] Quiz completado</li>
+      </ul>
+
+      <h3>🔬 Verificación del profe</h3>
+      <ul>
+        <li>Revisa si venv está activo.</li>
+        <li>Comprueba que seleccionaste el intérprete correcto.</li>
+        <li>Valida las rutas y nombres de archivos.</li>
+        <li>Confirmación de push.</li>
+      </ul>
+
+      <h3>📚 Microquiz</h3>
+      <ol>
+        <li>¿Qué es y para qué sirve <code>.venv</code>?</li>
+        <li>¿Cómo sabes que está activo?</li>
+        <li>¿Qué pasa si <code>pip</code> se usa fuera del venv?</li>
+        <li>¿Qué herramienta usas en VS Code para elegir el intérprete?</li>
+        <li>¿Qué comando usas si no puedes activar el venv?</li>
+      </ol>
+
+      <h3>👍 Rúbrica (máximo 10 puntos)</h3>
+      <ul>
+        <li>Fichas: 3 pts</li>
+        <li>Práctica: 4 pts</li>
+        <li>Evidencias: 2 pts</li>
+        <li>Orden y entrega: 1 pt</li>
+      </ul>
+
+      <h3>🚫 Errores comunes</h3>
+      <ul>
+        <li>No activar bien el venv → usar <code>Activate.ps1</code></li>
+        <li>VS Code no muestra el entorno → verificar selección</li>
+        <li>Error de permisos en PowerShell → ejecutar <code>Set-ExecutionPolicy</code></li>
       </ul>
     </section>
+
     <section class="verification">
       <button id="verifyBtn">Verificar y Entregar Misión</button>
       <div id="verifyResult"></div>
     </section>
   </main>
+
   <script src="assets/js/main.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
@@ -140,14 +172,10 @@
       const verifyBtn = document.getElementById('verifyBtn');
 
       const showMission = () => {
-        if (mainContent) {
-          mainContent.removeAttribute('hidden');
-        }
-        if (verifyBtn && resultDiv) {
-          verifyBtn.addEventListener('click', () => {
-            verifyMission(missionId, resultDiv);
-          });
-        }
+        mainContent?.removeAttribute('hidden');
+        verifyBtn?.addEventListener('click', () => {
+          verifyMission(missionId, resultDiv);
+        });
       };
 
       const showMessage = (message) => {
@@ -172,9 +200,7 @@
           window.location.href = access.redirectTo;
           return;
         }
-        showMessage(
-          access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.'
-        );
+        showMessage(access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.');
       } catch (err) {
         showMessage('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
       }
