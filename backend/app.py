@@ -575,8 +575,12 @@ def verify_password(raw_password, stored_hash):
 def load_contracts():
     if not os.path.exists(CONTRACTS_PATH):
         return {}
-    with open(CONTRACTS_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(CONTRACTS_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError as exc:
+        logger.error("Failed to decode missions contracts at %s: %s", CONTRACTS_PATH, exc)
+        return {}
 
 
 def _session_expiration_threshold() -> datetime:
@@ -1302,6 +1306,15 @@ def api_verify_mission():
         print(f"Database error on /api/verify_mission lookup: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
     contracts = load_contracts()
+    if not contracts:
+        return jsonify(
+            {
+                "verified": False,
+                "feedback": [
+                    "No hay contratos de misión disponibles. Contacta a la persona administradora."
+                ],
+            }
+        )
     contract = contracts.get(mission_id)
     if not contract:
         return jsonify(
