@@ -4,7 +4,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
-import time
+from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import List, Tuple
 
@@ -40,7 +40,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONTRACTS_PATH = os.path.join(BASE_DIR, "missions_contracts.json")
 
 SESSION_DURATION_SECONDS = 60 * 60 * 8
-ACTIVE_SESSIONS: dict[str, dict[str, object]] = {}
 
 
 class PasswordValidationError(ValueError):
@@ -278,6 +277,41 @@ def init_db():
                 "CASCADE",
             )
 
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token VARCHAR(255) NOT NULL,
+                    student_slug VARCHAR(255) NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (token),
+                    KEY idx_sessions_student_slug (student_slug),
+                    CONSTRAINT fk_sessions_student
+                        FOREIGN KEY (student_slug)
+                        REFERENCES students(slug)
+                        ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            ensure_table_options(cur, "sessions")
+            ensure_column(cur, "sessions", "token", "VARCHAR(255) NOT NULL")
+            ensure_column(cur, "sessions", "student_slug", "VARCHAR(255) NOT NULL")
+            ensure_column(
+                cur,
+                "sessions",
+                "created_at",
+                "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            )
+            ensure_primary_key(cur, "sessions", ["token"])
+            ensure_foreign_key(
+                cur,
+                "sessions",
+                "fk_sessions_student",
+                "student_slug",
+                "students",
+                "slug",
+                "CASCADE",
+            )
+
 
 def hash_password(raw_password):
     """Hash a password using bcrypt returning the hash as text."""
@@ -331,36 +365,74 @@ def load_contracts():
         return json.load(f)
 
 
+def _session_expiration_threshold() -> datetime:
+    return datetime.utcnow() - timedelta(seconds=SESSION_DURATION_SECONDS)
+
+
+def _purge_expired_sessions(cursor) -> None:
+    cutoff = _session_expiration_threshold()
+    cursor.execute("DELETE FROM sessions WHERE created_at < %s", (cutoff,))
+
+
 def create_session(slug: str) -> str:
-    now = time.time()
-    expired_tokens = [
-        token
-        for token, info in ACTIVE_SESSIONS.items()
-        if not info or now - (info.get("created_at") or 0) > SESSION_DURATION_SECONDS
-    ]
-    for token in expired_tokens:
-        ACTIVE_SESSIONS.pop(token, None)
-    token = secrets.token_urlsafe(32)
-    ACTIVE_SESSIONS[token] = {
-        "slug": slug,
-        "created_at": now,
-    }
-    return token
+    try:
+        init_db()
+    except Exception as exc:
+        raise RuntimeError("Failed to initialize session storage.") from exc
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                _purge_expired_sessions(cur)
+                for _ in range(5):
+                    token = secrets.token_urlsafe(32)
+                    try:
+                        cur.execute(
+                            """
+                            INSERT INTO sessions (token, student_slug, created_at)
+                            VALUES (%s, %s, UTC_TIMESTAMP())
+                            """,
+                            (token, slug),
+                        )
+                        return token
+                    except pymysql.err.IntegrityError:
+                        continue
+    except Exception as exc:
+        raise RuntimeError("Failed to create session.") from exc
+    raise RuntimeError("Failed to create session.")
 
 
 def validate_session(token: str, slug: str | None = None) -> bool:
     if not token:
         return False
-    session = ACTIVE_SESSIONS.get(token)
-    if not session:
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                _purge_expired_sessions(cur)
+                cur.execute(
+                    "SELECT student_slug, created_at FROM sessions WHERE token = %s",
+                    (token,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return False
+                created_at = row.get("created_at")
+                if isinstance(created_at, datetime):
+                    expiration_threshold = _session_expiration_threshold()
+                    if created_at < expiration_threshold:
+                        cur.execute(
+                            "DELETE FROM sessions WHERE token = %s",
+                            (token,),
+                        )
+                        return False
+                if slug:
+                    stored_slug = (row.get("student_slug") or "").strip()
+                    if stored_slug != slug:
+                        return False
+                return True
+    except Exception as exc:
+        print(f"Database error during session validation: {exc}", file=sys.stderr)
         return False
-    created_at = session.get("created_at") or 0
-    if time.time() - created_at > SESSION_DURATION_SECONDS:
-        ACTIVE_SESSIONS.pop(token, None)
-        return False
-    if slug and session.get("slug") != slug:
-        return False
-    return True
 
 
 def verify_evidence(
@@ -741,7 +813,11 @@ def api_login():
             jsonify({"authenticated": False, "error": "Invalid credentials."}),
             401,
         )
-    token = create_session(slug)
+    try:
+        token = create_session(slug)
+    except RuntimeError as exc:
+        print(f"Session creation error on /api/login: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
     student = {
         "slug": row.get("slug"),
         "name": row.get("name"),
