@@ -38,11 +38,13 @@
 
   <main hidden>
     <section class="mission">
-      <h2>🚪 Misión 1 — La Puerta de la Base (VS Code + Python)</h2>
+      <h2>🚪 M1 — La Puerta de la Base (VS Code + Python) — GitHub-first</h2>
 
+      <!-- 1) HISTORIA -->
       <h3>📖 Historia</h3>
       <p>El Mentor Byte te da dos llaves: <strong>VS Code</strong> (tu cuaderno para escribir instrucciones) y <strong>Python</strong> (quien entiende y ejecuta esas instrucciones). Hoy armamos el taller para toda la aventura. Si el taller queda bien, todo lo demás fluye.</p>
 
+      <!-- 2) PARA QUÉ SIRVE -->
       <h3>💡 ¿Para qué sirve?</h3>
       <ul>
         <li>Abrir el proyecto en VS Code y confiarlo (trust).</li>
@@ -51,6 +53,7 @@
         <li>Subir evidencias a GitHub para revisión y nota.</li>
       </ul>
 
+      <!-- 3) AL FINAL PODRÁS -->
       <h3>🏆 Al final podrás…</h3>
       <ul>
         <li>Confiar la carpeta del proyecto.</li>
@@ -59,6 +62,7 @@
         <li>Subir 3 evidencias a GitHub (en tu carpeta de estudiante) y verificar que se sincronizaron.</li>
       </ul>
 
+      <!-- 4) MATERIAL DE APRENDIZAJE -->
       <h3>📚 Material de aprendizaje sugerido (videos y docs)</h3>
       <ul>
         <li><a href="https://www.youtube.com/watch?v=CxF3ykWP1H4" target="_blank">VS Code (introducción para principiantes)</a></li>
@@ -66,48 +70,176 @@
         <li><a href="https://www.youtube.com/watch?v=3xQRR3iNqDQ" target="_blank">¿Qué es la terminal/PowerShell?</a></li>
         <li><a href="https://www.youtube.com/watch?v=M9YRgYe4FPg" target="_blank">¿Qué es el PATH en Windows?</a></li>
         <li><a href="https://www.youtube.com/watch?v=eqm_D-vrfPo" target="_blank">Intérprete de Python (explicado)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=2ReR1YJrNOM" target="_blank">¿Cómo trabajar con Git desde VS Code?</a></li>
-        <li><a href="https://www.youtube.com/watch?v=RGOj5yH7evk" target="_blank">Clonar y sincronizar un repositorio de GitHub desde VS Code</a></li>
-        <li><a href="https://learn.microsoft.com/es-es/training/modules/clone-repository-vscode/" target="_blank">Guía oficial: Clonar un repo de GitHub con VS Code (Microsoft Learn)</a></li>
+        <li>VS Code + Git:
+          <ul>
+            <li><a href="https://www.youtube.com/watch?v=2ReR1YJrNOM" target="_blank">Video: ¿Cómo trabajar con Git desde VS Code? (commit, push, pull, ramas)</a></li>
+            <li><a href="https://www.youtube.com/watch?v=RGOj5yH7evk" target="_blank">Video: Clonar y sincronizar un repo de GitHub desde VS Code</a></li>
+            <li><a href="https://code.visualstudio.com/docs/sourcecontrol/overview" target="_blank">Docs VS Code: Control de código fuente (Git)</a></li>
+            <li><a href="https://docs.github.com/es/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request" target="_blank">GitHub Docs: Crear un Pull Request</a></li>
+            <li><a href="https://git-scm.com/book/es/v2" target="_blank">Libro oficial de Git: fundamentos y ramas</a></li>
+          </ul>
+        </li>
       </ul>
 
+      <!-- 5) INVESTIGACIÓN (FICHAS) -->
       <h3>📝 Investigación (Fichas)</h3>
-      <p>Guarda tus 5 fichas en <code>students/&lt;usuario&gt;/docs/m1_notes.md</code> con el formato: <strong>Definición · Ejemplo · Error común · Fuente</strong>.</p>
-      <p><strong>Términos:</strong> editor, VS Code, intérprete, PATH, terminal.</p>
-      <p>Ejemplo PATH: qué es, ejemplo con <code>python --version</code> y error típico (comando no reconocido).</p>
-      <p>Ejemplo terminal: qué es, ejemplo con <code>cd</code> hasta carpeta del repo y error de ruta.</p>
+      <p>Guarda tus 5 fichas en <code>students/&lt;usuario&gt;/docs/m1_notes.md</code> con el formato <strong>Definición · Ejemplo · Error común · Fuente</strong>. Los términos son: <strong>editor</strong>, <strong>VS Code</strong>, <strong>intérprete</strong>, <strong>PATH</strong>, <strong>terminal</strong>.</p>
+<pre><code># M1 — Fichas
 
-      <h3>🚀 Práctica — Contrato</h3>
+## editor
+- **Definición:** ...
+- **Ejemplo en este proyecto:** ...
+- **Error común:** ...
+- **Fuente:** ... (min aprox: ...)
+
+## VS Code
+- **Definición:** ...
+- **Ejemplo en este proyecto:** ...
+- **Error común:** ...
+- **Fuente:** ... (min aprox: ...)
+
+## intérprete
+- **Definición:** ...
+- **Ejemplo en este proyecto:** ...
+- **Error común:** ...
+- **Fuente:** ... (min aprox: ...)
+
+## PATH
+- **Definición:** ...
+- **Ejemplo en este proyecto:** ...
+- **Error común:** ...
+- **Fuente:** ... (min aprox: ...)
+
+## terminal
+- **Definición:** ...
+- **Ejemplo en este proyecto:** ...
+- **Error común:** ...
+- **Fuente:** ... (min aprox: ...)</code></pre>
+      <p><strong>Ejemplo PATH (completo):</strong> qué es, ejemplo con <code>python --version</code> y error típico de PATH (no se reconoce el comando).</p>
+      <p><strong>Ejemplo terminal (rápido):</strong> qué es, ejemplo con <code>cd</code> hasta la carpeta del repo y error típico de ruta.</p>
+
+      <!-- 6) GUÍA DETALLADA (NUEVO) -->
+      <h3>🧭 Guía detallada antes de la práctica</h3>
+      <details open>
+        <summary><strong>Instalación y chequeos rápidos (Windows/macOS/Linux)</strong></summary>
+        <ul>
+          <li><strong>VS Code</strong> — verifica en terminal: <code>code --version</code> (o <code>code -v</code>). Si no funciona en macOS: abre VS Code y ejecuta <em>Command Palette →</em> <code>Shell Command: Install 'code' command in PATH</code>.</li>
+          <li><strong>Python</strong> — verifica: <code>python --version</code> (o <code>py --version</code> en Windows / <code>python3 --version</code> en macOS/Linux). Si no aparece, instala Python 3.x y en Windows marca <em>“Add python.exe to PATH”</em>.</li>
+          <li><strong>Ubicación del ejecutable</strong> — Windows: <code>where python</code> y <code>where code</code>. macOS/Linux: <code>which python3</code>, <code>which code</code>.</li>
+          <li><strong>Terminal integrada VS Code</strong> — abre con <kbd>Ctrl</kbd>+<kbd>`</kbd>. Ajusta el shell por defecto si es necesario.</li>
+          <li><strong>Confiar carpeta</strong> — al abrir la raíz del proyecto, presiona “<em>Yes, I trust the authors</em>”.</li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><strong>Config básica de Git (primera vez)</strong></summary>
+<pre><code>git --version
+# Identidad
+git config --global user.name "Tu Nombre"
+git config --global user.email "tu@correo.com"
+# Rama por defecto
+git config --global init.defaultBranch main
+# Fin de línea (opcional)
+# Windows:
+git config --global core.autocrlf true
+# macOS/Linux:
+# git config --global core.autocrlf input
+</code></pre>
+        <p>Inicia sesión en GitHub desde VS Code (icono de cuentas) para facilitar <em>clone/push/PR</em>.</p>
+      </details>
+
+      <!-- 7) PRÁCTICA — CONTRATO -->
+      <h3>🚀 Práctica — Contrato (elige tu perfil)</h3>
       <p><strong>Paso 0 (todos):</strong> Fork → Clone → Rama <code>m1-&lt;usuario&gt;</code> → Commit/Push/Sync → Pull Request.</p>
       <p><strong>Estructura mínima dentro de <code>students/&lt;usuario&gt;/</code>:</strong></p>
-<pre><code>docs/  
-reports/  
-data/bronze  
-data/silver  
-data/gold  
+<pre><code>docs/
+reports/
+data/bronze
+products/silver
+products/gold
 tasks/</code></pre>
       <p>Agrega un <code>.gitignore</code> para no subir <code>.venv</code>, <code>__pycache__</code> ni <code>.env</code>.</p>
 
-      <h4>A) Ventas — Salidas esperadas</h4>
+      <details>
+        <summary><strong>Crear estructura por terminal (copiar/pegar)</strong></summary>
+        <p><em>Windows PowerShell</em>:</p>
+<pre><code>mkdir students/&lt;usuario&gt;/docs; mkdir students/&lt;usuario&gt;/reports; mkdir students/&lt;usuario&gt;/tasks
+mkdir students/&lt;usuario&gt;/data/bronze; mkdir students/&lt;usuario&gt;/data/silver; mkdir students/&lt;usuario&gt;/data/gold
+</code></pre>
+        <p><em>macOS/Linux bash</em>:</p>
+<pre><code>mkdir -p students/&lt;usuario&gt;/{docs,reports,tasks}
+mkdir -p students/&lt;usuario&gt;/data/{bronze,silver,gold}
+</code></pre>
+      </details>
+
+      <details>
+        <summary><strong>Generar evidencias por terminal (ahorra tiempo)</strong></summary>
+        <p><em>Windows PowerShell</em>:</p>
+<pre><code>code --version &gt; students/&lt;usuario&gt;/docs/m1_vscode_ok.txt
+$pwdPath = (Get-Location).Path
+"workspace: $pwdPath" | Out-File -Encoding utf8 students/&lt;usuario&gt;/docs/m1_workspace_ok.txt
+# Crea el archivo de notas vacío (lo editarás tú):
+New-Item -ItemType File students/&lt;usuario&gt;/docs/m1_notes.md -Force | Out-Null
+</code></pre>
+        <p><em>macOS/Linux bash</em>:</p>
+<pre><code>code --version &gt; students/&lt;usuario&gt;/docs/m1_vscode_ok.txt
+printf "workspace: %s
+" "$PWD" &gt; students/&lt;usuario&gt;/docs/m1_workspace_ok.txt
+: &gt; students/&lt;usuario&gt;/docs/m1_notes.md
+</code></pre>
+        <p><em>Consejo:</em> Si el comando <code>code</code> no existe, escribe manualmente el contenido en los archivos desde el editor.</p>
+      </details>
+
+      <!-- 8) SALIDAS POR PERFIL -->
+      <h4>A) Ventas — Salidas</h4>
       <ul>
         <li><code>students/&lt;u&gt;/docs/m1_vscode_ok.txt</code> (ej.: VS Code version: 1.xx.x)</li>
-        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con línea exacta: <code>workspace: C:\\MinecraftShop\\PortalKidsVentas</code></li>
+        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con la línea exacta:<br><code>workspace: C:&bsol;&bsol;MinecraftShop&bsol;&bsol;PortalKidsVentas</code></li>
         <li><code>students/&lt;u&gt;/docs/m1_notes.md</code> (5 fichas)</li>
       </ul>
 
-      <h4>B) Operaciones — Salidas esperadas</h4>
+      <h4>B) Operaciones — Salidas</h4>
       <ul>
         <li><code>students/&lt;u&gt;/docs/m1_vscode_ok.txt</code> (ej.: VS Code version: 1.xx.x)</li>
-        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con línea exacta: <code>workspace: C:\\MinecraftShop\\PortalKidsOperaciones</code></li>
+        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con la línea exacta:<br><code>workspace: C:&bsol;&bsol;MinecraftShop&bsol;&bsol;PortalKidsOperaciones</code></li>
         <li><code>students/&lt;u&gt;/docs/m1_notes.md</code> (5 fichas)</li>
       </ul>
 
+      <!-- 9) GIT: COMMIT, PUSH, PR (DETALLADO) -->
+      <h3>🔁 Git — Commit, Push y Pull Request (paso a paso)</h3>
+<pre><code># 1) Crear rama de trabajo
+git checkout -b m1-&lt;usuario&gt;
+
+# 2) Añadir solo tus evidencias
+git add students/&lt;usuario&gt;/docs/m1_vscode_ok.txt \
+        students/&lt;usuario&gt;/docs/m1_workspace_ok.txt \
+        students/&lt;usuario&gt;/docs/m1_notes.md
+
+# 3) Commit con mensaje claro
+git commit -m "M1: evidencias VS Code, workspace y fichas"
+
+# 4) Enviar la rama al remoto
+git push -u origin m1-&lt;usuario&gt;
+
+# 5) Crear Pull Request
+# (desde la UI de GitHub o el panel de Source Control de VS Code)
+</code></pre>
+      <p><strong>Verificaciones útiles:</strong></p>
+<pre><code>git status
+git branch --show-current
+git remote -v
+git log --oneline -n 1
+</code></pre>
+
+      <!-- 10) VERIFICACIÓN RÁPIDA -->
       <h3>🔢 Verificación rápida</h3>
 <pre><code>git status
 git branch --show-current
 git log --oneline -n 1
-git pull</code></pre>
+git pull
+</code></pre>
 
+      <!-- 11) ENTREGABLES -->
       <h3>📋 Entregables obligatorios</h3>
       <ul>
         <li><code>students/&lt;usuario&gt;/docs/m1_vscode_ok.txt</code></li>
@@ -115,6 +247,7 @@ git pull</code></pre>
         <li><code>students/&lt;usuario&gt;/docs/m1_notes.md</code></li>
       </ul>
 
+      <!-- 12) REVISIÓN EN PR -->
       <h3>👁 Revisión en PR</h3>
       <ul>
         <li>Terminal en la ruta correcta.</li>
@@ -124,6 +257,7 @@ git pull</code></pre>
         <li>Commit/Sync realizado.</li>
       </ul>
 
+      <!-- 13) MICROQUIZ -->
       <h3>🔎 Micro‑quiz (5)</h3>
       <ol>
         <li>¿Para qué sirve el PATH?</li>
@@ -133,31 +267,35 @@ git pull</code></pre>
         <li>¿Por qué hay que confiar (trust) la carpeta?</li>
       </ol>
 
+      <!-- 14) CHECKLIST -->
       <h3>✅ Checklist</h3>
       <ul>
         <li>[ ] Vi los videos</li>
         <li>[ ] Fichas en <code>docs/m1_notes.md</code></li>
         <li>[ ] 3 evidencias subidas (rutas exactas)</li>
         <li>[ ] Terminal verificada en la carpeta del repo</li>
-        <li>[ ] Commit & Sync verificados (GitHub o <code>git status/log</code>)</li>
+        <li>[ ] Commit &amp; Sync verificados (GitHub o <code>git status/log</code>)</li>
         <li>[ ] Quiz M1 aprobado (evidencia)</li>
         <li>[ ] SHA final: &lt;aquí&gt;</li>
       </ul>
 
-      <h3>🎓 Rúbrica (10 puntos)</h3>
+      <!-- 15) RÚBRICA -->
+      <h3>🎓 Rúbrica (10)</h3>
       <ul>
-        <li>Fichas (3 pts)</li>
-        <li>Práctica (4 pts)</li>
-        <li>Evidencias (2 pts)</li>
-        <li>Orden y entrega (1 pt)</li>
+        <li>Fichas (3)</li>
+        <li>Práctica (4)</li>
+        <li>Evidencias (2)</li>
+        <li>Orden (1)</li>
       </ul>
 
+      <!-- 16) ERRORES COMUNES -->
       <h3>⚠️ Errores comunes</h3>
       <ul>
         <li>Commit sin Push/Sync.</li>
         <li>Terminal abierta en otra ruta.</li>
         <li>VS Code o Python fuera de PATH.</li>
         <li>Subir <code>.venv</code> u otras carpetas no permitidas.</li>
+        <li><em>El comando</em> <code>code</code> <em>no funciona</em> → instala el comando en PATH (macOS) o reinstala VS Code marcando “Add to PATH”.</li>
       </ul>
     </section>
 
