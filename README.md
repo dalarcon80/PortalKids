@@ -47,3 +47,17 @@ La verificación automática de misiones se realiza leyendo los archivos del est
 El backend identifica qué repositorio debe revisar cada estudiante usando su `slug` o el `role` registrado (`ventas`, `operaciones`, sufijos `_v`/`_o`, etc.). En `backend/missions_contracts.json` cada misión incluye una sección `source` con la plantilla de ruta base (`students/{slug}`) y el repositorio objetivo (`default`, `ventas` u `operaciones`). Durante la verificación se descargan únicamente los archivos declarados en el contrato y, en el caso de scripts, se copian a un directorio temporal antes de ejecutarlos.
 
 Si GitHub devuelve un error o el archivo solicitado no existe, la API responde con `verified: false` y un mensaje de retroalimentación indicando qué archivo falló y en qué repositorio se buscó. Esto permite que el estudiante ajuste su entrega sin necesidad de revisar los logs del servidor.
+
+## Evaluación automática con modelos de lenguaje
+
+Algunas misiones (por ejemplo `m5`) utilizan un modelo de lenguaje para revisar las notas del estudiante. El backend envía el contenido del deliverable y el contexto del contrato a la API de OpenAI y espera una respuesta en formato JSON indicando si la entrega está `completado` o `incompleto`.
+
+Configura las siguientes variables de entorno para habilitar esta evaluación:
+
+| Variable | Descripción |
+| --- | --- |
+| `OPENAI_API_KEY` | **Obligatoria.** Clave privada de OpenAI con acceso al modelo seleccionado. |
+| `OPENAI_MODEL` | Opcional. Modelo de chat a utilizar (por defecto `gpt-3.5-turbo`). |
+| `OPENAI_TIMEOUT` | Opcional. Tiempo máximo de espera en segundos antes de abortar la solicitud. |
+
+El proyecto depende de la librería oficial `openai` incluida en `backend/requirements.txt`. Ejecuta `pip install -r backend/requirements.txt` para instalarla antes de iniciar el servidor.

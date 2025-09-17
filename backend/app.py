@@ -6,7 +6,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import bcrypt
 import pymysql
@@ -33,6 +33,19 @@ except ImportError:  # pragma: no cover - allow "python backend/app.py"
         RepositoryFileAccessor,
         determine_student_repositories,
         select_repository_for_contract,
+    )
+
+try:  # pragma: no cover - fallback for direct execution
+    from .llm import (
+        LLMConfigurationError,
+        LLMEvaluationError,
+        OpenAILLMClient,
+    )
+except ImportError:  # pragma: no cover - allow "python backend/app.py"
+    from llm import (  # type: ignore
+        LLMConfigurationError,
+        LLMEvaluationError,
+        OpenAILLMClient,
     )
 
 
@@ -577,12 +590,53 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
     return passed, feedback
 
 
+def _normalize_contract_values(value: object) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        cleaned = value.strip()
+        return [cleaned] if cleaned else []
+    if isinstance(value, (list, tuple, set)):
+        iterable = value
+    else:
+        iterable = [value]
+    normalized: List[str] = []
+    for item in iterable:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if text:
+            normalized.append(text)
+    return normalized
+
+
+def _stringify_instruction(value: object) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    if isinstance(value, (list, tuple, set)):
+        parts: List[str] = []
+        for item in value:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                parts.append(text)
+        if parts:
+            return "\n".join(parts)
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def verify_llm(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, List[str]]:
     deliverable_path = (contract.get("deliverable_path") or "").strip()
     if not deliverable_path:
         return False, ["Missing deliverable_path in contract."]
     try:
-        content = files.read_text(deliverable_path).lower()
+        content = files.read_text(deliverable_path)
     except GitHubFileNotFoundError:
         return False, [
             (
@@ -596,19 +650,106 @@ def verify_llm(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, Lis
         return False, [
             f"No se pudo decodificar el archivo {deliverable_path}; usa UTF-8 para las notas."
         ]
-    feedback: List[str] = []
-    missing: List[str] = []
-    for keyword in contract.get("expected_keywords", []):
-        if keyword.lower() not in content:
-            missing.append(keyword)
-    if missing:
-        feedback.append(
-            contract.get(
-                "feedback_fail", f"Faltan detalles para: {', '.join(missing)}."
-            )
+
+    keywords = _normalize_contract_values(contract.get("expected_keywords"))
+    criteria: List[str] = []
+    for key in ("criteria", "evaluation_criteria", "llm_criteria", "expected_criteria"):
+        criteria.extend(_normalize_contract_values(contract.get(key)))
+
+    instructions = _stringify_instruction(
+        contract.get("llm_instructions")
+        or contract.get("llm_context")
+        or contract.get("instructions")
+        or contract.get("llm_prompt")
+    )
+    feedback_default = _stringify_instruction(contract.get("feedback_fail"))
+
+    try:
+        client = OpenAILLMClient.from_env()
+    except LLMConfigurationError as exc:
+        return False, [str(exc)]
+
+    try:
+        evaluation = client.evaluate_deliverable(
+            content=content,
+            keywords=keywords,
+            criteria=criteria,
+            instructions=instructions,
         )
-        return False, feedback
-    return True, []
+    except LLMEvaluationError as exc:
+        return False, [str(exc)]
+
+    if isinstance(evaluation, dict):
+        status_value = evaluation.get("status")
+        feedback_value = evaluation.get("feedback")
+    else:
+        status_value = getattr(evaluation, "status", "")
+        feedback_value = getattr(evaluation, "feedback", "")
+
+    status_lower = str(status_value or "").strip().lower()
+    feedback_text = str(feedback_value or "").strip()
+    status_compact = status_lower.replace(" ", "")
+
+    completed_statuses = {
+        "completado",
+        "completada",
+        "completo",
+        "completa",
+        "complete",
+        "completed",
+        "aprobado",
+        "aprobada",
+        "terminado",
+        "terminada",
+        "finalizado",
+        "finalizada",
+        "hecho",
+        "lista",
+        "listo",
+        "ok",
+        "satisfactorio",
+        "satisfactoria",
+        "success",
+        "passed",
+    }
+    incomplete_statuses = {
+        "incompleto",
+        "incompleta",
+        "incomplete",
+        "no completado",
+        "no completada",
+        "faltante",
+        "pendiente",
+        "pending",
+        "fail",
+        "failed",
+        "rechazado",
+        "rechazada",
+        "insuficiente",
+    }
+    completed_compact = {value.replace(" ", "") for value in completed_statuses}
+    incomplete_compact = {value.replace(" ", "") for value in incomplete_statuses}
+
+    if status_lower in completed_statuses or status_compact in completed_compact:
+        return True, []
+    if status_lower in incomplete_statuses or status_compact in incomplete_compact:
+        message = feedback_text or feedback_default or (
+            "La evaluación automática indica que faltan detalles en la entrega."
+        )
+        return False, [message]
+
+    if status_value:
+        return False, [
+            (
+                "No se pudo interpretar la respuesta del evaluador automático "
+                f"(estado recibido: '{status_value}'). Intenta nuevamente o avisa a tu instructor."
+            )
+        ]
+
+    return False, [
+        feedback_default
+        or "La evaluación automática no devolvió un estado reconocible. Intenta nuevamente más tarde."
+    ]
 
 
 def extract_token(allow_query: bool = False) -> str:
