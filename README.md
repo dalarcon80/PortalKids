@@ -25,6 +25,12 @@ Variables opcionales:
 
 Debes proporcionar `DB_HOST` o `DB_INSTANCE_CONNECTION_NAME`; si falta alguno el backend devolverá un error 500 al atender las peticiones.
 
+### Gestión de sesiones
+
+El backend persiste las sesiones de autenticación en la tabla `sessions` de la misma base de datos. Aplica las migraciones SQL en `backend/migrations/` (incluyendo `003_create_sessions_table.sql`) para crearla con las columnas `token`, `student_slug` y `created_at`, donde `token` actúa como clave primaria e índice para las búsquedas.
+
+Cuando un estudiante inicia sesión, `create_session` inserta una fila nueva con un token firmado aleatorio y marca la hora de creación con `UTC_TIMESTAMP()`. Cada llamada a `validate_session` consulta la tabla y elimina automáticamente los registros cuya antigüedad supere las ocho horas (`SESSION_DURATION_SECONDS`). Cuando se implemente un endpoint de cierre de sesión bastará con borrar la fila correspondiente (`DELETE FROM sessions WHERE token = ?`) para invalidar el token también en el resto de instancias.
+
 ## Integración con repositorios remotos en GitHub
 
 La verificación automática de misiones se realiza leyendo los archivos del estudiante directamente desde GitHub. Configura las siguientes variables de entorno antes de iniciar el backend:
