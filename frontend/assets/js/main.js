@@ -2,6 +2,20 @@
 
 const API_BASE = '';
 
+let landingContentHTML = '';
+
+function cacheLandingContent() {
+  if (landingContentHTML || typeof document === 'undefined') {
+    return;
+  }
+  const landingContainer = document.getElementById('content');
+  if (landingContainer) {
+    landingContentHTML = landingContainer.innerHTML;
+  }
+}
+
+cacheLandingContent();
+
 function getApiBase() {
   if (typeof API_BASE !== 'undefined' && API_BASE) {
     return API_BASE;
@@ -156,6 +170,16 @@ function getContentContainer() {
   content.id = 'content';
   document.body.appendChild(content);
   return content;
+}
+
+function renderLandingContent() {
+  cacheLandingContent();
+  const content = getContentContainer();
+  if (!landingContentHTML) {
+    content.innerHTML = '';
+    return;
+  }
+  content.innerHTML = landingContentHTML;
 }
 
 /**
@@ -559,7 +583,7 @@ function renderDashboard(student, completed) {
   content.innerHTML = html;
   $('#logoutBtn').onclick = () => {
     clearSession();
-    renderLoginForm();
+    renderLandingContent();
   };
 }
 
@@ -787,14 +811,19 @@ function initializeLandingView() {
     renderEnrollForm();
     return;
   }
-  const slug = getStoredSlug();
-  const token = getStoredToken();
-  if (!slug || !token) {
+  if (searchParams.has('login')) {
     clearSession();
     renderLoginForm();
     return;
   }
-  loadDashboard();
+  const slug = getStoredSlug();
+  const token = getStoredToken();
+  if (slug && token) {
+    loadDashboard();
+    return;
+  }
+  clearSession();
+  renderLandingContent();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
