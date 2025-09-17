@@ -208,8 +208,13 @@ def select_repository_for_contract(
             )
 
     branch_env = source.get("branch_env")
-    branch_override = os.environ.get(branch_env, "") if branch_env else ""
-    branch = branch_override or source.get("branch") or source.get("default_branch") or info.default_branch
+    branch_override = _normalize_branch(os.environ.get(branch_env)) if branch_env else None
+    branch = (
+        branch_override
+        or _normalize_branch(source.get("branch"))
+        or _normalize_branch(source.get("default_branch"))
+        or info.default_branch
+    )
 
     base_path_template = source.get("base_path", "") or ""
     try:
@@ -221,6 +226,13 @@ def select_repository_for_contract(
     base_path = (formatted_base or "").strip("/")
 
     return RepositorySelection(info=info, branch=branch or info.default_branch, base_path=base_path)
+
+
+def _normalize_branch(value: str | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
 
 
 class RepositoryFileAccessor:
