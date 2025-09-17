@@ -70,9 +70,32 @@ const STORAGE_KEYS = {
   slug: 'student_slug',
   token: 'session_token',
   mission: 'current_mission',
+  admin: 'session_is_admin',
 };
 
-function storeSession(slug, token) {
+function _normalizeBooleanFlag(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return (
+      normalized === '1' ||
+      normalized === 'true' ||
+      normalized === 'yes' ||
+      normalized === 'y' ||
+      normalized === 'on' ||
+      normalized === 'si' ||
+      normalized === 'sí'
+    );
+  }
+  return false;
+}
+
+function storeSession(slug, token, isAdmin) {
   if (slug) {
     localStorage.setItem(STORAGE_KEYS.slug, slug);
   }
@@ -81,11 +104,20 @@ function storeSession(slug, token) {
   } else {
     localStorage.removeItem(STORAGE_KEYS.token);
   }
+  if (typeof isAdmin !== 'undefined') {
+    if (isAdmin === null) {
+      localStorage.removeItem(STORAGE_KEYS.admin);
+    } else {
+      const flag = _normalizeBooleanFlag(isAdmin);
+      localStorage.setItem(STORAGE_KEYS.admin, flag ? '1' : '0');
+    }
+  }
 }
 
 function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.slug);
   localStorage.removeItem(STORAGE_KEYS.token);
+  localStorage.removeItem(STORAGE_KEYS.admin);
 }
 
 const ALL_MISSIONS = [
@@ -146,6 +178,14 @@ function getStoredSlug() {
 
 function getStoredToken() {
   return localStorage.getItem(STORAGE_KEYS.token);
+}
+
+function getStoredIsAdmin() {
+  const value = localStorage.getItem(STORAGE_KEYS.admin);
+  if (value === null || typeof value === 'undefined') {
+    return null;
+  }
+  return _normalizeBooleanFlag(value);
 }
 
 function $(selector) {
@@ -242,6 +282,7 @@ function renderEnrollForm() {
       const data = await res.json();
       if (res.ok) {
         let sessionToken = '';
+        let loginStudent = null;
         try {
           const loginRes = await apiFetch('/api/login', {
             method: 'POST',
@@ -255,13 +296,17 @@ function renderEnrollForm() {
             const loginData = await loginRes.json();
             if (loginData && loginData.authenticated && loginData.token) {
               sessionToken = loginData.token;
+              loginStudent = loginData.student || null;
             }
           }
         } catch (loginErr) {
           console.warn('No se pudo iniciar sesión automáticamente tras la matrícula.', loginErr);
         }
         if (sessionToken) {
-          storeSession(slug, sessionToken);
+          const canonicalSlug =
+            loginStudent && loginStudent.slug ? loginStudent.slug : slug;
+          const isAdminFlag = loginStudent ? loginStudent.is_admin : false;
+          storeSession(canonicalSlug, sessionToken, isAdminFlag);
           $('#enrollMsg').textContent = '¡Matrícula exitosa! Redirigiendo...';
           setTimeout(() => {
             loadDashboard();
@@ -353,7 +398,8 @@ function renderLoginForm() {
             ? data.student.slug
             : slug;
         const sessionToken = data && data.token ? data.token : '';
-        storeSession(confirmedSlug, sessionToken);
+        const isAdminFlag = data && data.student ? data.student.is_admin : false;
+        storeSession(confirmedSlug, sessionToken, isAdminFlag);
         msg.textContent = 'Ingreso exitoso. Cargando tu portal...';
         loadDashboard();
         return;
@@ -522,8 +568,14 @@ async function loadDashboard() {
       return;
     }
     const canonicalSlug = student && student.slug ? student.slug : slug;
+    const isAdminFlag =
+      student && Object.prototype.hasOwnProperty.call(student, 'is_admin')
+        ? student.is_admin
+        : undefined;
     if (canonicalSlug && canonicalSlug !== currentSlug) {
-      storeSession(canonicalSlug, token);
+      storeSession(canonicalSlug, token, isAdminFlag);
+    } else if (typeof isAdminFlag !== 'undefined') {
+      storeSession(currentSlug, token, isAdminFlag);
     }
     renderDashboard(student, completed);
   } catch (err) {
@@ -658,8 +710,14 @@ async function ensureMissionUnlocked(missionId) {
       };
     }
     const canonicalSlug = student && student.slug ? student.slug : slug;
+    const isAdminFlag =
+      student && Object.prototype.hasOwnProperty.call(student, 'is_admin')
+        ? student.is_admin
+        : undefined;
     if (canonicalSlug && canonicalSlug !== currentSlug) {
-      storeSession(canonicalSlug, token);
+      storeSession(canonicalSlug, token, isAdminFlag);
+    } else if (typeof isAdminFlag !== 'undefined') {
+      storeSession(currentSlug, token, isAdminFlag);
     }
     const missionsForRole = getMissionsForRole(student.role);
     const unlocked = calculateUnlockedMissions(missionsForRole, completed);
