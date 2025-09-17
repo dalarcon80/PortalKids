@@ -25,7 +25,7 @@ except ModuleNotFoundError:  # pragma: no cover - optional dependency
         err = _MissingPyMySQLErrors()
 
     pymysql = _MissingPyMySQLModule()  # type: ignore[assignment]
-from flask import Flask, jsonify, make_response, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 
 try:  # pragma: no cover - optional dependency
     from flask_cors import CORS
@@ -135,7 +135,7 @@ except ModuleNotFoundError:  # pragma: no cover - simple fallback
         @app.before_request  # pragma: no cover - runtime behavior
         def _handle_preflight():
             if request.method == "OPTIONS":
-                return make_response("", 204)
+                return app.make_response(("", 204))
             return None
 
         @app.after_request  # pragma: no cover - runtime behavior
