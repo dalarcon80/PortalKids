@@ -7,7 +7,34 @@ import textwrap
 from dataclasses import dataclass
 from typing import Iterable, List, Sequence
 
-from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError
+try:  # pragma: no cover - optional dependency
+    from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    class _MissingOpenAIError(Exception):
+        """Raised when the optional 'openai' package is unavailable."""
+
+    class _MissingOpenAIModule:
+        APIConnectionError = _MissingOpenAIError
+        APIError = _MissingOpenAIError
+        APITimeoutError = _MissingOpenAIError
+        RateLimitError = _MissingOpenAIError
+
+        class _Client:
+            def __init__(self, *args, **kwargs) -> None:
+                raise RuntimeError(
+                    "La evaluación con modelos de lenguaje requiere la dependencia opcional 'openai'. "
+                    "Instálala para habilitar esta funcionalidad."
+                )
+
+        def OpenAI(self, *args, **kwargs):  # type: ignore[override]
+            return self._Client(*args, **kwargs)
+
+    _missing_openai = _MissingOpenAIModule()
+    APIConnectionError = _missing_openai.APIConnectionError
+    APIError = _missing_openai.APIError
+    APITimeoutError = _missing_openai.APITimeoutError
+    OpenAI = _missing_openai.OpenAI  # type: ignore[assignment]
+    RateLimitError = _missing_openai.RateLimitError
 
 DEFAULT_OPENAI_MODEL = "gpt-3.5-turbo"
 _MAX_COMPLETION_TOKENS = 300

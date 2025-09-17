@@ -6,7 +6,26 @@ from dataclasses import dataclass
 from typing import Dict
 from urllib.parse import quote
 
-import requests
+try:  # pragma: no cover - optional dependency
+    import requests  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    class _MissingRequestsException(Exception):
+        """Raised when the optional 'requests' dependency is unavailable."""
+
+    class _MissingRequestsSession:
+        def __init__(self, *args, **kwargs) -> None:
+            raise RuntimeError(
+                "El cliente de GitHub requiere la dependencia opcional 'requests'. "
+                "Instálala para habilitar las descargas remotas."
+            )
+
+    class _MissingRequestsModule:
+        RequestException = _MissingRequestsException
+
+        def Session(self, *args, **kwargs):  # type: ignore[override]
+            return _MissingRequestsSession(*args, **kwargs)
+
+    requests = _MissingRequestsModule()  # type: ignore[assignment]
 
 
 class GitHubConfigurationError(RuntimeError):

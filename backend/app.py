@@ -11,10 +11,27 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable, List, Mapping, Optional, Tuple
 
 import bcrypt
-import pymysql
-from pymysql.cursors import DictCursor
+
+try:  # pragma: no cover - optional dependency
+    import pymysql  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    class _MissingPyMySQLError(Exception):
+        """Fallback error used when pymysql is not installed."""
+
+    class _MissingPyMySQLErrors:
+        IntegrityError = _MissingPyMySQLError
+
+    class _MissingPyMySQLModule:
+        err = _MissingPyMySQLErrors()
+
+    pymysql = _MissingPyMySQLModule()  # type: ignore[assignment]
 from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
+
+try:  # pragma: no cover - optional dependency
+    from flask_cors import CORS
+except ModuleNotFoundError:  # pragma: no cover - simple fallback
+    def CORS(app, *args, **kwargs):
+        return app
 
 try:  # pragma: no cover - fallback for direct execution
     from .github_client import (
@@ -63,6 +80,18 @@ SESSION_DURATION_SECONDS = 60 * 60 * 8
 def _use_sqlite_backend() -> bool:
     required_keys = ["DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST"]
     return any(not os.environ.get(key) for key in required_keys)
+
+
+def _import_pymysql():
+    try:
+        import pymysql  # type: ignore
+        from pymysql.cursors import DictCursor  # type: ignore
+    except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+        raise RuntimeError(
+            "El backend de MySQL requiere el paquete 'pymysql'. "
+            "Instálalo o configura las variables de entorno para usar SQLite."
+        ) from exc
+    return pymysql, DictCursor
 
 
 class SQLiteCursorWrapper:
@@ -175,6 +204,7 @@ def get_db_connection():
             pass
         return SQLiteConnectionWrapper(connection)
 
+    pymysql, DictCursor = _import_pymysql()
     db_config = {
         "database": os.environ.get("DB_NAME"),
         "user": os.environ.get("DB_USER"),
