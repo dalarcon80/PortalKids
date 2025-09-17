@@ -23,3 +23,23 @@ def test_github_client_from_env_session_failure(monkeypatch):
     monkeypatch.setattr(github_client.requests, "Session", _SessionFailure)
     with pytest.raises(github_client.GitHubConfigurationError):
         github_client.GitHubClient.from_env()
+
+
+def test_select_repository_for_contract_strips_branch_overrides(monkeypatch):
+    repositories = {
+        "ventas": github_client.RepositoryInfo(
+            key="ventas", repository="org/repo", default_branch="main"
+        )
+    }
+    monkeypatch.setenv("CUSTOM_BRANCH", "   ")
+    selection = github_client.select_repository_for_contract(
+        {
+            "repository": "ventas",
+            "branch_env": "CUSTOM_BRANCH",
+            "branch": " \n ",
+            "default_branch": "\t",
+        },
+        slug="student-x",
+        repositories=repositories,
+    )
+    assert selection.branch == "main"
