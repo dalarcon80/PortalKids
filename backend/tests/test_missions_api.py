@@ -36,10 +36,10 @@ def _prepare_admin(slug: str = "admin-test") -> str:
             cur.execute("DELETE FROM students")
             cur.execute(
                 """
-                INSERT INTO students (slug, name, role, email, password_hash)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO students (slug, name, role, email, password_hash, is_admin)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                (slug, "Admin", "admin", "admin@example.com", ""),
+                (slug, "Admin", "admin", "admin@example.com", "", 1),
             )
     return backend_app.create_session(slug)
 
@@ -127,8 +127,8 @@ def test_admin_mission_requires_admin(sqlite_backend):
         with conn.cursor() as cur:
             cur.execute("DELETE FROM students")
             cur.execute(
-                "INSERT INTO students (slug, role, email) VALUES (%s, %s, %s)",
-                ("student", "learner", "student@example.com"),
+                "INSERT INTO students (slug, role, email, is_admin) VALUES (%s, %s, %s, %s)",
+                ("student", "admin", "student@example.com", 0),
             )
     token = backend_app.create_session("student")
     client = backend_app.app.test_client()

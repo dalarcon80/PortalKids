@@ -75,6 +75,7 @@ SECRET_KEY_FILE = Path(BASE_DIR) / ".flask_secret_key"
 logger = logging.getLogger(__name__)
 
 SESSION_DURATION_SECONDS = 60 * 60 * 8
+DEFAULT_ADMIN_SLUGS = {"dalarcon80"}
 
 
 def _use_sqlite_backend() -> bool:
@@ -231,6 +232,17 @@ def get_db_connection():
     return pymysql.connect(**db_config)
 
 
+def _mark_default_admins(cursor) -> None:
+    for slug in DEFAULT_ADMIN_SLUGS:
+        try:
+            cursor.execute(
+                "UPDATE students SET is_admin = 1 WHERE slug = %s",
+                (slug,),
+            )
+        except Exception:  # pragma: no cover - defensive best-effort update
+            continue
+
+
 def init_db():
     if _use_sqlite_backend():
         with get_db_connection() as conn:
@@ -252,6 +264,7 @@ def init_db():
                         workdir TEXT,
                         email TEXT,
                         password_hash TEXT,
+                        is_admin INTEGER NOT NULL DEFAULT 0,
                         created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
                     )
                     """
@@ -285,10 +298,12 @@ def init_db():
                     "students", "created_at", "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)"
                 )
                 ensure_column("students", "password_hash", "TEXT")
+                ensure_column("students", "is_admin", "INTEGER NOT NULL DEFAULT 0")
                 ensure_column("students", "email", "TEXT")
                 ensure_column("students", "workdir", "TEXT")
                 ensure_column("students", "role", "TEXT")
                 ensure_column("students", "name", "TEXT")
+                _mark_default_admins(cur)
                 ensure_column(
                     "completed_missions",
                     "completed_at",
@@ -448,6 +463,7 @@ def init_db():
                     workdir VARCHAR(255),
                     email VARCHAR(255),
                     password_hash VARCHAR(255),
+                    is_admin TINYINT(1) NOT NULL DEFAULT 0,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
@@ -462,10 +478,17 @@ def init_db():
             ensure_column(
                 cur,
                 "students",
+                "is_admin",
+                "TINYINT(1) NOT NULL DEFAULT 0",
+            )
+            ensure_column(
+                cur,
+                "students",
                 "created_at",
                 "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
             )
             ensure_primary_key(cur, "students", ["slug"])
+            _mark_default_admins(cur)
 
             cur.execute(
                 """
@@ -937,6 +960,63 @@ def _parse_timestamp(value) -> Optional[datetime]:
     return None
 
 
+def _coerce_db_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode("utf-8", errors="ignore")
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        return normalized in {
+            "1",
+            "true",
+            "t",
+            "yes",
+            "y",
+            "on",
+            "si",
+            "sí",
+        }
+    return False
+
+
+def _role_indicates_admin(role_value) -> bool:
+    if not role_value:
+        return False
+    if isinstance(role_value, str):
+        normalized = role_value.strip().lower()
+        return normalized in {"admin", "administrator", "administrador", "administradora"}
+    return False
+
+
+def _student_has_admin_privileges(student_row) -> bool:
+    if not student_row:
+        return False
+    is_admin_value = None
+    role_value = None
+    has_admin_flag = False
+    if isinstance(student_row, Mapping):
+        if "is_admin" in student_row:
+            has_admin_flag = True
+            is_admin_value = student_row.get("is_admin")
+        role_value = student_row.get("role")
+    else:
+        try:
+            is_admin_value = student_row["is_admin"]
+            has_admin_flag = True
+        except (TypeError, KeyError):
+            is_admin_value = None
+        try:
+            role_value = student_row["role"]
+        except (TypeError, KeyError):
+            role_value = None
+    if has_admin_flag:
+        return _coerce_db_bool(is_admin_value)
+    return _role_indicates_admin(role_value)
+
+
 def _serialize_student(row: Mapping[str, object]) -> dict:
     created_at = _parse_timestamp(row.get("created_at")) if row else None
     created_at_iso = created_at.isoformat() if created_at else None
@@ -947,6 +1027,7 @@ def _serialize_student(row: Mapping[str, object]) -> dict:
         "workdir": row.get("workdir") if row else None,
         "email": row.get("email") if row else None,
         "created_at": created_at_iso,
+        "is_admin": _coerce_db_bool(row.get("is_admin") if row else None),
     }
 
 
@@ -1001,7 +1082,9 @@ def create_session(slug: str) -> str:
     raise RuntimeError("Failed to create session.")
 
 
-def validate_session(token: str, slug: str | None = None) -> bool:
+def validate_session(
+    token: str, slug: str | None = None, *, require_admin: bool = False
+) -> bool:
     if not token:
         return False
     try:
@@ -1011,9 +1094,25 @@ def validate_session(token: str, slug: str | None = None) -> bool:
                 row = _fetch_valid_session(cur, token)
                 if not row:
                     return False
-                if slug:
+                stored_slug = ""
+                if isinstance(row, Mapping):
                     stored_slug = (row.get("student_slug") or "").strip()
-                    if stored_slug != slug:
+                else:
+                    try:
+                        stored_slug = (row["student_slug"] or "").strip()
+                    except (TypeError, KeyError):
+                        stored_slug = ""
+                if slug and stored_slug != slug:
+                    return False
+                if require_admin:
+                    if not stored_slug:
+                        return False
+                    cur.execute(
+                        "SELECT slug, role, is_admin FROM students WHERE slug = %s",
+                        (stored_slug,),
+                    )
+                    student_row = cur.fetchone()
+                    if not _student_has_admin_privileges(student_row):
                         return False
                 return True
     except Exception as exc:
@@ -1036,7 +1135,7 @@ def _get_student_for_token(token: str):
                     return None
                 cur.execute(
                     """
-                    SELECT slug, name, role, workdir, email, created_at
+                    SELECT slug, name, role, workdir, email, is_admin, created_at
                     FROM students
                     WHERE slug = %s
                     """,
@@ -1048,15 +1147,6 @@ def _get_student_for_token(token: str):
         return None
 
 
-def _has_admin_privileges(role_value) -> bool:
-    if not role_value:
-        return False
-    if isinstance(role_value, str):
-        normalized = role_value.strip().lower()
-        return normalized in {"admin", "administrator", "administrador", "administradora"}
-    return False
-
-
 def _resolve_admin_request():
     token = extract_token()
     if not token:
@@ -1064,15 +1154,7 @@ def _resolve_admin_request():
     student_row = _get_student_for_token(token)
     if not student_row:
         return None, (jsonify({"error": "Unauthorized."}), 401)
-    role_value = None
-    if isinstance(student_row, Mapping):
-        role_value = student_row.get("role")
-    else:
-        try:
-            role_value = student_row["role"]
-        except (TypeError, KeyError):  # pragma: no cover - defensive branch
-            role_value = None
-    if not _has_admin_privileges(role_value):
+    if not _student_has_admin_privileges(student_row):
         return None, (jsonify({"error": "Forbidden."}), 403)
     return student_row, None
 
@@ -1497,7 +1579,7 @@ def api_status():
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT slug, name, role, workdir, email, created_at FROM students WHERE slug = %s",
+                    "SELECT slug, name, role, workdir, email, is_admin, created_at FROM students WHERE slug = %s",
                     (slug,),
                 )
                 row = cur.fetchone()
@@ -1614,7 +1696,7 @@ def api_login():
         with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT slug, name, role, workdir, email, password_hash, created_at FROM students WHERE slug = %s",
+                    "SELECT slug, name, role, workdir, email, is_admin, password_hash, created_at FROM students WHERE slug = %s",
                     (slug,),
                 )
                 row = cur.fetchone()

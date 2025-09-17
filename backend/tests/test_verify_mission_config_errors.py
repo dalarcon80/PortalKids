@@ -49,7 +49,11 @@ def _configure_app(monkeypatch):
     monkeypatch.setattr(
         backend_app, "_fetch_missions_from_db", lambda mission_id=None: []
     )
-    monkeypatch.setattr(backend_app, "validate_session", lambda token, slug=None: True)
+    monkeypatch.setattr(
+        backend_app,
+        "validate_session",
+        lambda token, slug=None, require_admin=False: True,
+    )
     import werkzeug
 
     if not hasattr(werkzeug, "__version__"):

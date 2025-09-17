@@ -67,6 +67,7 @@ class SQLiteBackendFlowTests(unittest.TestCase):
         self.assertTrue(login_data["authenticated"])
         self.assertTrue(login_data["token"])
         self.assertEqual(login_data["student"]["email"], payload["email"])
+        self.assertFalse(login_data["student"]["is_admin"])
         self.assertEqual(login_data["completed"], [])
 
         status_response = self.client.get(
@@ -76,15 +77,17 @@ class SQLiteBackendFlowTests(unittest.TestCase):
         status_data = status_response.get_json()
         self.assertEqual(status_data["student"]["slug"], payload["slug"])
         self.assertEqual(status_data["student"]["name"], payload["name"])
+        self.assertFalse(status_data["student"]["is_admin"])
         self.assertEqual(status_data["completed"], [])
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute(
-                "SELECT slug, name, email FROM students WHERE slug = ?",
+                "SELECT slug, name, email, is_admin FROM students WHERE slug = ?",
                 (payload["slug"],),
             )
             row = cur.fetchone()
             self.assertIsNotNone(row)
             self.assertEqual(dict(row)["email"], payload["email"])
+            self.assertEqual(dict(row)["is_admin"], 0)
