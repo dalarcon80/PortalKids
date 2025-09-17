@@ -15,7 +15,7 @@
       {
         "type": "file_contains",
         "path": "docs/m1_workspace_ok.txt",
-        "content": "workspace: C:\\\\\MinecraftShop\\\\minecraft_shop_project",
+        "content": "workspace: C\\MinecraftShop\\minecraft_shop_project",
         "feedback_fail": "El archivo 'm1_workspace_ok.txt' no contiene la línea exacta requerida."
       },
       {
