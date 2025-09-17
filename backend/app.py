@@ -3,7 +3,9 @@ import os
 import secrets
 import subprocess
 import sys
+import tempfile
 import time
+from pathlib import Path, PurePosixPath
 from typing import List, Tuple
 
 import bcrypt
@@ -11,6 +13,27 @@ import pymysql
 from pymysql.cursors import DictCursor
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+
+try:  # pragma: no cover - fallback for direct execution
+    from .github_client import (
+        GitHubClient,
+        GitHubConfigurationError,
+        GitHubDownloadError,
+        GitHubFileNotFoundError,
+        RepositoryFileAccessor,
+        determine_student_repositories,
+        select_repository_for_contract,
+    )
+except ImportError:  # pragma: no cover - allow "python backend/app.py"
+    from github_client import (  # type: ignore
+        GitHubClient,
+        GitHubConfigurationError,
+        GitHubDownloadError,
+        GitHubFileNotFoundError,
+        RepositoryFileAccessor,
+        determine_student_repositories,
+        select_repository_for_contract,
+    )
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -340,56 +363,134 @@ def validate_session(token: str, slug: str | None = None) -> bool:
     return True
 
 
-def verify_evidence(workdir: str, contract: dict) -> Tuple[bool, List[str]]:
+def verify_evidence(
+    files: RepositoryFileAccessor, contract: dict
+) -> Tuple[bool, List[str]]:
     feedback: List[str] = []
     passed = True
     for item in contract.get("deliverables", []):
-        item_type = item.get("type")
-        path = item.get("path", "")
-        full_path = os.path.join(workdir, path)
+        item_type = (item.get("type") or "").strip()
+        path = (item.get("path") or "").strip()
+        if not path:
+            passed = False
+            feedback.append("El contrato tiene un deliverable sin ruta configurada.")
+            continue
         if item_type == "file_exists":
-            if not os.path.isfile(full_path):
+            try:
+                if not files.exists(path):
+                    passed = False
+                    message = item.get("feedback_fail", f"Missing file: {path}")
+                    feedback.append(f"{message} (fuente: {files.describe_source(path)})")
+            except GitHubDownloadError as exc:
                 passed = False
-                feedback.append(item.get("feedback_fail", f"Missing file: {path}"))
+                message = item.get(
+                    "feedback_error",
+                    f"No se pudo descargar {path} desde GitHub: {exc}",
+                )
+                feedback.append(str(message))
         elif item_type == "file_contains":
             content = item.get("content", "")
             try:
-                with open(full_path, "r", encoding="utf-8") as f:
-                    file_data = f.read()
-                if content not in file_data:
-                    passed = False
-                    feedback.append(
-                        item.get("feedback_fail", f"Content mismatch in {path}")
-                    )
-            except FileNotFoundError:
+                file_data = files.read_text(path)
+            except GitHubFileNotFoundError:
                 passed = False
-                feedback.append(item.get("feedback_fail", f"Missing file: {path}"))
+                message = item.get("feedback_fail", f"Missing file: {path}")
+                feedback.append(f"{message} (fuente: {files.describe_source(path)})")
+                continue
+            except GitHubDownloadError as exc:
+                passed = False
+                message = item.get(
+                    "feedback_error",
+                    f"No se pudo descargar {path} desde GitHub: {exc}",
+                )
+                feedback.append(str(message))
+                continue
+            except UnicodeDecodeError:
+                passed = False
+                message = item.get(
+                    "feedback_error",
+                    f"No se pudo decodificar el archivo {path}; utiliza UTF-8.",
+                )
+                feedback.append(str(message))
+                continue
+            if content not in file_data:
+                passed = False
+                feedback.append(
+                    item.get("feedback_fail", f"Content mismatch in {path}")
+                )
         else:
             passed = False
             feedback.append(f"Unknown evidence type: {item_type}")
     return passed, feedback
 
 
-def verify_script(workdir: str, contract: dict) -> Tuple[bool, List[str]]:
+def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, List[str]]:
     feedback: List[str] = []
-    script_path = contract.get("script_path")
+    script_path = (contract.get("script_path") or "").strip()
     if not script_path:
         return False, ["Missing script_path in contract."]
-    full_script_path = os.path.join(workdir, script_path)
-    if not os.path.isfile(full_script_path):
-        return False, [f"Script file not found: {script_path}"]
+
+    def _write_file(root: str, relative: str, data: bytes) -> Path:
+        relative_path = PurePosixPath(relative)
+        parts: list[str] = []
+        for part in relative_path.parts:
+            if part in {"", "."}:
+                continue
+            if part == "..":
+                raise ValueError("no se permiten rutas relativas con '..'")
+            parts.append(part)
+        destination = Path(root).joinpath(*parts)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+        return destination
+
     try:
-        result = subprocess.run(
-            [sys.executable, full_script_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=workdir,
-            timeout=30,
-        )
-        output = result.stdout or ""
-    except Exception as exc:  # pragma: no cover - defensive
-        return False, [f"Error running script: {exc}"]
+        script_bytes = files.read_bytes(script_path)
+    except GitHubFileNotFoundError:
+        return False, [
+            f"Script file not found: {script_path} (fuente: {files.describe_source(script_path)})"
+        ]
+    except GitHubDownloadError as exc:
+        return False, [f"No se pudo descargar el script {script_path}: {exc}"]
+
+    required_files = contract.get("required_files", [])
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            local_script_path = _write_file(tmpdir, script_path, script_bytes)
+        except ValueError as exc:
+            return False, [f"Ruta de script inválida {script_path}: {exc}"]
+
+        for dependency in required_files:
+            dep_path = (dependency or "").strip()
+            if not dep_path:
+                continue
+            try:
+                dep_bytes = files.read_bytes(dep_path)
+            except GitHubFileNotFoundError:
+                return False, [
+                    f"No se encontró el archivo requerido {dep_path} "
+                    f"({files.describe_source(dep_path)})."
+                ]
+            except GitHubDownloadError as exc:
+                return False, [f"No se pudo descargar {dep_path}: {exc}"]
+            try:
+                _write_file(tmpdir, dep_path, dep_bytes)
+            except ValueError as exc:
+                return False, [f"Ruta inválida {dep_path}: {exc}"]
+
+        try:
+            result = subprocess.run(
+                [sys.executable, str(local_script_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=tmpdir,
+                timeout=30,
+            )
+            output = result.stdout or ""
+        except Exception as exc:  # pragma: no cover - defensive
+            return False, [f"Error running script: {exc}"]
+
     passed = True
     for validation in contract.get("validations", []):
         if validation.get("type") == "output_contains":
@@ -404,16 +505,25 @@ def verify_script(workdir: str, contract: dict) -> Tuple[bool, List[str]]:
     return passed, feedback
 
 
-def verify_llm(workdir: str, contract: dict) -> Tuple[bool, List[str]]:
-    deliverable_path = contract.get("deliverable_path")
+def verify_llm(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, List[str]]:
+    deliverable_path = (contract.get("deliverable_path") or "").strip()
     if not deliverable_path:
         return False, ["Missing deliverable_path in contract."]
-    full_path = os.path.join(workdir, deliverable_path)
     try:
-        with open(full_path, "r", encoding="utf-8") as f:
-            content = f.read().lower()
-    except FileNotFoundError:
-        return False, [f"No se encontró el archivo de notas: {deliverable_path}"]
+        content = files.read_text(deliverable_path).lower()
+    except GitHubFileNotFoundError:
+        return False, [
+            (
+                f"No se encontró el archivo de notas: {deliverable_path} "
+                f"({files.describe_source(deliverable_path)})."
+            )
+        ]
+    except GitHubDownloadError as exc:
+        return False, [f"No se pudo descargar {deliverable_path}: {exc}"]
+    except UnicodeDecodeError:
+        return False, [
+            f"No se pudo decodificar el archivo {deliverable_path}; usa UTF-8 para las notas."
+        ]
     feedback: List[str] = []
     missing: List[str] = []
     for keyword in contract.get("expected_keywords", []):
@@ -660,15 +770,16 @@ def api_verify_mission():
     token = extract_token()
     if not validate_session(token, slug):
         return jsonify({"error": "Unauthorized."}), 401
+    role = ""
     try:
         init_db()
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT workdir FROM students WHERE slug = %s", (slug,))
+                cur.execute("SELECT role FROM students WHERE slug = %s", (slug,))
                 row = cur.fetchone()
                 if not row:
                     return jsonify({"error": "Student not found."}), 404
-                workdir = row["workdir"]
+                role = (row.get("role") or "").strip()
     except Exception as exc:
         print(f"Database error on /api/verify_mission lookup: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
@@ -678,13 +789,31 @@ def api_verify_mission():
         return jsonify(
             {"verified": False, "feedback": [f"No se encontró contrato para {mission_id}"]}
         )
+    try:
+        github_client = GitHubClient.from_env()
+    except GitHubConfigurationError as exc:
+        print(f"GitHub configuration error: {exc}", file=sys.stderr)
+        return jsonify({"verified": False, "feedback": [str(exc)]})
+    try:
+        available_repos = determine_student_repositories(slug, role)
+    except GitHubConfigurationError as exc:
+        print(f"Repository selection error: {exc}", file=sys.stderr)
+        return jsonify({"verified": False, "feedback": [str(exc)]})
+    try:
+        selection = select_repository_for_contract(
+            contract.get("source"), slug, available_repos
+        )
+    except GitHubConfigurationError as exc:
+        print(f"Contract repository selection error: {exc}", file=sys.stderr)
+        return jsonify({"verified": False, "feedback": [str(exc)]})
+    file_accessor = RepositoryFileAccessor(github_client, selection)
     vtype = contract.get("verification_type")
     if vtype == "evidence":
-        passed, feedback = verify_evidence(workdir, contract)
+        passed, feedback = verify_evidence(file_accessor, contract)
     elif vtype == "script_output":
-        passed, feedback = verify_script(workdir, contract)
+        passed, feedback = verify_script(file_accessor, contract)
     elif vtype == "llm_evaluation":
-        passed, feedback = verify_llm(workdir, contract)
+        passed, feedback = verify_llm(file_accessor, contract)
     else:
         return jsonify(
             {
