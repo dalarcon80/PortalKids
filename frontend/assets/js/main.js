@@ -73,6 +73,28 @@ const STORAGE_KEYS = {
   admin: 'session_is_admin',
 };
 
+const missionsCache = {
+  all: [],
+  byRole: new Map(),
+  byId: new Map(),
+};
+
+function missionIdKey(id) {
+  if (typeof id === 'string') {
+    return id.trim();
+  }
+  if (typeof id === 'number') {
+    return String(id).trim();
+  }
+  return '';
+}
+
+function invalidateMissionsCache() {
+  missionsCache.all = [];
+  missionsCache.byRole.clear();
+  missionsCache.byId.clear();
+}
+
 function _normalizeBooleanFlag(value) {
   if (typeof value === 'boolean') {
     return value;
@@ -118,24 +140,7 @@ function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.slug);
   localStorage.removeItem(STORAGE_KEYS.token);
   localStorage.removeItem(STORAGE_KEYS.admin);
-}
-
-const ALL_MISSIONS = [
-  { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm3', title: 'M3 — Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm4', title: 'M4 — Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm5', title: 'M5 — Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm6v', title: 'M6 — Gold (VENTAS): Une y mide', roles: ['Ventas'] },
-  { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
-  { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
-];
-
-function getMissionsForRole(role) {
-  if (!role) {
-    return [];
-  }
-  return ALL_MISSIONS.filter((mission) => mission.roles.includes(role));
+  invalidateMissionsCache();
 }
 
 function calculateUnlockedMissions(missionsForRole, completed) {
@@ -154,6 +159,386 @@ function calculateUnlockedMissions(missionsForRole, completed) {
     }
   });
   return unlocked;
+}
+
+function normalizeMissionRoles(rawRoles) {
+  if (!rawRoles) {
+    return [];
+  }
+  if (Array.isArray(rawRoles)) {
+    return rawRoles
+      .map((role) => (typeof role === 'string' || typeof role === 'number' ? String(role).trim() : ''))
+      .filter((role) => role);
+  }
+  if (typeof rawRoles === 'string') {
+    return rawRoles
+      .split(/[,;\n]+/)
+      .map((role) => role.trim())
+      .filter((role) => role);
+  }
+  return [];
+}
+
+function normalizeMission(rawMission) {
+  if (!rawMission) {
+    return null;
+  }
+  const missionId = missionIdKey(rawMission.mission_id || rawMission.id);
+  if (!missionId) {
+    return null;
+  }
+  const rawTitle = rawMission.title || rawMission.name || '';
+  const title = String(rawTitle || '').trim() || missionId;
+  const roles = normalizeMissionRoles(rawMission.roles);
+  const content = rawMission && typeof rawMission.content === 'object' && rawMission.content !== null
+    ? rawMission.content
+    : {};
+  const updatedAt = rawMission.updated_at || rawMission.updatedAt || null;
+  return {
+    id: missionId,
+    title,
+    roles,
+    content,
+    updatedAt,
+  };
+}
+
+function cacheMissionsList(rawMissions, roleKey) {
+  const normalizedList = [];
+  if (!Array.isArray(rawMissions)) {
+    return normalizedList;
+  }
+  rawMissions.forEach((rawMission) => {
+    const normalized = normalizeMission(rawMission);
+    if (!normalized) {
+      return;
+    }
+    const cacheKey = missionIdKey(normalized.id);
+    if (cacheKey) {
+      missionsCache.byId.set(cacheKey, normalized);
+    }
+    normalizedList.push(normalized);
+  });
+  if (typeof roleKey === 'string' && roleKey) {
+    missionsCache.byRole.set(roleKey, normalizedList);
+  } else if (!roleKey) {
+    missionsCache.all = normalizedList;
+  }
+  return normalizedList;
+}
+
+function getCachedMissionsForRole(role) {
+  const key = typeof role === 'string' ? role.trim().toLowerCase() : '';
+  if (!key) {
+    return [];
+  }
+  return missionsCache.byRole.get(key) || [];
+}
+
+function getMissionFromCache(missionId) {
+  const key = missionIdKey(missionId);
+  if (!key) {
+    return null;
+  }
+  return missionsCache.byId.get(key) || null;
+}
+
+async function fetchMissionsForRole(role, options = {}) {
+  const { forceRefresh = false } = options || {};
+  const key = typeof role === 'string' ? role.trim().toLowerCase() : '';
+  if (!forceRefresh && key && missionsCache.byRole.has(key)) {
+    return missionsCache.byRole.get(key);
+  }
+  let url = '/api/missions';
+  if (key) {
+    url += `?${new URLSearchParams({ role: key })}`;
+  }
+  let res;
+  try {
+    res = await apiFetch(url, {
+      credentials: 'include',
+    });
+  } catch (err) {
+    throw new Error('network-error');
+  }
+  let data = {};
+  try {
+    data = await res.json();
+  } catch (parseErr) {
+    data = {};
+  }
+  if (!res.ok) {
+    const error = new Error(data && data.error ? data.error : 'failed-to-load-missions');
+    error.status = res.status;
+    throw error;
+  }
+  const missions = Array.isArray(data.missions) ? data.missions : [];
+  return cacheMissionsList(missions, key);
+}
+
+async function fetchAdminMissions() {
+  const token = getStoredToken();
+  if (!token) {
+    const error = new Error('missing-session');
+    error.code = 'missing-session';
+    throw error;
+  }
+  let res;
+  try {
+    res = await apiFetch('/api/admin/missions', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (err) {
+    const error = new Error('network-error');
+    error.code = 'network-error';
+    throw error;
+  }
+  let data = {};
+  try {
+    data = await res.json();
+  } catch (parseErr) {
+    data = {};
+  }
+  if (res.status === 401 || res.status === 403) {
+    const error = new Error((data && data.error) || 'Unauthorized.');
+    error.status = res.status;
+    throw error;
+  }
+  if (!res.ok) {
+    const error = new Error((data && data.error) || 'Failed to load missions.');
+    error.status = res.status;
+    throw error;
+  }
+  const missions = Array.isArray(data.missions) ? data.missions : [];
+  return cacheMissionsList(missions);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeForTextarea(value) {
+  return escapeHtml(value).replace(/<\/textarea>/gi, '&lt;/textarea&gt;');
+}
+
+function renderTextBlock(text) {
+  if (!text && text !== 0) {
+    return '';
+  }
+  const raw = Array.isArray(text) ? text : String(text).split(/\n+/);
+  const paragraphs = raw
+    .map((item) => (typeof item === 'string' || typeof item === 'number' ? String(item).trim() : ''))
+    .filter((line) => line);
+  if (paragraphs.length === 0) {
+    return '';
+  }
+  return paragraphs.map((line) => `<p>${escapeHtml(line)}</p>`).join('');
+}
+
+function renderBulletList(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return '';
+  }
+  const listItems = items
+    .map((item) => {
+      if (item && typeof item === 'object' && 'text' in item) {
+        return `<li>${escapeHtml(String(item.text || '').trim())}</li>`;
+      }
+      if (typeof item === 'string' || typeof item === 'number') {
+        return `<li>${escapeHtml(String(item))}</li>`;
+      }
+      if (item && typeof item === 'object') {
+        return `<li><pre>${escapeHtml(JSON.stringify(item, null, 2))}</pre></li>`;
+      }
+      return '';
+    })
+    .filter((entry) => entry);
+  if (listItems.length === 0) {
+    return '';
+  }
+  return `<ul>${listItems.join('')}</ul>`;
+}
+
+function renderDeliverablesSection(deliverables) {
+  if (!Array.isArray(deliverables) || deliverables.length === 0) {
+    return '';
+  }
+  const items = deliverables
+    .map((deliverable) => {
+      if (!deliverable || typeof deliverable !== 'object') {
+        return '';
+      }
+      const details = [];
+      if (deliverable.path) {
+        details.push(`<span class="mission-detail__field"><strong>Ruta:</strong> ${escapeHtml(deliverable.path)}</span>`);
+      }
+      if (deliverable.type) {
+        details.push(`<span class="mission-detail__field"><strong>Tipo:</strong> ${escapeHtml(deliverable.type)}</span>`);
+      }
+      if (deliverable.content) {
+        details.push(`<span class="mission-detail__field"><strong>Contenido esperado:</strong> ${escapeHtml(String(deliverable.content))}</span>`);
+      }
+      if (deliverable.feedback_fail) {
+        details.push(
+          `<span class="mission-detail__field"><strong>Feedback si falla:</strong> ${escapeHtml(deliverable.feedback_fail)}</span>`
+        );
+      }
+      if (details.length === 0) {
+        return '';
+      }
+      return `<li>${details.join('<br />')}</li>`;
+    })
+    .filter((item) => item);
+  if (items.length === 0) {
+    return '';
+  }
+  return `
+    <section class="mission-section mission-section--deliverables">
+      <h3>Entregables</h3>
+      <ul>
+        ${items.join('')}
+      </ul>
+    </section>
+  `;
+}
+
+function renderValidationsSection(validations) {
+  if (!Array.isArray(validations) || validations.length === 0) {
+    return '';
+  }
+  const items = validations
+    .map((validation) => {
+      if (!validation || typeof validation !== 'object') {
+        return '';
+      }
+      const parts = [];
+      if (validation.type) {
+        parts.push(`<span class="mission-detail__field"><strong>Tipo:</strong> ${escapeHtml(validation.type)}</span>`);
+      }
+      if (validation.text) {
+        parts.push(`<span class="mission-detail__field"><strong>Texto:</strong> ${escapeHtml(validation.text)}</span>`);
+      }
+      if (validation.path) {
+        parts.push(`<span class="mission-detail__field"><strong>Ruta:</strong> ${escapeHtml(validation.path)}</span>`);
+      }
+      if (validation.feedback_fail) {
+        parts.push(
+          `<span class="mission-detail__field"><strong>Feedback si falla:</strong> ${escapeHtml(validation.feedback_fail)}</span>`
+        );
+      }
+      if (parts.length === 0) {
+        return '';
+      }
+      return `<li>${parts.join('<br />')}</li>`;
+    })
+    .filter((entry) => entry);
+  if (items.length === 0) {
+    return '';
+  }
+  return `
+    <section class="mission-section mission-section--validations">
+      <h3>Validaciones</h3>
+      <ul>
+        ${items.join('')}
+      </ul>
+    </section>
+  `;
+}
+
+function renderMissionContent(content) {
+  if (!content || typeof content !== 'object') {
+    return '<p>No hay contenido configurado para esta misión.</p>';
+  }
+  const parts = [];
+  if (typeof content.html === 'string' && content.html.trim()) {
+    parts.push(content.html);
+  }
+  if (content.story) {
+    parts.push(`<section class="mission-section"><h3>Historia</h3>${renderTextBlock(content.story)}</section>`);
+  }
+  if (content.summary) {
+    parts.push(`<section class="mission-section"><h3>Resumen</h3>${renderTextBlock(content.summary)}</section>`);
+  }
+  if (content.instructions) {
+    parts.push(
+      `<section class="mission-section"><h3>Instrucciones</h3>${renderTextBlock(content.instructions)}</section>`
+    );
+  }
+  if (Array.isArray(content.sections)) {
+    content.sections.forEach((section) => {
+      if (!section || typeof section !== 'object') {
+        return;
+      }
+      const title = section.title || section.heading || '';
+      const sectionParts = [];
+      if (section.body) {
+        sectionParts.push(renderTextBlock(section.body));
+      }
+      if (section.description) {
+        sectionParts.push(renderTextBlock(section.description));
+      }
+      if (section.items) {
+        sectionParts.push(renderBulletList(section.items));
+      }
+      if (section.html) {
+        sectionParts.push(section.html);
+      }
+      if (sectionParts.length === 0) {
+        sectionParts.push(`<pre>${escapeHtml(JSON.stringify(section, null, 2))}</pre>`);
+      }
+      parts.push(
+        `<section class="mission-section">${title ? `<h3>${escapeHtml(title)}</h3>` : ''}${sectionParts.join('')}</section>`
+      );
+    });
+  }
+  if (content.resources) {
+    parts.push(
+      `<section class="mission-section"><h3>Recursos</h3>${renderBulletList(Array.isArray(content.resources) ? content.resources : [content.resources])}</section>`
+    );
+  }
+  const deliverables = renderDeliverablesSection(content.deliverables);
+  if (deliverables) {
+    parts.push(deliverables);
+  }
+  const validations = renderValidationsSection(content.validations);
+  if (validations) {
+    parts.push(validations);
+  }
+  if (content.verification_type) {
+    parts.push(
+      `<p class="mission-detail__field"><strong>Tipo de verificación:</strong> ${escapeHtml(content.verification_type)}</p>`
+    );
+  }
+  if (content.script_path) {
+    parts.push(
+      `<p class="mission-detail__field"><strong>Script de verificación:</strong> ${escapeHtml(content.script_path)}</p>`
+    );
+  }
+  if (content.source) {
+    parts.push(
+      `<details class="mission-section mission-section--source"><summary>Fuente de datos</summary><pre>${escapeHtml(
+        JSON.stringify(content.source, null, 2)
+      )}</pre></details>`
+    );
+  }
+  if (parts.length === 0) {
+    return `<pre>${escapeHtml(JSON.stringify(content, null, 2))}</pre>`;
+  }
+  parts.push(
+    `<details class="mission-section mission-section--raw"><summary>Ver JSON bruto</summary><pre>${escapeHtml(
+      JSON.stringify(content, null, 2)
+    )}</pre></details>`
+  );
+  return parts.join('');
 }
 
 function setCurrentMission(missionId) {
@@ -577,7 +962,47 @@ async function loadDashboard() {
     } else if (typeof isAdminFlag !== 'undefined') {
       storeSession(currentSlug, token, isAdminFlag);
     }
-    renderDashboard(student, completed);
+    let missionsForRole = [];
+    try {
+      missionsForRole = await fetchMissionsForRole(student.role, { forceRefresh: true });
+    } catch (missionsError) {
+      let errorMessage = 'No pudimos cargar las misiones configuradas en este momento.';
+      if (missionsError && missionsError.message && missionsError.message !== 'network-error') {
+        if (missionsError.message === 'failed-to-load-missions') {
+          errorMessage = 'No pudimos obtener la lista de misiones.';
+        } else {
+          errorMessage = missionsError.message;
+        }
+      }
+      content.innerHTML = `
+        <section class="status-error">
+          <p>${escapeHtml(errorMessage)}</p>
+          <button id="retryMissionsBtn">Reintentar</button>
+        </section>
+      `;
+      const retryMissionsBtn = $('#retryMissionsBtn');
+      if (retryMissionsBtn) {
+        retryMissionsBtn.onclick = () => {
+          loadDashboard();
+        };
+      }
+      return;
+    }
+    const unlockedMap = calculateUnlockedMissions(missionsForRole, completed);
+    const storedMissionId = getCurrentMission();
+    if (storedMissionId) {
+      const missionFromCache =
+        missionsForRole.find((mission) => mission.id === storedMissionId) ||
+        getMissionFromCache(storedMissionId);
+      if (missionFromCache && unlockedMap[storedMissionId]) {
+        renderMissionDetail(missionFromCache, { student, completed });
+        return;
+      }
+      if (!missionFromCache || !unlockedMap[storedMissionId]) {
+        clearCurrentMission();
+      }
+    }
+    renderDashboard(student, completed, missionsForRole);
   } catch (err) {
     content.innerHTML = `
       <section class="status-error">
@@ -599,44 +1024,491 @@ async function loadDashboard() {
  * @param {Object} student
  * @param {string[]} completed
  */
-function renderDashboard(student, completed) {
+function renderDashboard(student, completed, missions) {
   const content = $('#content');
-  const missionsForRole = getMissionsForRole(student.role);
-  const unlocked = calculateUnlockedMissions(missionsForRole, completed);
+  const safeCompleted = Array.isArray(completed) ? completed : [];
+  const missionsForRole = Array.isArray(missions) && missions.length > 0
+    ? missions
+    : getCachedMissionsForRole(student.role);
+  const unlocked = calculateUnlockedMissions(missionsForRole, safeCompleted);
+  const isAdmin = Boolean(getStoredIsAdmin());
+  const roleLabel = student && student.role ? String(student.role) : '';
+  const nameLabel = student && student.name ? String(student.name) : '';
   let html = `<section class="dashboard">
-    <h2>Bienvenido, ${student.name}</h2>
-    <p>Rol: ${student.role}</p>
+    <h2>Bienvenido, ${escapeHtml(nameLabel)}</h2>
+    <p>Rol: ${escapeHtml(roleLabel)}</p>
     <p>Selecciona una misión para continuar:</p>
-    <ul class="missions-grid">`;
-  missionsForRole.forEach((m) => {
-    const isCompleted = completed.includes(m.id);
-    const isUnlocked = unlocked[m.id] || false;
-    let statusClass = '';
-    let statusText = '';
-    if (isCompleted) {
-      statusClass = 'completed';
-      statusText = 'Completada';
-    } else if (isUnlocked) {
-      statusClass = 'unlocked';
-      statusText = 'Disponible';
-    } else {
-      statusClass = 'locked';
-      statusText = 'Bloqueada';
-    }
-    if (isUnlocked) {
-      html += `<li class="mission-card ${statusClass}"><a href="${m.id}.html">${m.title}</a><span class="status">${statusText}</span></li>`;
-    } else {
-      html += `<li class="mission-card ${statusClass}">${m.title}<span class="status">${statusText}</span></li>`;
-    }
-  });
-  html += '</ul>';
-  html += '<button id="logoutBtn">Salir</button>';
+    <div class="dashboard-message" id="dashboardMessage" role="status" aria-live="polite"></div>`;
+  if (missionsForRole.length === 0) {
+    html += `<p class="no-missions">No hay misiones configuradas para tu rol en este momento.</p>`;
+  } else {
+    html += '<ul class="missions-grid">';
+    missionsForRole.forEach((mission) => {
+      const missionId = mission.id;
+      const missionTitle = mission.title || missionId;
+      const isCompleted = safeCompleted.includes(missionId);
+      const isUnlocked = Boolean(unlocked[missionId]);
+      let statusClass = '';
+      let statusText = '';
+      if (isCompleted) {
+        statusClass = 'completed';
+        statusText = 'Completada';
+      } else if (isUnlocked) {
+        statusClass = 'unlocked';
+        statusText = 'Disponible';
+      } else {
+        statusClass = 'locked';
+        statusText = 'Bloqueada';
+      }
+      const missionTitleHtml = `<span class="mission-title">${escapeHtml(missionTitle)}</span>`;
+      if (isUnlocked) {
+        html += `
+          <li class="mission-card ${statusClass}">
+            <button type="button" class="mission-card__link" data-mission-id="${escapeHtml(missionId)}">
+              ${missionTitleHtml}
+            </button>
+            <span class="status">${statusText}</span>
+          </li>`;
+      } else {
+        html += `
+          <li class="mission-card ${statusClass}">
+            ${missionTitleHtml}
+            <span class="status">${statusText}</span>
+          </li>`;
+      }
+    });
+    html += '</ul>';
+  }
+  html += '<div class="dashboard-actions">';
+  if (isAdmin) {
+    html += '<button type="button" id="adminMissionsBtn">Configurar misiones</button>';
+  }
+  html += '<button type="button" id="logoutBtn">Salir</button>';
+  html += '</div>';
   html += '</section>';
   content.innerHTML = html;
-  $('#logoutBtn').onclick = () => {
+
+  const logoutBtn = $('#logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      clearSession();
+      clearCurrentMission();
+      renderLandingContent();
+    };
+  }
+
+  const adminBtn = $('#adminMissionsBtn');
+  if (adminBtn) {
+    adminBtn.onclick = () => {
+      renderAdminMissionsView();
+    };
+  }
+
+  const missionButtons = content.querySelectorAll('[data-mission-id]');
+  const messageBox = $('#dashboardMessage');
+  missionButtons.forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      const missionId = button.getAttribute('data-mission-id');
+      if (!missionId) {
+        return;
+      }
+      if (!unlocked[missionId]) {
+        if (messageBox) {
+          const missionIndex = missionsForRole.findIndex((mission) => mission.id === missionId);
+          const previousMission = missionIndex > 0 ? missionsForRole[missionIndex - 1] : null;
+          const previousLabel = previousMission ? previousMission.title || previousMission.id : '';
+          const lockedMessage = previousLabel
+            ? `Debes completar la misión "${previousLabel}" antes de acceder a esta.`
+            : 'Debes completar la misión anterior antes de acceder a esta.';
+          messageBox.textContent = lockedMessage;
+        }
+        return;
+      }
+      const mission = missionsForRole.find((item) => item.id === missionId) || getMissionFromCache(missionId);
+      if (!mission) {
+        if (messageBox) {
+          messageBox.textContent = 'No pudimos encontrar la información de esa misión. Intenta recargar.';
+        }
+        return;
+      }
+      setCurrentMission(missionId);
+      renderMissionDetail(mission, { student, completed: safeCompleted });
+    });
+  });
+}
+
+function renderMissionDetail(mission, options = {}) {
+  if (!mission) {
+    return;
+  }
+  const { student = null, completed = [] } = options || {};
+  const content = $('#content');
+  const rolesLabel = mission.roles && mission.roles.length > 0
+    ? mission.roles.join(', ')
+    : 'Todos los roles';
+  const isCompleted = Array.isArray(completed) && completed.includes(mission.id);
+  const missionStatus = isCompleted ? 'Completada' : 'Pendiente';
+  const updatedLabel = mission.updatedAt ? `Última actualización: ${escapeHtml(mission.updatedAt)}` : '';
+  const studentName = student && student.name ? escapeHtml(String(student.name)) : '';
+  const studentRole = student && student.role ? escapeHtml(String(student.role)) : '';
+  let studentInfoHtml = '';
+  if (studentName || studentRole) {
+    const parts = [];
+    if (studentName) {
+      parts.push(`Estudiante: ${studentName}`);
+    }
+    if (studentRole) {
+      parts.push(`Rol: ${studentRole}`);
+    }
+    studentInfoHtml = `<p class="mission-detail__student">${parts.join(' · ')}</p>`;
+  }
+  const missionContent = renderMissionContent(mission.content);
+  content.innerHTML = `
+    <section class="mission-detail">
+      <header class="mission-detail__header">
+        <button type="button" id="backToDashboardBtn" class="mission-detail__back">← Volver al portal</button>
+        <h2>${escapeHtml(mission.title || mission.id)}</h2>
+        <p class="mission-detail__meta">
+          <span><strong>ID:</strong> ${escapeHtml(mission.id)}</span>
+          <span><strong>Estado:</strong> ${escapeHtml(missionStatus)}</span>
+          <span><strong>Roles:</strong> ${escapeHtml(rolesLabel)}</span>
+          ${updatedLabel ? `<span>${updatedLabel}</span>` : ''}
+        </p>
+        ${studentInfoHtml}
+      </header>
+      <article class="mission-detail__content">
+        ${missionContent}
+      </article>
+      <footer class="mission-detail__footer">
+        <button type="button" id="verifyMissionBtn" class="mission-detail__verify">Verificar misión</button>
+        <div id="missionVerifyResult" class="mission-detail__result" aria-live="polite"></div>
+      </footer>
+    </section>
+  `;
+  const backBtn = $('#backToDashboardBtn');
+  if (backBtn) {
+    backBtn.onclick = () => {
+      clearCurrentMission();
+      loadDashboard();
+    };
+  }
+  const verifyBtn = $('#verifyMissionBtn');
+  const resultContainer = $('#missionVerifyResult');
+  if (verifyBtn && resultContainer) {
+    verifyBtn.onclick = () => {
+      verifyMission(mission.id, resultContainer);
+    };
+  }
+}
+
+async function renderAdminMissionsView() {
+  const content = getContentContainer();
+  const token = getStoredToken();
+  if (!token) {
     clearSession();
-    renderLandingContent();
+    renderLoginForm();
+    return;
+  }
+  content.innerHTML = `
+    <section class="admin-missions admin-missions--loading">
+      <h2>Configurar misiones</h2>
+      <p>Cargando misiones...</p>
+    </section>
+  `;
+  let missions = [];
+  try {
+    missions = await fetchAdminMissions();
+  } catch (error) {
+    if (error && (error.status === 401 || error.status === 403)) {
+      clearSession();
+      content.innerHTML = `
+        <section class="admin-missions admin-missions--error">
+          <h2>Configurar misiones</h2>
+          <p>No tienes permisos para acceder a esta sección o tu sesión expiró.</p>
+          <div class="admin-missions__actions">
+            <button type="button" id="adminLoginBtn">Iniciar sesión</button>
+          </div>
+        </section>
+      `;
+      const loginBtn = $('#adminLoginBtn');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
+      }
+      return;
+    }
+    content.innerHTML = `
+      <section class="admin-missions admin-missions--error">
+        <h2>Configurar misiones</h2>
+        <p>No pudimos cargar la lista de misiones. Intenta nuevamente.</p>
+        <div class="admin-missions__actions">
+          <button type="button" id="adminRetryBtn">Reintentar</button>
+          <button type="button" id="adminBackBtn">Volver</button>
+        </div>
+      </section>
+    `;
+    const retryBtn = $('#adminRetryBtn');
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        renderAdminMissionsView();
+      };
+    }
+    const backBtn = $('#adminBackBtn');
+    if (backBtn) {
+      backBtn.onclick = () => {
+        loadDashboard();
+      };
+    }
+    return;
+  }
+  const missionsToRender = Array.isArray(missions) ? [...missions] : [];
+  missionsToRender.sort((a, b) => a.id.localeCompare(b.id, 'es', { numeric: true, sensitivity: 'base' }));
+  const adminWarning = getStoredIsAdmin()
+    ? ''
+    : '<p class="admin-missions__warning">Tu sesión actual no tiene la marca de administrador guardada localmente. Si ves errores de permisos, vuelve a iniciar sesión.</p>';
+  content.innerHTML = `
+    <section class="admin-missions">
+      <header class="admin-missions__header">
+        <h2>Configurar misiones</h2>
+        <div class="admin-missions__header-actions">
+          <button type="button" id="adminBackBtn">Volver al portal</button>
+          <button type="button" id="adminReloadBtn">Recargar</button>
+        </div>
+      </header>
+      ${adminWarning}
+      <p class="admin-missions__summary">${missionsToRender.length} misión(es) configuradas.</p>
+      <div id="adminMissionsList" class="admin-missions__list"></div>
+      <section class="admin-missions__create">
+        <h3>Crear nueva misión</h3>
+        <form id="adminCreateMissionForm" class="admin-mission-form admin-mission-form--create">
+          <label>Identificador<br /><input type="text" name="mission_id" required /></label>
+          <label>Título<br /><input type="text" name="title" /></label>
+          <label>Roles permitidos<br /><input type="text" name="roles" placeholder="Ej. ventas, operaciones" /></label>
+          <label>Contenido (JSON)<br /><textarea name="content" rows="8" placeholder="{ }"></textarea></label>
+          <div class="admin-mission-form__actions">
+            <button type="submit">Crear misión</button>
+            <span class="admin-mission-form__status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+    </section>
+  `;
+
+  const backBtn = $('#adminBackBtn');
+  if (backBtn) {
+    backBtn.onclick = () => {
+      loadDashboard();
+    };
+  }
+  const reloadBtn = $('#adminReloadBtn');
+  if (reloadBtn) {
+    reloadBtn.onclick = () => {
+      renderAdminMissionsView();
+    };
+  }
+
+  const missionsList = $('#adminMissionsList');
+  if (missionsList) {
+    missionsToRender.forEach((mission) => {
+      const form = document.createElement('form');
+      form.className = 'admin-mission-form';
+      form.dataset.missionId = mission.id;
+      const rolesValue = mission.roles && mission.roles.length > 0 ? mission.roles.join(', ') : '';
+      const updatedInfo = mission.updatedAt ? `<p class="admin-mission-form__meta">Actualizado: ${escapeHtml(mission.updatedAt)}</p>` : '';
+      const contentJson = JSON.stringify(mission.content || {}, null, 2);
+      form.innerHTML = `
+        <fieldset>
+          <legend>${escapeHtml(mission.title || mission.id)} (${escapeHtml(mission.id)})</legend>
+          ${updatedInfo}
+          <label>Identificador<br /><input type="text" value="${escapeHtml(mission.id)}" disabled /></label>
+          <label>Título<br /><input type="text" name="title" value="${escapeHtml(mission.title || '')}" /></label>
+          <label>Roles permitidos<br /><input type="text" name="roles" value="${escapeHtml(rolesValue)}" placeholder="Separados por comas" /></label>
+          <label>Contenido (JSON)<br /><textarea name="content" rows="8">${escapeForTextarea(contentJson)}</textarea></label>
+        </fieldset>
+        <div class="admin-mission-form__actions">
+          <button type="submit">Guardar cambios</button>
+          <span class="admin-mission-form__status" aria-live="polite"></span>
+        </div>
+      `;
+      missionsList.appendChild(form);
+    });
+  }
+
+  const disableFormControls = (form, disabled) => {
+    const controls = form.querySelectorAll('input, textarea, button');
+    controls.forEach((control) => {
+      control.disabled = disabled;
+    });
   };
+
+  const handleUpdateSubmit = async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+    const missionId = form.dataset.missionId;
+    if (!missionId) {
+      return;
+    }
+    const statusEl = form.querySelector('.admin-mission-form__status');
+    const titleInput = form.querySelector('input[name="title"]');
+    const rolesInput = form.querySelector('input[name="roles"]');
+    const contentTextarea = form.querySelector('textarea[name="content"]');
+    if (!statusEl || !titleInput || !rolesInput || !contentTextarea) {
+      return;
+    }
+    let contentPayload;
+    try {
+      const rawValue = contentTextarea.value && contentTextarea.value.trim() ? contentTextarea.value : '{}';
+      contentPayload = JSON.parse(rawValue);
+    } catch (parseErr) {
+      statusEl.textContent = 'El contenido debe ser un JSON válido.';
+      return;
+    }
+    const rolesPayload = normalizeMissionRoles(rolesInput.value);
+    const payload = {
+      title: titleInput.value,
+      roles: rolesPayload,
+      content: contentPayload,
+    };
+    const authToken = getStoredToken();
+    if (!authToken) {
+      clearSession();
+      renderLoginForm();
+      return;
+    }
+    disableFormControls(form, true);
+    statusEl.textContent = 'Guardando cambios...';
+    let response;
+    try {
+      response = await apiFetch(`/api/admin/missions/${encodeURIComponent(missionId)}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (networkErr) {
+      statusEl.textContent = 'Error de red al guardar los cambios.';
+      disableFormControls(form, false);
+      return;
+    }
+    let responseData = {};
+    try {
+      responseData = await response.json();
+    } catch (parseErr) {
+      responseData = {};
+    }
+    if (response.status === 401 || response.status === 403) {
+      clearSession();
+      renderLoginForm();
+      return;
+    }
+    if (!response.ok) {
+      const backendError = responseData && typeof responseData.error === 'string' ? responseData.error : '';
+      statusEl.textContent = backendError || 'No pudimos guardar los cambios.';
+      disableFormControls(form, false);
+      return;
+    }
+    statusEl.textContent = 'Cambios guardados. Actualizando...';
+    invalidateMissionsCache();
+    setTimeout(() => {
+      renderAdminMissionsView();
+    }, 500);
+  };
+
+  const missionForms = content.querySelectorAll('.admin-mission-form[data-mission-id]');
+  missionForms.forEach((form) => {
+    form.addEventListener('submit', handleUpdateSubmit);
+  });
+
+  const createForm = $('#adminCreateMissionForm');
+  if (createForm) {
+    createForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!(createForm instanceof HTMLFormElement)) {
+        return;
+      }
+      const statusEl = createForm.querySelector('.admin-mission-form__status');
+      const idInput = createForm.querySelector('input[name="mission_id"]');
+      const titleInput = createForm.querySelector('input[name="title"]');
+      const rolesInput = createForm.querySelector('input[name="roles"]');
+      const contentTextarea = createForm.querySelector('textarea[name="content"]');
+      if (!statusEl || !idInput || !titleInput || !rolesInput || !contentTextarea) {
+        return;
+      }
+      const missionId = missionIdKey(idInput.value);
+      if (!missionId) {
+        statusEl.textContent = 'Debes indicar un identificador para la misión.';
+        return;
+      }
+      let contentPayload;
+      try {
+        const rawValue = contentTextarea.value && contentTextarea.value.trim() ? contentTextarea.value : '{}';
+        contentPayload = JSON.parse(rawValue);
+      } catch (parseErr) {
+        statusEl.textContent = 'El contenido debe ser un JSON válido.';
+        return;
+      }
+      const payload = {
+        mission_id: missionId,
+        title: titleInput.value,
+        roles: normalizeMissionRoles(rolesInput.value),
+        content: contentPayload,
+      };
+      const authToken = getStoredToken();
+      if (!authToken) {
+        clearSession();
+        renderLoginForm();
+        return;
+      }
+      disableFormControls(createForm, true);
+      statusEl.textContent = 'Creando misión...';
+      let response;
+      try {
+        response = await apiFetch('/api/admin/missions', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      } catch (networkErr) {
+        statusEl.textContent = 'Error de red al crear la misión.';
+        disableFormControls(createForm, false);
+        return;
+      }
+      let responseData = {};
+      try {
+        responseData = await response.json();
+      } catch (parseErr) {
+        responseData = {};
+      }
+      if (response.status === 401 || response.status === 403) {
+        clearSession();
+        renderLoginForm();
+        return;
+      }
+      if (!response.ok) {
+        const backendError = responseData && typeof responseData.error === 'string' ? responseData.error : '';
+        statusEl.textContent = backendError || 'No pudimos crear la misión.';
+        disableFormControls(createForm, false);
+        return;
+      }
+      statusEl.textContent = 'Misión creada correctamente. Actualizando...';
+      invalidateMissionsCache();
+      setTimeout(() => {
+        renderAdminMissionsView();
+      }, 500);
+    });
+  }
 }
 
 /**
@@ -719,7 +1591,17 @@ async function ensureMissionUnlocked(missionId) {
     } else if (typeof isAdminFlag !== 'undefined') {
       storeSession(currentSlug, token, isAdminFlag);
     }
-    const missionsForRole = getMissionsForRole(student.role);
+    let missionsForRole = [];
+    try {
+      missionsForRole = await fetchMissionsForRole(student.role);
+    } catch (missionsError) {
+      return {
+        allowed: false,
+        reason: 'missions-unavailable',
+        action: 'message',
+        message: 'No pudimos obtener la configuración de misiones para tu rol en este momento.',
+      };
+    }
     const unlocked = calculateUnlockedMissions(missionsForRole, completed);
     const mission = missionsForRole.find((m) => m.id === missionId);
     if (!mission) {
@@ -736,7 +1618,6 @@ async function ensureMissionUnlocked(missionId) {
         reason: 'unlocked',
       };
     }
-    clearSession();
     const missionIndex = missionsForRole.findIndex((m) => m.id === missionId);
     const previousMission = missionIndex > 0 ? missionsForRole[missionIndex - 1] : null;
     let message = 'Debes completar la misión anterior antes de continuar.';
