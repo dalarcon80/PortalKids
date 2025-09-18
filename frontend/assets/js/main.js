@@ -120,24 +120,49 @@ function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.admin);
 }
 
-const ALL_MISSIONS = [
-  { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm3', title: 'M3 — Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm4', title: 'M4 — Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm5', title: 'M5 — Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
-  { id: 'm6v', title: 'M6 — Gold (VENTAS): Une y mide', roles: ['Ventas'] },
-  { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
-  { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
-];
-
 const ADMIN_AVAILABLE_ROLES = ['Ventas', 'Operaciones'];
 
-function getMissionsForRole(role) {
-  if (!role) {
+async function fetchMissionsForRole(role, token) {
+  const params = new URLSearchParams();
+  if (role) {
+    params.set('role', role);
+  }
+  const headers = token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : {};
+  const url = `/api/missions${params.toString() ? `?${params.toString()}` : ''}`;
+  try {
+    const res = await apiFetch(url, {
+      credentials: 'include',
+      headers,
+    });
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseError) {
+      data = {};
+    }
+    if (!res.ok) {
+      const backendMessage = typeof data.error === 'string' ? data.error : '';
+      throw new Error(backendMessage || 'No fue posible obtener las misiones.');
+    }
+    const missions = Array.isArray(data.missions) ? data.missions : [];
+    return missions.map((mission) => {
+      if (!mission || typeof mission !== 'object') {
+        return mission;
+      }
+      const normalized = { ...mission };
+      if (Object.prototype.hasOwnProperty.call(normalized, 'mission_id')) {
+        normalized.mission_id = normalized.mission_id != null ? String(normalized.mission_id) : normalized.mission_id;
+      }
+      return normalized;
+    });
+  } catch (err) {
+    console.error('No se pudieron obtener las misiones disponibles.', err);
     return [];
   }
-  return ALL_MISSIONS.filter((mission) => mission.roles.includes(role));
 }
 
 function calculateUnlockedMissions(missionsForRole, completed) {
@@ -145,13 +170,26 @@ function calculateUnlockedMissions(missionsForRole, completed) {
   if (!Array.isArray(missionsForRole) || missionsForRole.length === 0) {
     return unlocked;
   }
-  const completedSet = new Set(Array.isArray(completed) ? completed : []);
-  unlocked[missionsForRole[0].id] = true;
+  const completedSet = new Set(
+    (Array.isArray(completed) ? completed : []).map((missionId) => (missionId != null ? String(missionId) : missionId))
+  );
+  const firstMissionId =
+    missionsForRole[0] && missionsForRole[0].mission_id != null
+      ? String(missionsForRole[0].mission_id)
+      : '';
+  if (firstMissionId) {
+    unlocked[firstMissionId] = true;
+  }
   missionsForRole.forEach((mission, index) => {
-    if (completedSet.has(mission.id)) {
-      unlocked[mission.id] = true;
-      if (index + 1 < missionsForRole.length) {
-        unlocked[missionsForRole[index + 1].id] = true;
+    if (!mission || mission.mission_id == null) {
+      return;
+    }
+    const missionId = String(mission.mission_id);
+    if (completedSet.has(missionId)) {
+      unlocked[missionId] = true;
+      const nextMission = missionsForRole[index + 1];
+      if (nextMission && nextMission.mission_id != null) {
+        unlocked[String(nextMission.mission_id)] = true;
       }
     }
   });
@@ -565,6 +603,7 @@ async function loadDashboard() {
     }
     const student = data.student;
     const completed = data.completed || [];
+    const missions = await fetchMissionsForRole(student ? student.role : '', token);
     const currentSlug = getStoredSlug();
     if (!currentSlug || currentSlug !== initialSlug) {
       return;
@@ -579,7 +618,7 @@ async function loadDashboard() {
     } else if (typeof isAdminFlag !== 'undefined') {
       storeSession(currentSlug, token, isAdminFlag);
     }
-    renderDashboard(student, completed);
+    renderDashboard(student, missions, completed);
   } catch (err) {
     content.innerHTML = `
       <section class="status-error">
@@ -599,12 +638,32 @@ async function loadDashboard() {
 /**
  * Renderiza el dashboard con las misiones disponibles.
  * @param {Object} student
+ * @param {Object[]} missions
  * @param {string[]} completed
  */
-function renderDashboard(student, completed) {
+function renderDashboard(student, missions, completed) {
   const content = $('#content');
-  const missionsForRole = getMissionsForRole(student.role);
+  const studentRole = student && typeof student.role === 'string' ? student.role : '';
+  const missionsArray = Array.isArray(missions) ? missions : [];
+  const missionsForRole = missionsArray.filter((mission) => {
+    if (!mission || mission.mission_id == null) {
+      return false;
+    }
+    const missionRoles = Array.isArray(mission.roles)
+      ? mission.roles.filter((role) => typeof role === 'string' && role)
+      : [];
+    if (missionRoles.length === 0) {
+      return true;
+    }
+    if (!studentRole) {
+      return false;
+    }
+    return missionRoles.includes(studentRole);
+  });
   const unlocked = calculateUnlockedMissions(missionsForRole, completed);
+  const completedSet = new Set(
+    (Array.isArray(completed) ? completed : []).map((missionId) => (missionId != null ? String(missionId) : missionId))
+  );
   const isAdmin = _normalizeBooleanFlag(
     student && Object.prototype.hasOwnProperty.call(student, 'is_admin')
       ? student.is_admin
@@ -615,9 +674,24 @@ function renderDashboard(student, completed) {
     <p>Rol: ${student.role}</p>
     <p>Selecciona una misión para continuar:</p>
     <ul class="missions-grid">`;
-  missionsForRole.forEach((m) => {
-    const isCompleted = completed.includes(m.id);
-    const isUnlocked = unlocked[m.id] || false;
+  if (missionsForRole.length === 0) {
+    html += '<li class="mission-card empty">No hay misiones disponibles para tu rol en este momento.</li>';
+  }
+  missionsForRole.forEach((mission) => {
+    if (!mission || mission.mission_id == null) {
+      return;
+    }
+    const missionId = String(mission.mission_id);
+    const missionTitle = mission.title || missionId;
+    const missionSummary =
+      mission && mission.content && typeof mission.content === 'object' && mission.content.summary
+        ? mission.content.summary
+        : '';
+    const summaryHtml = missionSummary
+      ? `<p class="mission-summary">${missionSummary}</p>`
+      : '';
+    const isCompleted = completedSet.has(missionId);
+    const isUnlocked = unlocked[missionId] || false;
     let statusClass = '';
     let statusText = '';
     if (isCompleted) {
@@ -631,9 +705,9 @@ function renderDashboard(student, completed) {
       statusText = 'Bloqueada';
     }
     if (isUnlocked) {
-      html += `<li class="mission-card ${statusClass}"><a href="${m.id}.html">${m.title}</a><span class="status">${statusText}</span></li>`;
+      html += `<li class="mission-card ${statusClass}"><a href="${missionId}.html">${missionTitle}</a>${summaryHtml}<span class="status">${statusText}</span></li>`;
     } else {
-      html += `<li class="mission-card ${statusClass}">${m.title}<span class="status">${statusText}</span></li>`;
+      html += `<li class="mission-card ${statusClass}">${missionTitle}${summaryHtml}<span class="status">${statusText}</span></li>`;
     }
   });
   html += '</ul>';
@@ -947,6 +1021,9 @@ async function renderMissionAdminPanel() {
           fillMissionForm(missionId);
         }
         showFeedback('Los cambios se guardaron correctamente.', 'success');
+        setTimeout(() => {
+          loadDashboard();
+        }, 800);
       } catch (saveError) {
         showFeedback(
           saveError && saveError.message
@@ -1052,9 +1129,11 @@ async function ensureMissionUnlocked(missionId) {
     } else if (typeof isAdminFlag !== 'undefined') {
       storeSession(currentSlug, token, isAdminFlag);
     }
-    const missionsForRole = getMissionsForRole(student.role);
+    const missionsForRole = await fetchMissionsForRole(student ? student.role : '', token);
     const unlocked = calculateUnlockedMissions(missionsForRole, completed);
-    const mission = missionsForRole.find((m) => m.id === missionId);
+    const mission = missionsForRole.find(
+      (m) => m && m.mission_id != null && String(m.mission_id) === missionId
+    );
     if (!mission) {
       return {
         allowed: false,
@@ -1070,11 +1149,14 @@ async function ensureMissionUnlocked(missionId) {
       };
     }
     clearSession();
-    const missionIndex = missionsForRole.findIndex((m) => m.id === missionId);
+    const missionIndex = missionsForRole.findIndex(
+      (m) => m && m.mission_id != null && String(m.mission_id) === missionId
+    );
     const previousMission = missionIndex > 0 ? missionsForRole[missionIndex - 1] : null;
     let message = 'Debes completar la misión anterior antes de continuar.';
     if (previousMission) {
-      message = `Debes completar la misión ${previousMission.title} antes de acceder a esta.`;
+      const previousTitle = previousMission.title || String(previousMission.mission_id || '');
+      message = `Debes completar la misión ${previousTitle} antes de acceder a esta.`;
     }
     return {
       allowed: false,
