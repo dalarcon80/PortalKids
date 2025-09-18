@@ -209,8 +209,7 @@ New-Item -ItemType File students/&lt;usuario&gt;/docs/m1_notes.md -Force | Out-N
 </code></pre>
             <p><em>macOS/Linux bash</em>:</p>
             <pre><code>code --version &gt; students/&lt;usuario&gt;/docs/m1_vscode_ok.txt
-printf "workspace: %s
-" "$PWD" &gt; students/&lt;usuario&gt;/docs/m1_workspace_ok.txt
+printf "workspace: %s\n" "$PWD" &gt; students/&lt;usuario&gt;/docs/m1_workspace_ok.txt
 : &gt; students/&lt;usuario&gt;/docs/m1_notes.md
 </code></pre>
             <p><em>Consejo:</em> Si el comando <code>code</code> no existe, escribe manualmente el contenido en los archivos desde el editor.</p>
