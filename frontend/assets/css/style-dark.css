@@ -269,8 +269,7 @@ main {
 }
 
 section.enroll,
-section.dashboard,
-section.mission {
+section.dashboard {
   background-color: var(--card-bg);
   padding: clamp(1.75rem, 2.5vw, 2.5rem);
   border-radius: var(--radius);
@@ -279,9 +278,7 @@ section.mission {
 }
 
 section.enroll h2,
-section.dashboard h2,
-section.mission h2,
-section.mission h3 {
+section.dashboard h2 {
   margin-top: 0;
   margin-bottom: 1.25rem;
   font-size: clamp(1.5rem, 2vw, 1.75rem);
@@ -290,12 +287,128 @@ section.mission h3 {
 }
 
 section.enroll p,
-section.dashboard p,
-section.mission p,
-section.mission li {
+section.dashboard p {
   margin-top: 0;
   margin-bottom: 1rem;
   color: var(--muted);
+}
+
+section.mission {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2.5vw, 2rem);
+}
+
+.mission-section {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: clamp(1.5rem, 2.5vw, 2.25rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mission-section--intro {
+  gap: 1.25rem;
+}
+
+.mission-section--intro h2 {
+  font-size: clamp(1.85rem, 2.6vw, 2.2rem);
+  margin: 0;
+}
+
+.mission-section h2,
+.mission-section h3,
+.mission-section__item h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: clamp(1.25rem, 1.9vw, 1.5rem);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mission-section p,
+.mission-section li,
+.mission-section summary,
+.mission-section details,
+.mission-section__item p,
+.mission-section__item li {
+  color: var(--muted);
+  margin-top: 0;
+  margin-bottom: 0.85rem;
+}
+
+.mission-section ul,
+.mission-section ol {
+  padding-left: 1.25rem;
+  margin: 0 0 1rem;
+}
+
+.mission-section li + li {
+  margin-top: 0.35rem;
+}
+
+.mission-section pre,
+.mission-section code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.mission-section pre {
+  background-color: rgba(15, 23, 42, 0.65);
+  border-radius: 12px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0 0 1rem;
+}
+
+.mission-section code {
+  background-color: rgba(148, 163, 184, 0.12);
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+}
+
+.mission-section details {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  background-color: rgba(15, 23, 42, 0.45);
+  margin-bottom: 0.85rem;
+}
+
+.mission-section details[open] {
+  background-color: rgba(15, 23, 42, 0.65);
+}
+
+.mission-section summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.mission-section--dual {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  display: grid;
+  gap: clamp(1rem, 2vw, 1.75rem);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.mission-section--dual .mission-section__item {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: clamp(1.35rem, 2vw, 1.85rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 form label {
