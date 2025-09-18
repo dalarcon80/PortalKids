@@ -60,6 +60,11 @@ def test_load_contracts_seeds_table(sqlite_backend):
             row = cur.fetchone()
     assert row is not None
     assert int(row.get("count") or 0) > 0
+    mission_rows = backend_app._fetch_missions_from_db("m1")
+    assert mission_rows, "Esperábamos encontrar la misión m1 reseedeada"
+    mission = mission_rows[0]
+    assert mission.get("title") == "M1 — La Puerta de la Base"
+    assert mission.get("roles") == ["Ventas", "Operaciones"]
 
 
 def test_admin_mission_crud_flow(sqlite_backend):
@@ -156,6 +161,8 @@ def test_public_mission_detail_includes_display_html(sqlite_backend):
     assert payload is not None
     mission = payload.get("mission")
     assert mission and mission.get("mission_id") == "m1"
+    assert mission.get("title") == "M1 — La Puerta de la Base"
+    assert mission.get("roles") == ["Ventas", "Operaciones"]
     content = mission.get("content") if isinstance(mission, dict) else None
     assert isinstance(content, dict)
     assert "display_html" in content
