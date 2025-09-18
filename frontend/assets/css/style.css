@@ -81,10 +81,143 @@ section.mission h2 {
 
 section.enroll p,
 section.dashboard p,
-section.mission p {
+section.mission p,
+section.mission li {
   margin-top: 0;
   margin-bottom: 1rem;
   color: var(--muted);
+}
+
+section.mission ul,
+section.mission ol {
+  padding-left: 1.25rem;
+}
+
+section.mission code {
+  background-color: rgba(37, 99, 235, 0.12);
+  border-radius: 6px;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+section.mission pre {
+  background-color: rgba(37, 99, 235, 0.08);
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  font-family: "Fira Code", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.mission__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.mission__header h2 {
+  margin-bottom: 0.25rem;
+  font-size: clamp(1.7rem, 3vw, 2.15rem);
+}
+
+.mission__header p {
+  max-width: 65ch;
+}
+
+.mission-sections {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 2.5vw, 2.25rem);
+}
+
+.mission-section {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 1.75vw, 1.75rem);
+}
+
+.mission-section--dual {
+  display: grid;
+  gap: clamp(1.25rem, 2vw, 1.85rem);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.mission-section__card {
+  background: #f9fbff;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  padding: clamp(1.15rem, 2vw, 1.75rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.mission-section__card h2,
+.mission-section__card h3,
+.mission-section__card h4 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mission-section__card h4 {
+  font-size: clamp(1.1rem, 2vw, 1.25rem);
+}
+
+.mission-section__card p:last-child,
+.mission-section__card ul:last-child,
+.mission-section__card ol:last-child,
+.mission-section__card pre:last-child,
+.mission-section__card details:last-child {
+  margin-bottom: 0;
+}
+
+.mission-section__card li {
+  margin-bottom: 0.5rem;
+}
+
+.mission-section__card li:last-child {
+  margin-bottom: 0;
+}
+
+.mission-section__card details {
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background-color: rgba(37, 99, 235, 0.08);
+}
+
+.mission-section__card details + details {
+  margin-top: 0.75rem;
+}
+
+.mission-section__card details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mission-section__card details summary::-webkit-details-marker {
+  display: none;
+}
+
+.mission-section__card details summary::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.5rem;
+  border: 0.35rem solid transparent;
+  border-top-color: var(--accent);
+  transform: translateY(-0.05rem);
+}
+
+.mission-section__card details[open] summary::after {
+  transform: rotate(180deg) translateY(0.05rem);
 }
 
 form label {

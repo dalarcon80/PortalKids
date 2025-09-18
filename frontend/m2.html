@@ -45,116 +45,159 @@
   </header>
 
   <main hidden>
-    <section class="mission">
-      <h2>¡Bienvenido a la Misión 2!</h2>
-      <p>Esta misión te ayudará a crear un entorno virtual seguro para tus proyectos de Python utilizando <code>venv</code>. Aprende a aislar tus dependencias, configurar tu entorno en VS Code, y dejar todo listo para instalar paquetes como pandas sin dañar tu sistema global.</p>
+    <section class="mission mission--detail">
+      <header class="mission__header">
+        <h2>M2 — Despierta a tu Aliado (venv) — Tu cuarto seguro de Python</h2>
 
-      <h3>📚 Historia</h3>
-      <p>Byte te muestra un armario lleno de frascos etiquetados "Python". Cada frasco es distinto, aunque parezca igual. Tu misión es preparar un espacio (tu <code>.venv</code>) donde tu frasco funcione sin interferir con los demás.</p>
+        <h2>¡Bienvenido a la Misión 2!</h2>
+        <p>Esta misión te ayudará a crear un entorno virtual seguro para tus proyectos de Python utilizando <code>venv</code>. Aprende a aislar tus dependencias, configurar tu entorno en VS Code, y dejar todo listo para instalar paquetes como pandas sin dañar tu sistema global.</p>
+      </header>
 
-      <h3>💡 ¿Para qué sirve?</h3>
-      <ul>
-        <li>Mantener tus paquetes separados de otros proyectos.</li>
-        <li>Evitar conflictos entre versiones de librerías.</li>
-        <li>Hacer que VS Code use tu entorno personalizado.</li>
-      </ul>
+      <div class="mission-sections">
+        <div class="mission-section mission-section--dual">
+          <div class="mission-section__card">
+            <h3>📚 Historia</h3>
+            <p>Byte te muestra un armario lleno de frascos etiquetados "Python". Cada frasco es distinto, aunque parezca igual. Tu misión es preparar un espacio (tu <code>.venv</code>) donde tu frasco funcione sin interferir con los demás.</p>
+          </div>
+          <div class="mission-section__card">
+            <h3>💡 ¿Para qué sirve?</h3>
+            <ul>
+            <li>Mantener tus paquetes separados de otros proyectos.</li>
+            <li>Evitar conflictos entre versiones de librerías.</li>
+            <li>Hacer que VS Code use tu entorno personalizado.</li>
+            </ul>
+          </div>
+        </div>
 
-      <h3>🏆 Objetivos de esta misión</h3>
-      <ul>
-        <li>Crear y activar tu entorno virtual (<code>.venv</code>).</li>
-        <li>Configurar VS Code para que use ese entorno.</li>
-        <li>Registrar y guardar tus evidencias.</li>
-        <li>Hacer commit y sincronizar tu trabajo con GitHub.</li>
-      </ul>
+        <div class="mission-section mission-section--dual">
+          <div class="mission-section__card">
+            <h3>🏆 Objetivos de esta misión</h3>
+            <ul>
+            <li>Crear y activar tu entorno virtual (<code>.venv</code>).</li>
+            <li>Configurar VS Code para que use ese entorno.</li>
+            <li>Registrar y guardar tus evidencias.</li>
+            <li>Hacer commit y sincronizar tu trabajo con GitHub.</li>
+            </ul>
+          </div>
+          <div class="mission-section__card">
+            <h3>📕 Material recomendado</h3>
+            <ul>
+            <li><a href="https://www.youtube.com/watch?v=MmUKJqjPiHo" target="_blank">Crear y activar venv en Windows</a></li>
+            <li><a href="https://www.youtube.com/watch?v=XTmS37AxM3Q" target="_blank">Solución al error de ejecución de scripts en PowerShell</a></li>
+            <li><a href="https://www.youtube.com/watch?v=eFThEXvuZaM" target="_blank">Seleccionar intérprete en VS Code</a></li>
+            <li><a href="https://docs.python.org/es/3/library/venv.html" target="_blank">Documentación oficial de venv</a></li>
+            </ul>
+          </div>
+        </div>
 
-      <h3>📕 Material recomendado</h3>
-      <ul>
-        <li><a href="https://www.youtube.com/watch?v=MmUKJqjPiHo" target="_blank">Crear y activar venv en Windows</a></li>
-        <li><a href="https://www.youtube.com/watch?v=XTmS37AxM3Q" target="_blank">Solución al error de ejecución de scripts en PowerShell</a></li>
-        <li><a href="https://www.youtube.com/watch?v=eFThEXvuZaM" target="_blank">Seleccionar intérprete en VS Code</a></li>
-        <li><a href="https://docs.python.org/es/3/library/venv.html" target="_blank">Documentación oficial de venv</a></li>
-      </ul>
-
-      <h3>📝 Investigación: Fichas de conceptos clave</h3>
-      <p>Debes crear 4 fichas en <code>students/&lt;usuario&gt;/docs/m2_notes.md</code> con el siguiente formato:</p>
-<pre><code>## &lt;término&gt;
+        <div class="mission-section">
+          <div class="mission-section__card">
+            <h3>📝 Investigación: Fichas de conceptos clave</h3>
+            <p>Debes crear 4 fichas en <code>students/&lt;usuario&gt;/docs/m2_notes.md</code> con el siguiente formato:</p>
+            <pre><code>## &lt;término&gt;
 - **Definición:** Breve y clara (1–2 líneas).
 - **Ejemplo en este proyecto:** Cómo se usó aquí (1 línea).
 - **Error común:** Algo que puede salir mal (1 línea).
 - **Fuente:** Título + link + minuto del video.</code></pre>
-      <p><strong>Términos:</strong> <code>venv</code>, <code>pip</code>, <code>Intérprete en VS Code</code>, <code>ExecutionPolicy</code>.</p>
+            <p><strong>Términos:</strong> <code>venv</code>, <code>pip</code>, <code>Intérprete en VS Code</code>, <code>ExecutionPolicy</code>.</p>
+          </div>
+        </div>
 
-      <h3>🔧 Práctica paso a paso</h3>
-      <p><strong>Terminal abierta en la raíz del repositorio. Rama:</strong> <code>m2-&lt;usuario&gt;</code></p>
-      <ol>
-        <li>Crear entorno virtual: <code>py -m venv .venv</code></li>
-        <li>Activar entorno: <code>.\.venv\Scripts\Activate.ps1</code></li>
-        <li>Si hay error de permisos: ejecutar <code>Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned</code></li>
-        <li>Verificar Python: <code>python --version</code> (guarda salida)</li>
-        <li>Seleccionar intérprete en VS Code: <code>Ctrl+Shift+P → Python: Select Interpreter</code></li>
-        <li>Crear archivo <code>hello.py</code> y ejecutarlo, guardar salida.</li>
-      </ol>
+        <div class="mission-section">
+          <div class="mission-section__card">
+            <h3>🔧 Práctica paso a paso</h3>
+            <p><strong>Terminal abierta en la raíz del repositorio. Rama:</strong> <code>m2-&lt;usuario&gt;</code></p>
+            <ol>
+            <li>Crear entorno virtual: <code>py -m venv .venv</code></li>
+            <li>Activar entorno: <code>.\.venv\Scripts\Activate.ps1</code></li>
+            <li>Si hay error de permisos: ejecutar <code>Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned</code></li>
+            <li>Verificar Python: <code>python --version</code> (guarda salida)</li>
+            <li>Seleccionar intérprete en VS Code: <code>Ctrl+Shift+P → Python: Select Interpreter</code></li>
+            <li>Crear archivo <code>hello.py</code> y ejecutarlo, guardar salida.</li>
+            </ol>
+          </div>
+        </div>
 
-      <h3>📄 Evidencias</h3>
-      <ul>
-        <li><code>students/&lt;usuario&gt;/docs/m2_python_version.txt</code></li>
-        <li><code>students/&lt;usuario&gt;/docs/m2_hello.txt</code></li>
-        <li><code>students/&lt;usuario&gt;/docs/m2_notes.md</code> (4 fichas)</li>
-      </ul>
-
-      <h3>💾 Commit & Sync</h3>
-      <ul>
-        <li>Haz commit y push desde VS Code o terminal.</li>
-        <li>Verifica en GitHub o usa:
-          <ul>
+        <div class="mission-section mission-section--dual">
+          <div class="mission-section__card">
+            <h3>📄 Evidencias</h3>
+            <ul>
+            <li><code>students/&lt;usuario&gt;/docs/m2_python_version.txt</code></li>
+            <li><code>students/&lt;usuario&gt;/docs/m2_hello.txt</code></li>
+            <li><code>students/&lt;usuario&gt;/docs/m2_notes.md</code> (4 fichas)</li>
+            </ul>
+          </div>
+          <div class="mission-section__card">
+            <h3>💾 Commit & Sync</h3>
+            <ul>
+            <li>Haz commit y push desde VS Code o terminal.</li>
+            <li>Verifica en GitHub o usa:
+            <ul>
             <li><code>git status</code></li>
             <li><code>git branch --show-current</code></li>
             <li><code>git log --oneline -n 1</code></li>
-          </ul>
-        </li>
-      </ul>
+            </ul>
+            </li>
+            </ul>
+          </div>
+        </div>
 
-      <h3>📑 Checklist final</h3>
-      <ul>
-        <li>[ ] Fichas completas y subidas</li>
-        <li>[ ] venv creado y activo</li>
-        <li>[ ] VS Code usando el intérprete correcto</li>
-        <li>[ ] Archivos de evidencia presentes</li>
-        <li>[ ] Push hecho y confirmado</li>
-        <li>[ ] Quiz completado</li>
-      </ul>
+        <div class="mission-section mission-section--dual">
+          <div class="mission-section__card">
+            <h3>📑 Checklist final</h3>
+            <ul>
+            <li>[ ] Fichas completas y subidas</li>
+            <li>[ ] venv creado y activo</li>
+            <li>[ ] VS Code usando el intérprete correcto</li>
+            <li>[ ] Archivos de evidencia presentes</li>
+            <li>[ ] Push hecho y confirmado</li>
+            <li>[ ] Quiz completado</li>
+            </ul>
+          </div>
+          <div class="mission-section__card">
+            <h3>🔬 Verificación del profe</h3>
+            <ul>
+            <li>Revisa si venv está activo.</li>
+            <li>Comprueba que seleccionaste el intérprete correcto.</li>
+            <li>Valida las rutas y nombres de archivos.</li>
+            <li>Confirmación de push.</li>
+            </ul>
+          </div>
+        </div>
 
-      <h3>🔬 Verificación del profe</h3>
-      <ul>
-        <li>Revisa si venv está activo.</li>
-        <li>Comprueba que seleccionaste el intérprete correcto.</li>
-        <li>Valida las rutas y nombres de archivos.</li>
-        <li>Confirmación de push.</li>
-      </ul>
+        <div class="mission-section mission-section--dual">
+          <div class="mission-section__card">
+            <h3>📚 Microquiz</h3>
+            <ol>
+            <li>¿Qué es y para qué sirve <code>.venv</code>?</li>
+            <li>¿Cómo sabes que está activo?</li>
+            <li>¿Qué pasa si <code>pip</code> se usa fuera del venv?</li>
+            <li>¿Qué herramienta usas en VS Code para elegir el intérprete?</li>
+            <li>¿Qué comando usas si no puedes activar el venv?</li>
+            </ol>
+          </div>
+          <div class="mission-section__card">
+            <h3>👍 Rúbrica (máximo 10 puntos)</h3>
+            <ul>
+            <li>Fichas: 3 pts</li>
+            <li>Práctica: 4 pts</li>
+            <li>Evidencias: 2 pts</li>
+            <li>Orden y entrega: 1 pt</li>
+            </ul>
+          </div>
+        </div>
 
-      <h3>📚 Microquiz</h3>
-      <ol>
-        <li>¿Qué es y para qué sirve <code>.venv</code>?</li>
-        <li>¿Cómo sabes que está activo?</li>
-        <li>¿Qué pasa si <code>pip</code> se usa fuera del venv?</li>
-        <li>¿Qué herramienta usas en VS Code para elegir el intérprete?</li>
-        <li>¿Qué comando usas si no puedes activar el venv?</li>
-      </ol>
-
-      <h3>👍 Rúbrica (máximo 10 puntos)</h3>
-      <ul>
-        <li>Fichas: 3 pts</li>
-        <li>Práctica: 4 pts</li>
-        <li>Evidencias: 2 pts</li>
-        <li>Orden y entrega: 1 pt</li>
-      </ul>
-
-      <h3>🚫 Errores comunes</h3>
-      <ul>
-        <li>No activar bien el venv → usar <code>Activate.ps1</code></li>
-        <li>VS Code no muestra el entorno → verificar selección</li>
-        <li>Error de permisos en PowerShell → ejecutar <code>Set-ExecutionPolicy</code></li>
-      </ul>
+        <div class="mission-section">
+          <div class="mission-section__card">
+            <h3>🚫 Errores comunes</h3>
+            <ul>
+            <li>No activar bien el venv → usar <code>Activate.ps1</code></li>
+            <li>VS Code no muestra el entorno → verificar selección</li>
+            <li>Error de permisos en PowerShell → ejecutar <code>Set-ExecutionPolicy</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="verification">
