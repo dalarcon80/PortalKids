@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Iterable, List, Mapping, Optional, Tuple
 
@@ -70,6 +71,7 @@ except ImportError:  # pragma: no cover - allow "python backend/app.py"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONTRACTS_PATH = os.path.join(BASE_DIR, "missions_contracts.json")
+FRONTEND_DIR = Path(BASE_DIR).resolve().parents[1] / "frontend"
 SECRET_KEY_FILE = Path(BASE_DIR) / ".flask_secret_key"
 
 logger = logging.getLogger(__name__)
@@ -666,6 +668,51 @@ def _normalize_roles_input(raw_roles) -> List[str]:
     return []
 
 
+def _extract_main_inner(html_text: str) -> str:
+    """Return the inner HTML of the first <main> element.
+
+    The mission HTML files are simple static documents, so a small parser is
+    enough and avoids pulling an additional dependency just for this task.
+    """
+
+    lowered = html_text.lower()
+    start_tag = lowered.find("<main")
+    if start_tag == -1:
+        return ""
+    start = lowered.find(">", start_tag)
+    if start == -1:
+        return ""
+    end = lowered.find("</main>", start)
+    if end == -1:
+        return ""
+    return html_text[start + 1 : end].strip()
+
+
+@lru_cache(maxsize=1)
+def _load_frontend_presentations() -> dict[str, str]:
+    """Return a mapping of mission_id -> HTML snippet extracted from frontend."""
+
+    presentations: dict[str, str] = {}
+    if not FRONTEND_DIR.exists():
+        return presentations
+    try:
+        mission_paths = sorted(FRONTEND_DIR.glob("m*.html"))
+    except Exception:  # pragma: no cover - defensive guard
+        return presentations
+    for path in mission_paths:
+        if not path.is_file():
+            continue
+        mission_id = path.stem
+        try:
+            html_text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        inner = _extract_main_inner(html_text)
+        if inner:
+            presentations[mission_id] = inner
+    return presentations
+
+
 def _parse_roles_from_storage(raw_roles) -> List[str]:
     if raw_roles is None:
         return []
@@ -750,18 +797,24 @@ def _seed_missions_from_file(cursor, is_sqlite: bool) -> None:
         )
         return
     timestamp = _format_timestamp(datetime.utcnow())
+    frontend_presentations = _load_frontend_presentations()
     for mission_id, contract in payload.items():
         normalized_id = str(mission_id or "").strip()
         if not normalized_id:
             continue
         contract_dict = contract if isinstance(contract, dict) else {}
+        content_payload = dict(contract_dict)
+        if "display_html" not in content_payload:
+            presentation_html = frontend_presentations.get(normalized_id, "")
+            if isinstance(presentation_html, str) and presentation_html.strip():
+                content_payload["display_html"] = presentation_html
         title_raw = contract_dict.get("title") if isinstance(contract_dict, dict) else None
         if isinstance(title_raw, (bytes, bytearray)):
             title_raw = title_raw.decode("utf-8", errors="ignore")
         title = str(title_raw or "").strip() or normalized_id
         roles = _normalize_roles_input(contract_dict.get("roles") if isinstance(contract_dict, dict) else None)
         try:
-            content_json = json.dumps(contract, ensure_ascii=False)
+            content_json = json.dumps(content_payload, ensure_ascii=False)
         except TypeError as exc:
             logger.error("Failed to serialize mission %s contract: %s", normalized_id, exc)
             continue
@@ -821,7 +874,8 @@ def _load_contract_payload() -> dict[str, dict]:
 
 def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
     contracts = _load_contract_payload()
-    if not contracts:
+    frontend_presentations = _load_frontend_presentations()
+    if not contracts and not frontend_presentations:
         return
     try:
         cursor.execute("SELECT mission_id, content_json FROM missions")
@@ -848,8 +902,12 @@ def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
             continue
         if not isinstance(content_payload, dict) or "display_html" in content_payload:
             continue
-        contract_payload = contracts.get(mission_id) or {}
-        display_html = contract_payload.get("display_html") if isinstance(contract_payload, Mapping) else ""
+        contract_payload = contracts.get(mission_id) if isinstance(contracts, Mapping) else {}
+        if not isinstance(contract_payload, Mapping):
+            contract_payload = {}
+        display_html = contract_payload.get("display_html")
+        if not isinstance(display_html, str) or not display_html.strip():
+            display_html = frontend_presentations.get(mission_id, "") if frontend_presentations else ""
         if not isinstance(display_html, str):
             display_html = ""
         content_payload["display_html"] = display_html
