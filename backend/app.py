@@ -954,6 +954,62 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
         count = 0
     if count == 0:
         _seed_missions_from_file(cursor, is_sqlite)
+
+    blank_title_ids: List[str] = []
+    try:
+        cursor.execute(
+            "SELECT mission_id FROM missions WHERE title IS NULL OR TRIM(title) = ''"
+        )
+        rows_with_blank_title = cursor.fetchall() or []
+    except Exception as exc:
+        logger.error("Failed to inspect mission titles: %s", exc)
+        rows_with_blank_title = []
+
+    for row in rows_with_blank_title:
+        mission_id_raw = None
+        if isinstance(row, Mapping):
+            mission_id_raw = row.get("mission_id")
+            if mission_id_raw is None:
+                mission_id_raw = row.get("MISSION_ID")
+        elif isinstance(row, (list, tuple)) and row:
+            mission_id_raw = row[0]
+        if mission_id_raw is None:
+            continue
+        mission_id = str(mission_id_raw or "").strip()
+        if mission_id:
+            blank_title_ids.append(mission_id)
+
+    if blank_title_ids:
+        contracts_payload = _load_contract_payload()
+        timestamp = _format_timestamp(datetime.utcnow())
+        for mission_id in blank_title_ids:
+            contract_entry = (
+                contracts_payload.get(mission_id)
+                if isinstance(contracts_payload, Mapping)
+                else None
+            )
+            contract_dict = contract_entry if isinstance(contract_entry, Mapping) else {}
+            title_raw = contract_dict.get("title") if contract_dict else None
+            if isinstance(title_raw, (bytes, bytearray)):
+                title_raw = title_raw.decode("utf-8", errors="ignore")
+            normalized_title = str(title_raw or "").strip() or mission_id
+            try:
+                cursor.execute(
+                    """
+                    UPDATE missions
+                    SET title = %s,
+                        updated_at = %s
+                    WHERE mission_id = %s
+                    """,
+                    (normalized_title, timestamp, mission_id),
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to update mission %s title from contracts: %s",
+                    mission_id,
+                    exc,
+                )
+
     _ensure_presentations_in_storage(cursor, is_sqlite)
 
 
