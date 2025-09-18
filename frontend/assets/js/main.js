@@ -295,11 +295,18 @@ function getContentContainer() {
 
 function renderLandingContent() {
   cacheLandingContent();
-  const content = getContentContainer();
   if (!landingContentHTML) {
-    content.innerHTML = '';
+    if (typeof window !== 'undefined' && window.location) {
+      const target = 'index.html';
+      if (typeof window.location.assign === 'function') {
+        window.location.assign(target);
+      } else {
+        window.location.href = target;
+      }
+    }
     return;
   }
+  const content = getContentContainer();
   content.innerHTML = landingContentHTML;
 }
 
