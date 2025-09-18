@@ -799,20 +799,13 @@ async function renderMissionAdminPanel() {
   `;
   let missions = [];
   try {
-    const params = new URLSearchParams();
-    if (slug) {
-      params.set('slug', slug);
-    }
     const headers = {
       Authorization: `Bearer ${token}`,
     };
-    const res = await apiFetch(
-      `/api/admin/missions${params.toString() ? `?${params.toString()}` : ''}`,
-      {
-        credentials: 'include',
-        headers,
-      }
-    );
+    const res = await apiFetch('/api/admin/missions', {
+      credentials: 'include',
+      headers,
+    });
     let data = {};
     try {
       data = await res.json();
@@ -926,10 +919,6 @@ async function renderMissionAdminPanel() {
           <label for="missionContentInput">Contenido (JSON)</label>
           <textarea id="missionContentInput" rows="12"></textarea>
         </div>
-        <div class="form-field">
-          <label for="missionDisplayInput">Presentación (HTML)</label>
-          <textarea id="missionDisplayInput" rows="12" placeholder="&lt;section&gt;...&lt;/section&gt;"></textarea>
-        </div>
         <div id="missionAdminFeedback" class="mission-admin-feedback"></div>
         <div class="mission-admin-actions">
           <button type="submit" id="missionAdminSaveBtn">Guardar cambios</button>
@@ -942,7 +931,6 @@ async function renderMissionAdminPanel() {
   const missionSelect = $('#missionAdminSelect');
   const missionTitleInput = $('#missionTitleInput');
   const missionContentInput = $('#missionContentInput');
-  const missionDisplayInput = $('#missionDisplayInput');
   const feedbackContainer = $('#missionAdminFeedback');
   const saveButton = $('#missionAdminSaveBtn');
   const roleInputs = Array.from(
@@ -980,9 +968,6 @@ async function renderMissionAdminPanel() {
       if (missionContentInput) {
         missionContentInput.value = '';
       }
-      if (missionDisplayInput) {
-        missionDisplayInput.value = '';
-      }
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -996,23 +981,9 @@ async function renderMissionAdminPanel() {
       input.checked = normalizedRoles.includes(input.value);
     });
     if (missionContentInput) {
-      let contentObject =
-        mission.content && typeof mission.content === 'object' ? { ...mission.content } : {};
-      if (
-        contentObject &&
-        Object.prototype.hasOwnProperty.call(contentObject, 'display_html')
-      ) {
-        const { display_html: _discard, ...rest } = contentObject;
-        contentObject = rest;
-      }
-      missionContentInput.value = JSON.stringify(contentObject, null, 2);
-    }
-    if (missionDisplayInput) {
-      const displayValue =
-        mission.content && typeof mission.content.display_html === 'string'
-          ? mission.content.display_html
-          : '';
-      missionDisplayInput.value = displayValue;
+      const contentValue =
+        mission.content && typeof mission.content === 'object' ? mission.content : {};
+      missionContentInput.value = JSON.stringify(contentValue, null, 2);
     }
     showFeedback('', 'info');
   }
@@ -1067,9 +1038,6 @@ async function renderMissionAdminPanel() {
         showFeedback('El contenido debe ser un objeto JSON.', 'error');
         return;
       }
-      if (missionDisplayInput) {
-        parsedContent.display_html = missionDisplayInput.value || '';
-      }
       payload.content = parsedContent;
       showFeedback('Guardando cambios...', 'info');
       try {
@@ -1118,6 +1086,12 @@ async function renderMissionAdminPanel() {
         }
         showFeedback('Los cambios se guardaron correctamente.', 'success');
         setTimeout(() => {
+          const storedSlug = getStoredSlug();
+          const storedToken = getStoredToken();
+          const storedAdmin = getStoredIsAdmin();
+          if (storedSlug) {
+            storeSession(storedSlug, storedToken, storedAdmin);
+          }
           loadDashboard();
         }, 800);
       } catch (saveError) {
