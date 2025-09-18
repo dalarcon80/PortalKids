@@ -95,6 +95,44 @@ function _normalizeBooleanFlag(value) {
   return false;
 }
 
+function updateMissionAdminLink(isAdmin) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const navigation = document.querySelector('.portal-header__nav');
+  if (!navigation) {
+    return;
+  }
+  const existingLink = navigation.querySelector('[data-action="mission-admin"]');
+  const shouldDisplay = _normalizeBooleanFlag(isAdmin);
+  if (!shouldDisplay) {
+    if (existingLink && existingLink.parentElement) {
+      existingLink.parentElement.removeChild(existingLink);
+    }
+    return;
+  }
+  if (existingLink) {
+    existingLink.onclick = () => {
+      renderMissionAdminPanel();
+    };
+    return;
+  }
+  const adminButton = document.createElement('button');
+  adminButton.type = 'button';
+  adminButton.className = 'portal-header__link portal-header__link--admin';
+  adminButton.dataset.action = 'mission-admin';
+  adminButton.textContent = 'Configurar misiones';
+  adminButton.onclick = () => {
+    renderMissionAdminPanel();
+  };
+  const loginLink = navigation.querySelector('[data-action="login"]');
+  if (loginLink) {
+    loginLink.insertAdjacentElement('afterend', adminButton);
+    return;
+  }
+  navigation.appendChild(adminButton);
+}
+
 function storeSession(slug, token, isAdmin) {
   if (slug) {
     localStorage.setItem(STORAGE_KEYS.slug, slug);
@@ -118,6 +156,7 @@ function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.slug);
   localStorage.removeItem(STORAGE_KEYS.token);
   localStorage.removeItem(STORAGE_KEYS.admin);
+  updateMissionAdminLink(false);
 }
 
 const ADMIN_AVAILABLE_ROLES = ['Ventas', 'Operaciones'];
@@ -308,6 +347,7 @@ function renderLandingContent() {
   }
   const content = getContentContainer();
   content.innerHTML = landingContentHTML;
+  updateMissionAdminLink(false);
 }
 
 /**
@@ -438,6 +478,7 @@ function renderLoginForm() {
       <div id="loginMsg" class="msg"></div>
     </section>
   `;
+  updateMissionAdminLink(false);
   const loginForm = $('#loginForm');
   if (!loginForm) {
     return;
@@ -760,25 +801,15 @@ function renderDashboard(student, missions, completed) {
   });
   html += '</ul>';
   html += '<div class="dashboard-actions">';
-  if (isAdmin) {
-    html += '<button id="missionAdminBtn">Configurar misiones</button>';
-  }
   html += '<button id="logoutBtn">Salir</button>';
   html += '</div>';
   html += '</section>';
   content.innerHTML = html;
+  updateMissionAdminLink(isAdmin);
   $('#logoutBtn').onclick = () => {
     clearSession();
     renderLandingContent();
   };
-  if (isAdmin) {
-    const missionAdminBtn = $('#missionAdminBtn');
-    if (missionAdminBtn) {
-      missionAdminBtn.onclick = () => {
-        renderMissionAdminPanel();
-      };
-    }
-  }
 }
 
 async function renderMissionAdminPanel() {
