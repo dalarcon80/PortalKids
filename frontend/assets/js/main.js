@@ -550,10 +550,7 @@ function setupAccessLinks() {
     renderLoginForm();
   });
 
-  const legacyEnrollLinks = document.querySelectorAll('a[href="m1.html"]');
-  legacyEnrollLinks.forEach((link) => {
-    link.href = '#';
-  });
+  const legacyEnrollLinks = document.querySelectorAll('[data-action="legacy-enroll"]');
   attachHandler(legacyEnrollLinks, () => {
     clearSession();
     renderEnrollForm();
