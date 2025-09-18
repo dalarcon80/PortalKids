@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -65,6 +66,37 @@ def test_load_contracts_seeds_table(sqlite_backend):
     mission = mission_rows[0]
     assert mission.get("title") == "M1 — La Puerta de la Base"
     assert mission.get("roles") == ["Ventas", "Operaciones"]
+
+
+def test_blank_titles_are_reseeded(sqlite_backend):
+    backend_app.init_db()
+    with backend_app.get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM missions WHERE mission_id = %s", ("m1",))
+            cur.execute(
+                """
+                INSERT INTO missions (mission_id, title, roles, content_json, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    "m1",
+                    "   ",
+                    "[]",
+                    "{}",
+                    backend_app._format_timestamp(datetime.utcnow()),
+                ),
+            )
+
+    client = backend_app.app.test_client()
+    response = client.get("/api/missions")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    missions = payload.get("missions")
+    assert isinstance(missions, list)
+    mission = next((m for m in missions if m.get("mission_id") == "m1"), None)
+    assert mission is not None
+    assert mission.get("title") == "M1 — La Puerta de la Base"
 
 
 def test_admin_mission_crud_flow(sqlite_backend):
