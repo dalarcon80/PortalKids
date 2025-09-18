@@ -963,7 +963,16 @@ async function renderMissionAdminPanel() {
   }
 
   function fillMissionForm(missionId) {
-    const mission = missions.find((m) => m.mission_id === missionId);
+    const normalizedMissionId =
+      missionId != null && missionId !== undefined ? String(missionId) : '';
+    const mission = missions.find((m) => {
+      if (!m || !Object.prototype.hasOwnProperty.call(m, 'mission_id')) {
+        return false;
+      }
+      const candidateId =
+        m.mission_id != null && m.mission_id !== undefined ? String(m.mission_id) : '';
+      return candidateId === normalizedMissionId;
+    });
     if (!mission) {
       if (missionTitleInput) {
         missionTitleInput.value = '';
@@ -1085,11 +1094,27 @@ async function renderMissionAdminPanel() {
         }
         const updatedMission = data.mission;
         if (updatedMission) {
-          const index = missions.findIndex((m) => m.mission_id === missionId);
+          const normalizedMissionId =
+            missionId != null && missionId !== undefined ? String(missionId) : '';
+          const index = missions.findIndex((m) => {
+            if (!m || !Object.prototype.hasOwnProperty.call(m, 'mission_id')) {
+              return false;
+            }
+            const candidateId =
+              m.mission_id != null && m.mission_id !== undefined
+                ? String(m.mission_id)
+                : '';
+            return candidateId === normalizedMissionId;
+          });
           if (index !== -1) {
-            missions[index] = updatedMission;
+            const updatedEntry = {
+              ...missions[index],
+              ...updatedMission,
+            };
+            updatedEntry.mission_id = normalizedMissionId;
+            missions[index] = updatedEntry;
           }
-          fillMissionForm(missionId);
+          fillMissionForm(normalizedMissionId);
         }
         showFeedback('Los cambios se guardaron correctamente.', 'success');
         setTimeout(() => {
