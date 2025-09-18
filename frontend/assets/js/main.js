@@ -406,14 +406,14 @@ function renderDashboard(student, completed) {
   const content = $('#content');
   // Definición de las misiones y sus roles permitidos
   const MISSIONS = [
-    { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm3', title: 'M3 — Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm4', title: 'M4 — Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm5', title: 'M5 — Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm6v', title: 'M6 — Gold (VENTAS): Une y mide', roles: ['Ventas'] },
-    { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
-    { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
+    { id: 'm1', slug: 'm1', title: 'La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
+    { id: 'm2', slug: 'm2', title: 'Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
+    { id: 'm3', slug: 'm3', title: 'Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
+    { id: 'm4', slug: 'm4', title: 'Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
+    { id: 'm5', slug: 'm5', title: 'Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
+    { id: 'm6v', slug: 'm6v', title: 'Gold (VENTAS): Une y mide', roles: ['Ventas'] },
+    { id: 'm6o', slug: 'm6o', title: 'Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
+    { id: 'm7', slug: 'm7', title: 'Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
   ];
   // Filtrar misiones según rol
   const missionsForRole = MISSIONS.filter((m) => m.roles.includes(student.role));
@@ -453,10 +453,11 @@ function renderDashboard(student, completed) {
       statusClass = 'locked';
       statusText = 'Bloqueada';
     }
+    const titleMarkup = `<span class="mission-card__slug">${m.slug}</span><span class="mission-card__name">${m.title}</span>`;
     if (isUnlocked) {
-      html += `<li class="mission-card ${statusClass}"><a href="${m.id}.html">${m.title}</a><span class="status">${statusText}</span></li>`;
+      html += `<li class="mission-card ${statusClass}"><a href="${m.id}.html" class="mission-card__link">${titleMarkup}</a><span class="status">${statusText}</span></li>`;
     } else {
-      html += `<li class="mission-card ${statusClass}">${m.title}<span class="status">${statusText}</span></li>`;
+      html += `<li class="mission-card ${statusClass}"><span class="mission-card__link mission-card__link--disabled">${titleMarkup}</span><span class="status">${statusText}</span></li>`;
     }
   });
   html += '</ul>';

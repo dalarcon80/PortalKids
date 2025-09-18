@@ -166,19 +166,49 @@ form button:hover {
   box-shadow: var(--card-shadow-hover);
 }
 
-.mission-card a {
+.mission-card__link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
   text-decoration: none;
-  color: var(--accent);
+  color: inherit;
   font-weight: 600;
 }
 
-.mission-card a:hover {
+.mission-card__link:hover,
+.mission-card__link:focus-visible {
+  text-decoration: none;
+  outline: none;
+}
+
+.mission-card__slug {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.mission-card__name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.mission-card__link:hover .mission-card__slug,
+.mission-card__link:focus-visible .mission-card__slug,
+.mission-card__link:hover .mission-card__name,
+.mission-card__link:focus-visible .mission-card__name {
   color: var(--accent-hover);
 }
 
 .mission-card .status {
   font-weight: 600;
   color: var(--muted);
+  align-self: flex-start;
 }
 
 .mission-card.locked {
@@ -188,12 +218,14 @@ form button:hover {
   box-shadow: none;
 }
 
-.mission-card.locked a {
+.mission-card.locked .mission-card__link {
   color: var(--muted);
-  pointer-events: none;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
+.mission-card.locked .mission-card__slug,
+.mission-card.locked .mission-card__name,
 .mission-card.locked .status {
   color: var(--muted);
 }
