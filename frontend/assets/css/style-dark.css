@@ -105,11 +105,12 @@ body {
 
 .portal-header__nav {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.65rem;
   align-items: center;
   justify-content: center;
   flex: 1;
   min-width: 200px;
+  flex-wrap: wrap;
 }
 
 .portal-header__link {
@@ -270,12 +271,83 @@ main {
 
 section.enroll,
 section.dashboard,
-section.mission {
+section.mission,
+section.mission-config {
   background-color: var(--card-bg);
   padding: clamp(1.75rem, 2.5vw, 2.5rem);
   border-radius: var(--radius);
   box-shadow: var(--card-shadow);
   border: 1px solid var(--card-border);
+}
+
+.dashboard__empty {
+  margin: 1.25rem 0 0;
+  background-color: var(--locked-bg);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--locked-border);
+}
+
+.dashboard__empty a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.mission-config__list {
+  list-style: none;
+  margin: 1.5rem 0 2rem;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.mission-config__item label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  background-color: rgba(15, 23, 42, 0.85);
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mission-config__item label:hover {
+  border-color: rgba(96, 165, 250, 0.45);
+  box-shadow: var(--card-shadow-hover);
+}
+
+.mission-config__item input[type='checkbox'] {
+  margin-top: 0.2rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.mission-config__details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.mission-config__title {
+  font-weight: 600;
+  color: var(--accent-contrast);
+}
+
+.mission-config__roles {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.mission-config__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mission-config__actions button {
+  width: auto;
+  min-width: 0;
+  padding: 0.65rem 1.4rem;
 }
 
 section.enroll h2,

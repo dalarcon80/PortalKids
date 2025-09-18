@@ -6,6 +6,19 @@ const STORAGE_KEYS = {
   token: 'session_token',
 };
 
+const MISSION_CONFIG_KEY = 'mission_visibility';
+
+const MISSIONS = [
+  { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm3', title: 'M3 — Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm4', title: 'M4 — Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm5', title: 'M5 — Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
+  { id: 'm6v', title: 'M6 — Gold (VENTAS): Une y mide', roles: ['Ventas'] },
+  { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
+  { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
+];
+
 function storeSession(slug, token) {
   if (slug) {
     localStorage.setItem(STORAGE_KEYS.slug, slug);
@@ -28,6 +41,39 @@ function getStoredSlug() {
 
 function getStoredToken() {
   return localStorage.getItem(STORAGE_KEYS.token);
+}
+
+function loadMissionVisibilityConfig() {
+  try {
+    const raw = localStorage.getItem(MISSION_CONFIG_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
+    }
+  } catch (err) {
+    console.warn('No se pudo cargar la configuración de misiones.', err);
+  }
+  return {};
+}
+
+function saveMissionVisibilityConfig(config) {
+  try {
+    localStorage.setItem(MISSION_CONFIG_KEY, JSON.stringify(config));
+  } catch (err) {
+    console.warn('No se pudo guardar la configuración de misiones.', err);
+    throw err;
+  }
+}
+
+function resetMissionVisibilityConfig() {
+  try {
+    localStorage.removeItem(MISSION_CONFIG_KEY);
+  } catch (err) {
+    console.warn('No se pudo restablecer la configuración de misiones.', err);
+  }
 }
 
 function $(selector) {
@@ -290,6 +336,95 @@ function renderLoginForm() {
   }
 }
 
+function renderMissionConfigurator() {
+  const content = getContentContainer();
+  const visibility = loadMissionVisibilityConfig();
+  const missionItems = MISSIONS.map((mission) => {
+    const isVisible = visibility[mission.id] !== false;
+    const roles = mission.roles.join(', ');
+    return `
+      <li class="mission-config__item">
+        <label>
+          <input type="checkbox" name="missionVisibility" value="${mission.id}" ${
+            isVisible ? 'checked' : ''
+          } />
+          <span class="mission-config__details">
+            <span class="mission-config__title">${mission.title}</span>
+            <span class="mission-config__roles">Roles: ${roles}</span>
+          </span>
+        </label>
+      </li>
+    `;
+  }).join('');
+
+  content.innerHTML = `
+    <section class="mission-config">
+      <h2>Configurar misiones</h2>
+      <p>Activa o desactiva las misiones que estarán disponibles en el dashboard principal. Los cambios se guardan automáticamente.</p>
+      <form id="missionConfigForm">
+        <ul class="mission-config__list">
+          ${missionItems}
+        </ul>
+        <div class="mission-config__actions">
+          <button type="button" id="resetMissionConfig">Restablecer visibilidad</button>
+        </div>
+      </form>
+      <div id="missionConfigMsg" class="msg" role="status" aria-live="polite"></div>
+    </section>
+  `;
+
+  const form = $('#missionConfigForm');
+  if (!form) {
+    return;
+  }
+
+  const checkboxes = Array.from(form.querySelectorAll('input[type="checkbox"]'));
+  const message = $('#missionConfigMsg');
+
+  const showMessage = (text) => {
+    if (!message) {
+      return;
+    }
+    message.textContent = text;
+    if (text) {
+      setTimeout(() => {
+        if (message.textContent === text) {
+          message.textContent = '';
+        }
+      }, 2500);
+    }
+  };
+
+  const persistConfig = () => {
+    const updated = {};
+    checkboxes.forEach((checkbox) => {
+      updated[checkbox.value] = checkbox.checked;
+    });
+    try {
+      saveMissionVisibilityConfig(updated);
+      showMessage('Cambios guardados.');
+    } catch (err) {
+      showMessage('No se pudo guardar la configuración. Revisa los permisos del navegador.');
+    }
+  };
+
+  checkboxes.forEach((checkbox) => {
+    checkbox.addEventListener('change', persistConfig);
+  });
+
+  const resetBtn = $('#resetMissionConfig');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      resetMissionVisibilityConfig();
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = true;
+      });
+      showMessage('Se restauró la visibilidad predeterminada.');
+    });
+  }
+  setupAccessLinks();
+}
+
 /**
  * Carga el tablero de misiones según el estudiante.
  */
@@ -404,30 +539,17 @@ async function loadDashboard() {
  */
 function renderDashboard(student, completed) {
   const content = $('#content');
-  // Definición de las misiones y sus roles permitidos
-  const MISSIONS = [
-    { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm3', title: 'M3 — Cofres CSV y DataFrames', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm4', title: 'M4 — Bronze: Ingesta y Copia fiel', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm5', title: 'M5 — Silver: Limpieza y Tipos', roles: ['Ventas', 'Operaciones'] },
-    { id: 'm6v', title: 'M6 — Gold (VENTAS): Une y mide', roles: ['Ventas'] },
-    { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
-    { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
-  ];
-  // Filtrar misiones según rol
-  const missionsForRole = MISSIONS.filter((m) => m.roles.includes(student.role));
-  // Determinar misiones desbloqueadas
+  const visibility = loadMissionVisibilityConfig();
+  const missionsForRole = MISSIONS.filter(
+    (mission) => mission.roles.includes(student.role) && visibility[mission.id] !== false,
+  );
   const unlocked = {};
-  // La primera misión siempre se desbloquea
   if (missionsForRole.length > 0) {
     unlocked[missionsForRole[0].id] = true;
   }
-  // Si completaste una misión, desbloquea la siguiente de tu rol
-  missionsForRole.forEach((m, idx) => {
-    if (completed.includes(m.id)) {
-      unlocked[m.id] = true;
-      // Desbloquea la siguiente misión
+  missionsForRole.forEach((mission, idx) => {
+    if (completed.includes(mission.id)) {
+      unlocked[mission.id] = true;
       if (idx + 1 < missionsForRole.length) {
         unlocked[missionsForRole[idx + 1].id] = true;
       }
@@ -435,38 +557,48 @@ function renderDashboard(student, completed) {
   });
   let html = `<section class="dashboard">
     <h2>Bienvenido, ${student.name}</h2>
-    <p>Rol: ${student.role}</p>
+    <p>Rol: ${student.role}</p>`;
+  if (missionsForRole.length > 0) {
+    html += `
     <p>Selecciona una misión para continuar:</p>
     <ul class="missions-grid">`;
-  missionsForRole.forEach((m) => {
-    const isCompleted = completed.includes(m.id);
-    const isUnlocked = unlocked[m.id] || false;
-    let statusClass = '';
-    let statusText = '';
-    if (isCompleted) {
-      statusClass = 'completed';
-      statusText = 'Completada';
-    } else if (isUnlocked) {
-      statusClass = 'unlocked';
-      statusText = 'Disponible';
-    } else {
-      statusClass = 'locked';
-      statusText = 'Bloqueada';
-    }
-    if (isUnlocked) {
-      html += `<li class="mission-card ${statusClass}"><a href="${m.id}.html">${m.title}</a><span class="status">${statusText}</span></li>`;
-    } else {
-      html += `<li class="mission-card ${statusClass}">${m.title}<span class="status">${statusText}</span></li>`;
-    }
-  });
-  html += '</ul>';
+    missionsForRole.forEach((mission) => {
+      const isCompleted = completed.includes(mission.id);
+      const isUnlocked = unlocked[mission.id] || false;
+      let statusClass = '';
+      let statusText = '';
+      if (isCompleted) {
+        statusClass = 'completed';
+        statusText = 'Completada';
+      } else if (isUnlocked) {
+        statusClass = 'unlocked';
+        statusText = 'Disponible';
+      } else {
+        statusClass = 'locked';
+        statusText = 'Bloqueada';
+      }
+      if (isUnlocked) {
+        html += `<li class="mission-card ${statusClass}"><a href="${mission.id}.html">${mission.title}</a><span class="status">${statusText}</span></li>`;
+      } else {
+        html += `<li class="mission-card ${statusClass}">${mission.title}<span class="status">${statusText}</span></li>`;
+      }
+    });
+    html += '</ul>';
+  } else {
+    html += `
+    <p class="dashboard__empty">No hay misiones visibles para tu rol. Usa <a href="#" data-action="configure">Configurar misiones</a> en la parte superior para activarlas.</p>`;
+  }
   html += '<button id="logoutBtn">Salir</button>';
   html += '</section>';
   content.innerHTML = html;
-  $('#logoutBtn').onclick = () => {
-    clearSession();
-    renderLoginForm();
-  };
+  const logoutBtn = $('#logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      clearSession();
+      renderLoginForm();
+    };
+  }
+  setupAccessLinks();
 }
 
 /**
@@ -547,6 +679,11 @@ function setupAccessLinks() {
   attachHandler(loginLinks, () => {
     clearSession();
     renderLoginForm();
+  });
+
+  const configureLinks = document.querySelectorAll('[data-action="configure"]');
+  attachHandler(configureLinks, () => {
+    renderMissionConfigurator();
   });
 
   const legacyEnrollLinks = document.querySelectorAll('a[href="m1.html"]');
