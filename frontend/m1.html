@@ -65,18 +65,19 @@
       <!-- 4) MATERIAL DE APRENDIZAJE -->
       <h3>📚 Material de aprendizaje sugerido (videos y docs)</h3>
       <ul>
-        <li><a href="https://www.youtube.com/watch?v=CxF3ykWP1H4" target="_blank">VS Code (introducción para principiantes)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=fg6dVf-aHqk" target="_blank">Instalar VS Code en Windows 11 (paso a paso)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=3xQRR3iNqDQ" target="_blank">¿Qué es la terminal/PowerShell?</a></li>
-        <li><a href="https://www.youtube.com/watch?v=M9YRgYe4FPg" target="_blank">¿Qué es el PATH en Windows?</a></li>
-        <li><a href="https://www.youtube.com/watch?v=eqm_D-vrfPo" target="_blank">Intérprete de Python (explicado)</a></li>
-        <li>VS Code + Git:
+        <li><a href="https://www.youtube.com/watch?v=Ei1y51K8jQk" target="_blank">Curso VS Code desde cero (ES)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=fg6dVf-aHqk" target="_blank">Instalar VS Code en Windows 11 (ES)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=kfEpjj2NZxU" target="_blank">¿Cómo se usa la terminal? CMD/PowerShell para principiantes (ES)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=M9YRgYe4FPg" target="_blank">¿Qué es el PATH en Windows? (ES)</a></li>
+        <li><a href="https://www.youtube.com/watch?v=eqm_D-vrfPo" target="_blank">Intérprete de Python (explicado) (ES)</a></li>
+        <li>VS Code + Git (ES):
           <ul>
-            <li><a href="https://www.youtube.com/watch?v=2ReR1YJrNOM" target="_blank">Video: ¿Cómo trabajar con Git desde VS Code? (commit, push, pull, ramas)</a></li>
-            <li><a href="https://www.youtube.com/watch?v=RGOj5yH7evk" target="_blank">Video: Clonar y sincronizar un repo de GitHub desde VS Code</a></li>
-            <li><a href="https://code.visualstudio.com/docs/sourcecontrol/overview" target="_blank">Docs VS Code: Control de código fuente (Git)</a></li>
-            <li><a href="https://docs.github.com/es/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request" target="_blank">GitHub Docs: Crear un Pull Request</a></li>
-            <li><a href="https://git-scm.com/book/es/v2" target="_blank">Libro oficial de Git: fundamentos y ramas</a></li>
+            <li><a href="https://www.youtube.com/watch?v=C6IjS7jKnjQ" target="_blank">¿Que es Github y para que sirve?</a></li>
+            <li><a href="https://www.youtube.com/watch?v=AYbgqmyg7dk" target="_blank">¿Cómo trabajar con Git desde VS Code? (commit, push, ramas)</a></li>
+            <li><a href="https://www.youtube.com/watch?v=71ZEL2Mhtp0" target="_blank">Clonar un repositorio en VS Code</a></li>
+            <li><a href="https://www.youtube.com/watch?v=cZHP4tkUDsg" target="_blank">Pull Request en GitHub (paso a paso)</a></li>
+            <li><a href="https://learn.microsoft.com/es-es/azure/developer/javascript/how-to/with-visual-studio-code/clone-github-repository" target="_blank">Guía oficial (ES): Clonar un repo con VS Code</a></li>
+            <li><a href="https://learn.microsoft.com/es-es/shows/visual-studio-code/using-git-with-visual-studio-code-official-beginner-tutorial" target="_blank">Tutorial oficial (ES): Git en VS Code</a></li>
           </ul>
         </li>
       </ul>
@@ -148,6 +149,58 @@ git config --global core.autocrlf true
         <p>Inicia sesión en GitHub desde VS Code (icono de cuentas) para facilitar <em>clone/push/PR</em>.</p>
       </details>
 
+      <!-- 6.1) NUEVO: CLONAR REPOS (VENTAS / OPERACIONES) -->
+      <h3>📦 Clonar el repositorio (elige Ventas u Operaciones)</h3>
+      <p>Repos oficiales:</p>
+      <ul>
+        <li><strong>Ventas:</strong> <code>https://github.com/dalarcon80/PortalKidsVentas.git</code></li>
+        <li><strong>Operaciones:</strong> <code>https://github.com/dalarcon80/PortalKidsOperaciones.git</code></li>
+      </ul>
+
+      <details open>
+        <summary><strong>Opción A (recomendada): Clonar desde VS Code (GUI)</strong></summary>
+        <ol>
+          <li>Abre VS Code → <em>Ctrl/Cmd + Shift + P</em> → escribe <code>Git: Clone</code> y presiona <em>Enter</em>.</li>
+          <li>Pega la URL del repo que vas a usar:
+            <ul>
+              <li><em>Ventas:</em> <code>https://github.com/dalarcon80/PortalKidsVentas.git</code></li>
+              <li><em>Operaciones:</em> <code>https://github.com/dalarcon80/PortalKidsOperaciones.git</code></li>
+            </ul>
+          </li>
+          <li>Elige una carpeta local de destino (ej.: <code>C:\MinecraftShop\</code> o <code>~/MinecraftShop/</code>).</li>
+          <li>Cuando VS Code pregunte “¿Deseas abrir el repositorio clonado?”, elige <strong>Open</strong> y luego presiona <strong>Yes, I trust the authors</strong>.</li>
+          <li>Abre la terminal integrada (<em>Ctrl + `</em>) y verifica que estás en la raíz del repo (ej.: <code>PortalKidsVentas</code> o <code>PortalKidsOperaciones</code>).</li>
+          <li>Crea tu rama de trabajo para M1:
+<pre><code>git checkout -b m1-&lt;usuario&gt;
+</code></pre>
+          </li>
+        </ol>
+        <p><em>Nota (alumno):</em> si el flujo de tu curso exige <strong>Fork → Clone</strong>, haz <strong>Fork</strong> en GitHub a tu cuenta y clona <strong>tu fork</strong> (URL quedará como <code>https://github.com/&lt;tu-usuario&gt;/PortalKidsVentas.git</code>). Luego añade el remoto <code>upstream</code> al repo original:</p>
+<pre><code># Dentro de tu repo clonado (tu fork)
+git remote add upstream https://github.com/dalarcon80/PortalKidsVentas.git
+# (o)
+git remote add upstream https://github.com/dalarcon80/PortalKidsOperaciones.git
+git remote -v
+</code></pre>
+      </details>
+
+      <details>
+        <summary><strong>Opción B: Clonar por terminal (PowerShell / bash)</strong></summary>
+        <p><em>Ventas:</em></p>
+<pre><code>git clone https://github.com/dalarcon80/PortalKidsVentas.git
+cd PortalKidsVentas
+git checkout -b m1-&lt;usuario&gt;
+git remote -v
+</code></pre>
+        <p><em>Operaciones:</em></p>
+<pre><code>git clone https://github.com/dalarcon80/PortalKidsOperaciones.git
+cd PortalKidsOperaciones
+git checkout -b m1-&lt;usuario&gt;
+git remote -v
+</code></pre>
+        <p><em>Consejo:</em> usa rutas simples (sin espacios) para evitar errores. Si trabajas con fork, clona tu fork y configura <code>upstream</code> como se indicó.</p>
+      </details>
+
       <!-- 7) PRÁCTICA — CONTRATO -->
       <h3>🚀 Práctica — Contrato (elige tu perfil)</h3>
       <p><strong>Paso 0 (todos):</strong> Fork → Clone → Rama <code>m1-&lt;usuario&gt;</code> → Commit/Push/Sync → Pull Request.</p>
@@ -155,16 +208,16 @@ git config --global core.autocrlf true
 <pre><code>docs/
 reports/
 data/bronze
-products/silver
-products/gold
+data/silver
+data/gold
 tasks/</code></pre>
       <p>Agrega un <code>.gitignore</code> para no subir <code>.venv</code>, <code>__pycache__</code> ni <code>.env</code>.</p>
 
       <details>
         <summary><strong>Crear estructura por terminal (copiar/pegar)</strong></summary>
         <p><em>Windows PowerShell</em>:</p>
-<pre><code>mkdir students/&lt;usuario&gt;/docs; mkdir students/&lt;usuario&gt;/reports; mkdir students/&lt;usuario&gt;/tasks
-mkdir students/&lt;usuario&gt;/data/bronze; mkdir students/&lt;usuario&gt;/data/silver; mkdir students/&lt;usuario&gt;/data/gold
+<pre><code>mkdir students\&lt;usuario&gt;\docs; mkdir students\&lt;usuario&gt;\reports; mkdir students\&lt;usuario&gt;\tasks
+mkdir students\&lt;usuario&gt;\data\bronze; mkdir students\&lt;usuario&gt;\data\silver; mkdir students\&lt;usuario&gt;\data\gold
 </code></pre>
         <p><em>macOS/Linux bash</em>:</p>
 <pre><code>mkdir -p students/&lt;usuario&gt;/{docs,reports,tasks}
@@ -175,16 +228,15 @@ mkdir -p students/&lt;usuario&gt;/data/{bronze,silver,gold}
       <details>
         <summary><strong>Generar evidencias por terminal (ahorra tiempo)</strong></summary>
         <p><em>Windows PowerShell</em>:</p>
-<pre><code>code --version &gt; students/&lt;usuario&gt;/docs/m1_vscode_ok.txt
+<pre><code>code --version &gt; students\&lt;usuario&gt;\docs\m1_vscode_ok.txt
 $pwdPath = (Get-Location).Path
-"workspace: $pwdPath" | Out-File -Encoding utf8 students/&lt;usuario&gt;/docs/m1_workspace_ok.txt
+"workspace: $pwdPath" | Out-File -Encoding utf8 students\&lt;usuario&gt;\docs\m1_workspace_ok.txt
 # Crea el archivo de notas vacío (lo editarás tú):
-New-Item -ItemType File students/&lt;usuario&gt;/docs/m1_notes.md -Force | Out-Null
+New-Item -ItemType File students\&lt;usuario&gt;\docs\m1_notes.md -Force | Out-Null
 </code></pre>
         <p><em>macOS/Linux bash</em>:</p>
 <pre><code>code --version &gt; students/&lt;usuario&gt;/docs/m1_vscode_ok.txt
-printf "workspace: %s
-" "$PWD" &gt; students/&lt;usuario&gt;/docs/m1_workspace_ok.txt
+printf "workspace: %s\n" "$PWD" &gt; students/&lt;usuario&gt;/docs/m1_workspace_ok.txt
 : &gt; students/&lt;usuario&gt;/docs/m1_notes.md
 </code></pre>
         <p><em>Consejo:</em> Si el comando <code>code</code> no existe, escribe manualmente el contenido en los archivos desde el editor.</p>
@@ -194,14 +246,14 @@ printf "workspace: %s
       <h4>A) Ventas — Salidas</h4>
       <ul>
         <li><code>students/&lt;u&gt;/docs/m1_vscode_ok.txt</code> (ej.: VS Code version: 1.xx.x)</li>
-        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con la línea exacta:<br><code>workspace: C:&bsol;&bsol;MinecraftShop&bsol;&bsol;PortalKidsVentas</code></li>
+        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con la línea exacta:<br><code>workspace: C:\\MinecraftShop\\PortalKidsVentas</code></li>
         <li><code>students/&lt;u&gt;/docs/m1_notes.md</code> (5 fichas)</li>
       </ul>
 
       <h4>B) Operaciones — Salidas</h4>
       <ul>
         <li><code>students/&lt;u&gt;/docs/m1_vscode_ok.txt</code> (ej.: VS Code version: 1.xx.x)</li>
-        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con la línea exacta:<br><code>workspace: C:&bsol;&bsol;MinecraftShop&bsol;&bsol;PortalKidsOperaciones</code></li>
+        <li><code>students/&lt;u&gt;/docs/m1_workspace_ok.txt</code> con la línea exacta:<br><code>workspace: C:\\MinecraftShop\\PortalKidsOperaciones</code></li>
         <li><code>students/&lt;u&gt;/docs/m1_notes.md</code> (5 fichas)</li>
       </ul>
 
@@ -258,7 +310,7 @@ git pull
       </ul>
 
       <!-- 13) MICROQUIZ -->
-      <h3>🔎 Micro‑quiz (5)</h3>
+      <h3>🔎 Micro-quiz (5)</h3>
       <ol>
         <li>¿Para qué sirve el PATH?</li>
         <li>Editor vs intérprete.</li>
