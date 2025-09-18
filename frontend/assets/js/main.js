@@ -6,8 +6,6 @@ const STORAGE_KEYS = {
   token: 'session_token',
 };
 
-const MISSION_CONFIG_KEY = 'mission_visibility';
-
 const MISSIONS = [
   { id: 'm1', title: 'M1 — La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
   { id: 'm2', title: 'M2 — Despierta a tu Aliado', roles: ['Ventas', 'Operaciones'] },
@@ -18,6 +16,8 @@ const MISSIONS = [
   { id: 'm6o', title: 'M6 — Gold (OPERACIONES): Une y mide', roles: ['Operaciones'] },
   { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
 ];
+
+const MISSION_VISIBILITY_KEY = 'mission_visibility';
 
 function storeSession(slug, token) {
   if (slug) {
@@ -45,7 +45,7 @@ function getStoredToken() {
 
 function loadMissionVisibilityConfig() {
   try {
-    const raw = localStorage.getItem(MISSION_CONFIG_KEY);
+    const raw = localStorage.getItem(MISSION_VISIBILITY_KEY);
     if (!raw) {
       return {};
     }
@@ -61,18 +61,9 @@ function loadMissionVisibilityConfig() {
 
 function saveMissionVisibilityConfig(config) {
   try {
-    localStorage.setItem(MISSION_CONFIG_KEY, JSON.stringify(config));
+    localStorage.setItem(MISSION_VISIBILITY_KEY, JSON.stringify(config));
   } catch (err) {
     console.warn('No se pudo guardar la configuración de misiones.', err);
-    throw err;
-  }
-}
-
-function resetMissionVisibilityConfig() {
-  try {
-    localStorage.removeItem(MISSION_CONFIG_KEY);
-  } catch (err) {
-    console.warn('No se pudo restablecer la configuración de misiones.', err);
   }
 }
 
@@ -336,95 +327,6 @@ function renderLoginForm() {
   }
 }
 
-function renderMissionConfigurator() {
-  const content = getContentContainer();
-  const visibility = loadMissionVisibilityConfig();
-  const missionItems = MISSIONS.map((mission) => {
-    const isVisible = visibility[mission.id] !== false;
-    const roles = mission.roles.join(', ');
-    return `
-      <li class="mission-config__item">
-        <label>
-          <input type="checkbox" name="missionVisibility" value="${mission.id}" ${
-            isVisible ? 'checked' : ''
-          } />
-          <span class="mission-config__details">
-            <span class="mission-config__title">${mission.title}</span>
-            <span class="mission-config__roles">Roles: ${roles}</span>
-          </span>
-        </label>
-      </li>
-    `;
-  }).join('');
-
-  content.innerHTML = `
-    <section class="mission-config">
-      <h2>Configurar misiones</h2>
-      <p>Activa o desactiva las misiones que estarán disponibles en el dashboard principal. Los cambios se guardan automáticamente.</p>
-      <form id="missionConfigForm">
-        <ul class="mission-config__list">
-          ${missionItems}
-        </ul>
-        <div class="mission-config__actions">
-          <button type="button" id="resetMissionConfig">Restablecer visibilidad</button>
-        </div>
-      </form>
-      <div id="missionConfigMsg" class="msg" role="status" aria-live="polite"></div>
-    </section>
-  `;
-
-  const form = $('#missionConfigForm');
-  if (!form) {
-    return;
-  }
-
-  const checkboxes = Array.from(form.querySelectorAll('input[type="checkbox"]'));
-  const message = $('#missionConfigMsg');
-
-  const showMessage = (text) => {
-    if (!message) {
-      return;
-    }
-    message.textContent = text;
-    if (text) {
-      setTimeout(() => {
-        if (message.textContent === text) {
-          message.textContent = '';
-        }
-      }, 2500);
-    }
-  };
-
-  const persistConfig = () => {
-    const updated = {};
-    checkboxes.forEach((checkbox) => {
-      updated[checkbox.value] = checkbox.checked;
-    });
-    try {
-      saveMissionVisibilityConfig(updated);
-      showMessage('Cambios guardados.');
-    } catch (err) {
-      showMessage('No se pudo guardar la configuración. Revisa los permisos del navegador.');
-    }
-  };
-
-  checkboxes.forEach((checkbox) => {
-    checkbox.addEventListener('change', persistConfig);
-  });
-
-  const resetBtn = $('#resetMissionConfig');
-  if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-      resetMissionVisibilityConfig();
-      checkboxes.forEach((checkbox) => {
-        checkbox.checked = true;
-      });
-      showMessage('Se restauró la visibilidad predeterminada.');
-    });
-  }
-  setupAccessLinks();
-}
-
 /**
  * Carga el tablero de misiones según el estudiante.
  */
@@ -539,30 +441,55 @@ async function loadDashboard() {
  */
 function renderDashboard(student, completed) {
   const content = $('#content');
-  const visibility = loadMissionVisibilityConfig();
-  const missionsForRole = MISSIONS.filter(
-    (mission) => mission.roles.includes(student.role) && visibility[mission.id] !== false,
-  );
+  const visibilityConfig = loadMissionVisibilityConfig();
+  const roleVisibility =
+    visibilityConfig &&
+    typeof visibilityConfig === 'object' &&
+    visibilityConfig[student.role] &&
+    typeof visibilityConfig[student.role] === 'object'
+      ? visibilityConfig[student.role]
+      : {};
+
+  const missionsForRole = MISSIONS.filter((m) => m.roles.includes(student.role));
+  // Determinar misiones desbloqueadas
   const unlocked = {};
+  // La primera misión siempre se desbloquea
   if (missionsForRole.length > 0) {
     unlocked[missionsForRole[0].id] = true;
   }
-  missionsForRole.forEach((mission, idx) => {
-    if (completed.includes(mission.id)) {
-      unlocked[mission.id] = true;
+  // Si completaste una misión, desbloquea la siguiente de tu rol
+  missionsForRole.forEach((m, idx) => {
+    if (completed.includes(m.id)) {
+      unlocked[m.id] = true;
+      // Desbloquea la siguiente misión
       if (idx + 1 < missionsForRole.length) {
         unlocked[missionsForRole[idx + 1].id] = true;
       }
     }
   });
+  const visibleMissions = missionsForRole.filter((mission) => {
+    if (!roleVisibility || typeof roleVisibility !== 'object') {
+      return true;
+    }
+    if (Object.prototype.hasOwnProperty.call(roleVisibility, mission.id)) {
+      return roleVisibility[mission.id] !== false;
+    }
+    return true;
+  });
+
   let html = `<section class="dashboard">
     <h2>Bienvenido, ${student.name}</h2>
     <p>Rol: ${student.role}</p>`;
-  if (missionsForRole.length > 0) {
+
+  if (visibleMissions.length === 0) {
+    html += `
+    <p>No hay misiones visibles para tu rol en este momento.</p>
+    <p>Usa <a href="#" data-action="configure">Configurar misiones</a> en la parte superior para elegir cuáles quieres ver.</p>`;
+  } else {
     html += `
     <p>Selecciona una misión para continuar:</p>
     <ul class="missions-grid">`;
-    missionsForRole.forEach((mission) => {
+    visibleMissions.forEach((mission) => {
       const isCompleted = completed.includes(mission.id);
       const isUnlocked = unlocked[mission.id] || false;
       let statusClass = '';
@@ -584,21 +511,216 @@ function renderDashboard(student, completed) {
       }
     });
     html += '</ul>';
-  } else {
-    html += `
-    <p class="dashboard__empty">No hay misiones visibles para tu rol. Usa <a href="#" data-action="configure">Configurar misiones</a> en la parte superior para activarlas.</p>`;
   }
   html += '<button id="logoutBtn">Salir</button>';
   html += '</section>';
   content.innerHTML = html;
-  const logoutBtn = $('#logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.onclick = () => {
-      clearSession();
-      renderLoginForm();
-    };
-  }
+  $('#logoutBtn').onclick = () => {
+    clearSession();
+    renderLoginForm();
+  };
   setupAccessLinks();
+}
+
+async function renderMissionConfigurator() {
+  const slug = getStoredSlug();
+  const token = getStoredToken();
+  if (!slug || !token) {
+    clearSession();
+    renderLoginForm();
+    return;
+  }
+
+  const content = getContentContainer();
+  content.innerHTML = '<p>Cargando configuración de misiones...</p>';
+
+  try {
+    const headers = token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {};
+    const res = await fetch(`/api/status?slug=${encodeURIComponent(slug)}`, {
+      headers,
+    });
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      data = {};
+    }
+
+    if (res.status === 401) {
+      clearSession();
+      content.innerHTML = `
+        <section class="status-error">
+          <p>Tu sesión expiró. Vuelve a iniciar sesión para configurar tus misiones.</p>
+          <button id="configLoginBtn">Iniciar sesión</button>
+        </section>
+      `;
+      const loginBtn = $('#configLoginBtn');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
+      }
+      return;
+    }
+
+    if (res.status === 404) {
+      clearSession();
+      content.innerHTML = `
+        <section class="status-error">
+          <p>No encontramos tu matrícula. Vuelve a matricularte para continuar.</p>
+          <button id="configEnrollBtn">Matricularme de nuevo</button>
+        </section>
+      `;
+      const enrollBtn = $('#configEnrollBtn');
+      if (enrollBtn) {
+        enrollBtn.onclick = () => {
+          renderEnrollForm();
+        };
+      }
+      return;
+    }
+
+    if (!res.ok || !data.student) {
+      content.innerHTML = `
+        <section class="status-error">
+          <p>No pudimos obtener tu información en este momento.</p>
+          <button id="retryConfigBtn">Reintentar</button>
+        </section>
+      `;
+      const retryBtn = $('#retryConfigBtn');
+      if (retryBtn) {
+        retryBtn.onclick = () => {
+          renderMissionConfigurator();
+        };
+      }
+      return;
+    }
+
+    const student = data.student;
+    const visibilityConfig = loadMissionVisibilityConfig();
+    const roleVisibility =
+      visibilityConfig &&
+      typeof visibilityConfig === 'object' &&
+      visibilityConfig[student.role] &&
+      typeof visibilityConfig[student.role] === 'object'
+        ? visibilityConfig[student.role]
+        : {};
+    const missionsForRole = MISSIONS.filter((mission) => mission.roles.includes(student.role));
+
+    if (missionsForRole.length === 0) {
+      content.innerHTML = `
+        <section class="mission-config">
+          <h2>Configurar misiones</h2>
+          <p>No hay misiones configurables para tu rol en este momento.</p>
+          <div class="mission-config__actions">
+            <button type="button" id="missionConfigBack">Volver</button>
+          </div>
+        </section>
+      `;
+      const backBtn = $('#missionConfigBack');
+      if (backBtn) {
+        backBtn.onclick = () => {
+          loadDashboard();
+        };
+      }
+      setupAccessLinks();
+      return;
+    }
+
+    const configForm = `
+      <section class="mission-config">
+        <h2>Configurar misiones</h2>
+        <p>Elige qué misiones quieres mostrar en tu tablero de ${student.role}.</p>
+        <form id="missionConfigForm">
+          <ul class="mission-config__list">
+            ${missionsForRole
+              .map((mission) => {
+                const isVisible =
+                  !roleVisibility || typeof roleVisibility !== 'object'
+                    ? true
+                    : roleVisibility[mission.id] !== false;
+                return `
+              <li class="mission-config__item">
+                <label>
+                  <input type="checkbox" data-mission-id="${mission.id}" ${isVisible ? 'checked' : ''} />
+                  <span>${mission.title}</span>
+                </label>
+              </li>`;
+              })
+              .join('')}
+          </ul>
+          <div class="mission-config__actions">
+            <button type="submit">Guardar visibilidad</button>
+            <button type="button" id="missionConfigCancel">Cancelar</button>
+          </div>
+        </form>
+        <div id="missionConfigMsg" class="msg"></div>
+      </section>
+    `;
+
+    content.innerHTML = configForm;
+
+    const form = $('#missionConfigForm');
+    const cancelBtn = $('#missionConfigCancel');
+    const message = $('#missionConfigMsg');
+
+    if (cancelBtn) {
+      cancelBtn.onclick = (event) => {
+        event.preventDefault();
+        loadDashboard();
+      };
+    }
+
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const checkboxes = Array.from(
+          form.querySelectorAll('input[type="checkbox"][data-mission-id]') || []
+        );
+        const nextVisibility = {};
+        checkboxes.forEach((checkbox) => {
+          const missionId = checkbox.getAttribute('data-mission-id');
+          if (!missionId) {
+            return;
+          }
+          if (!checkbox.checked) {
+            nextVisibility[missionId] = false;
+          }
+        });
+        const stored = loadMissionVisibilityConfig();
+        if (Object.keys(nextVisibility).length > 0) {
+          stored[student.role] = nextVisibility;
+        } else if (stored[student.role]) {
+          delete stored[student.role];
+        }
+        saveMissionVisibilityConfig(stored);
+        if (message) {
+          message.textContent = 'Configuración guardada. Actualizando tu tablero...';
+        }
+        setTimeout(() => {
+          loadDashboard();
+        }, 300);
+      });
+    }
+    setupAccessLinks();
+  } catch (err) {
+    content.innerHTML = `
+      <section class="status-error">
+        <p>No pudimos cargar la configuración. Verifica tu conexión e intenta nuevamente.</p>
+        <button id="retryConfigBtn">Reintentar</button>
+      </section>
+    `;
+    const retryBtn = $('#retryConfigBtn');
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        renderMissionConfigurator();
+      };
+    }
+  }
 }
 
 /**
