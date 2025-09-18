@@ -165,6 +165,47 @@ async function fetchMissionsForRole(role, token) {
   }
 }
 
+async function fetchMissionById(missionId, token) {
+  const missionKey = typeof missionId === 'string' ? missionId.trim() : '';
+  if (!missionKey) {
+    return null;
+  }
+  const headers = token
+    ? {
+        Authorization: `Bearer ${token}`,
+      }
+    : {};
+  const url = `/api/missions/${encodeURIComponent(missionKey)}`;
+  try {
+    const res = await apiFetch(url, {
+      credentials: 'include',
+      headers,
+    });
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseError) {
+      data = {};
+    }
+    if (!res.ok) {
+      const backendMessage = typeof data.error === 'string' ? data.error : '';
+      throw new Error(backendMessage || 'No pudimos obtener la información de la misión.');
+    }
+    const mission = data.mission;
+    if (!mission || typeof mission !== 'object') {
+      return null;
+    }
+    if (Object.prototype.hasOwnProperty.call(mission, 'mission_id')) {
+      const value = mission.mission_id;
+      mission.mission_id = value != null ? String(value) : value;
+    }
+    return mission;
+  } catch (err) {
+    console.error(`No se pudo obtener la misión ${missionKey}.`, err);
+    return null;
+  }
+}
+
 function calculateUnlockedMissions(missionsForRole, completed) {
   const unlocked = {};
   if (!Array.isArray(missionsForRole) || missionsForRole.length === 0) {
@@ -878,6 +919,10 @@ async function renderMissionAdminPanel() {
           <label for="missionContentInput">Contenido (JSON)</label>
           <textarea id="missionContentInput" rows="12"></textarea>
         </div>
+        <div class="form-field">
+          <label for="missionDisplayInput">Presentación (HTML)</label>
+          <textarea id="missionDisplayInput" rows="12" placeholder="&lt;section&gt;...&lt;/section&gt;"></textarea>
+        </div>
         <div id="missionAdminFeedback" class="mission-admin-feedback"></div>
         <div class="mission-admin-actions">
           <button type="submit" id="missionAdminSaveBtn">Guardar cambios</button>
@@ -890,6 +935,7 @@ async function renderMissionAdminPanel() {
   const missionSelect = $('#missionAdminSelect');
   const missionTitleInput = $('#missionTitleInput');
   const missionContentInput = $('#missionContentInput');
+  const missionDisplayInput = $('#missionDisplayInput');
   const feedbackContainer = $('#missionAdminFeedback');
   const saveButton = $('#missionAdminSaveBtn');
   const roleInputs = Array.from(
@@ -918,6 +964,9 @@ async function renderMissionAdminPanel() {
       if (missionContentInput) {
         missionContentInput.value = '';
       }
+      if (missionDisplayInput) {
+        missionDisplayInput.value = '';
+      }
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -931,11 +980,23 @@ async function renderMissionAdminPanel() {
       input.checked = normalizedRoles.includes(input.value);
     });
     if (missionContentInput) {
-      const contentValue =
-        mission.content && typeof mission.content === 'object'
-          ? JSON.stringify(mission.content, null, 2)
-          : JSON.stringify({}, null, 2);
-      missionContentInput.value = contentValue;
+      let contentObject =
+        mission.content && typeof mission.content === 'object' ? { ...mission.content } : {};
+      if (
+        contentObject &&
+        Object.prototype.hasOwnProperty.call(contentObject, 'display_html')
+      ) {
+        const { display_html: _discard, ...rest } = contentObject;
+        contentObject = rest;
+      }
+      missionContentInput.value = JSON.stringify(contentObject, null, 2);
+    }
+    if (missionDisplayInput) {
+      const displayValue =
+        mission.content && typeof mission.content.display_html === 'string'
+          ? mission.content.display_html
+          : '';
+      missionDisplayInput.value = displayValue;
     }
     showFeedback('', 'info');
   }
@@ -989,6 +1050,9 @@ async function renderMissionAdminPanel() {
       if (parsedContent === null || typeof parsedContent !== 'object' || Array.isArray(parsedContent)) {
         showFeedback('El contenido debe ser un objeto JSON.', 'error');
         return;
+      }
+      if (missionDisplayInput) {
+        parsedContent.display_html = missionDisplayInput.value || '';
       }
       payload.content = parsedContent;
       showFeedback('Guardando cambios...', 'info');
@@ -1229,6 +1293,148 @@ async function verifyMission(missionId, resultContainer) {
   }
 }
 
+function buildDeliverablesSummary(contract) {
+  if (!contract || typeof contract !== 'object') {
+    return null;
+  }
+  const deliverables = Array.isArray(contract.deliverables)
+    ? contract.deliverables
+    : [];
+  if (deliverables.length === 0) {
+    return null;
+  }
+  const section = document.createElement('section');
+  section.className = 'mission-contract-summary';
+  section.dataset.generated = 'deliverables';
+  const heading = document.createElement('h3');
+  heading.textContent = '📦 Resumen automático de entregables';
+  section.appendChild(heading);
+  const list = document.createElement('ul');
+  deliverables.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+    const descriptionParts = [];
+    const itemType = typeof item.type === 'string' ? item.type.trim() : '';
+    const path = typeof item.path === 'string' ? item.path.trim() : '';
+    if (itemType) {
+      descriptionParts.push(itemType);
+    }
+    if (path) {
+      descriptionParts.push(path);
+    }
+    if (descriptionParts.length === 0) {
+      return;
+    }
+    const entry = document.createElement('li');
+    entry.textContent = descriptionParts.join(' — ');
+    list.appendChild(entry);
+  });
+  if (!list.children.length) {
+    return null;
+  }
+  section.appendChild(list);
+  return section;
+}
+
+function updateMissionHeader(mission) {
+  const heading = document.querySelector('[data-mission-title]') || document.querySelector('.portal-header__heading');
+  if (heading && mission && typeof mission.title === 'string' && mission.title.trim()) {
+    heading.textContent = mission.title.trim();
+  }
+  if (mission && mission.title) {
+    document.title = `${mission.title} — Portal de Misiones`;
+  }
+}
+
+function renderLockedMission(message) {
+  const container = document.querySelector('main');
+  if (container) {
+    container.removeAttribute('hidden');
+    container.innerHTML = `
+      <section class="status-error">
+        <h2>Acceso restringido</h2>
+        <p>${message || 'Debes abrir esta misión desde el portal principal.'}</p>
+        <p><a href="index.html">Volver al portal</a></p>
+      </section>
+    `;
+  } else {
+    document.body.innerHTML = `
+      <main class="mission-locked">
+        <section class="status-error">
+          <h2>Acceso restringido</h2>
+          <p>${message || 'Debes abrir esta misión desde el portal principal.'}</p>
+          <p><a href="index.html">Volver al portal</a></p>
+        </section>
+      </main>
+    `;
+  }
+}
+
+async function renderMissionContent(missionId) {
+  const missionKey = typeof missionId === 'string' ? missionId.trim() : '';
+  const mainElement = document.querySelector('main');
+  if (!missionKey || !mainElement) {
+    return;
+  }
+  try {
+    const access = await ensureMissionUnlocked(missionKey);
+    if (!access.allowed) {
+      if (access.action === 'redirect' && access.redirectTo) {
+        window.location.href = access.redirectTo;
+        return;
+      }
+      renderLockedMission(access.message);
+      return;
+    }
+    setCurrentMission(missionKey);
+  } catch (err) {
+    renderLockedMission('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
+    return;
+  }
+
+  const token = getStoredToken();
+  const mission = await fetchMissionById(missionKey, token);
+  if (!mission) {
+    mainElement.removeAttribute('hidden');
+    mainElement.innerHTML = `
+      <section class="status-error">
+        <p>No encontramos el contenido de esta misión. Intenta regresar al portal.</p>
+        <p><a href="index.html">Volver al portal</a></p>
+      </section>
+    `;
+    return;
+  }
+
+  updateMissionHeader(mission);
+
+  const content = mission.content && typeof mission.content === 'object' ? mission.content : {};
+  const displayHtml = typeof content.display_html === 'string' ? content.display_html : '';
+  if (displayHtml) {
+    mainElement.innerHTML = displayHtml;
+  } else {
+    mainElement.innerHTML = `
+      <section class="status-info">
+        <p>Esta misión aún no tiene contenido cargado. Contacta a tu mentor.</p>
+      </section>
+    `;
+  }
+  mainElement.removeAttribute('hidden');
+
+  const verifyBtn = mainElement.querySelector('#verifyBtn');
+  const resultContainer = mainElement.querySelector('#verifyResult');
+  if (verifyBtn && resultContainer) {
+    verifyBtn.addEventListener('click', () => {
+      verifyMission(missionKey, resultContainer);
+    });
+  }
+
+  const summarySection = buildDeliverablesSummary(content);
+  if (summarySection) {
+    mainElement.appendChild(summarySection);
+  }
+}
+
 function setupAccessLinks() {
   const attachHandler = (elements, handler) => {
     elements.forEach((element) => {
@@ -1297,6 +1503,10 @@ function initializeLandingView() {
   }
   clearSession();
   renderLandingContent();
+}
+
+if (typeof window !== 'undefined') {
+  window.renderMissionContent = renderMissionContent;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
