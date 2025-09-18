@@ -131,6 +131,8 @@ const ALL_MISSIONS = [
   { id: 'm7', title: 'M7 — Consejo de la Tienda', roles: ['Ventas', 'Operaciones'] },
 ];
 
+const ADMIN_AVAILABLE_ROLES = ['Ventas', 'Operaciones'];
+
 function getMissionsForRole(role) {
   if (!role) {
     return [];
@@ -603,6 +605,11 @@ function renderDashboard(student, completed) {
   const content = $('#content');
   const missionsForRole = getMissionsForRole(student.role);
   const unlocked = calculateUnlockedMissions(missionsForRole, completed);
+  const isAdmin = _normalizeBooleanFlag(
+    student && Object.prototype.hasOwnProperty.call(student, 'is_admin')
+      ? student.is_admin
+      : getStoredIsAdmin()
+  );
   let html = `<section class="dashboard">
     <h2>Bienvenido, ${student.name}</h2>
     <p>Rol: ${student.role}</p>
@@ -630,13 +637,339 @@ function renderDashboard(student, completed) {
     }
   });
   html += '</ul>';
+  html += '<div class="dashboard-actions">';
+  if (isAdmin) {
+    html += '<button id="missionAdminBtn">Configurar misiones</button>';
+  }
   html += '<button id="logoutBtn">Salir</button>';
+  html += '</div>';
   html += '</section>';
   content.innerHTML = html;
   $('#logoutBtn').onclick = () => {
     clearSession();
     renderLandingContent();
   };
+  if (isAdmin) {
+    const missionAdminBtn = $('#missionAdminBtn');
+    if (missionAdminBtn) {
+      missionAdminBtn.onclick = () => {
+        renderMissionAdminPanel();
+      };
+    }
+  }
+}
+
+async function renderMissionAdminPanel() {
+  const slug = getStoredSlug();
+  const token = getStoredToken();
+  const isAdmin = getStoredIsAdmin();
+  if (!slug || !token || !_normalizeBooleanFlag(isAdmin)) {
+    clearSession();
+    renderLoginForm();
+    return;
+  }
+  const content = $('#content');
+  content.innerHTML = `
+    <section class="mission-admin">
+      <h2>Configuración de misiones</h2>
+      <p>Cargando misiones disponibles...</p>
+    </section>
+  `;
+  let missions = [];
+  try {
+    const params = new URLSearchParams();
+    if (slug) {
+      params.set('slug', slug);
+    }
+    const headers = {
+      Authorization: `Bearer ${token}`,
+    };
+    const res = await apiFetch(
+      `/api/admin/missions${params.toString() ? `?${params.toString()}` : ''}`,
+      {
+        credentials: 'include',
+        headers,
+      }
+    );
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseError) {
+      data = {};
+    }
+    if (res.status === 401) {
+      clearSession();
+      content.innerHTML = `
+        <section class="status-error">
+          <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
+          <button id="adminLoginBtn">Iniciar sesión</button>
+        </section>
+      `;
+      const loginBtn = $('#adminLoginBtn');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
+      }
+      return;
+    }
+    if (res.status === 403) {
+      content.innerHTML = `
+        <section class="status-error">
+          <p>No tienes permisos para configurar misiones.</p>
+          <button id="backToDashboardBtn">Volver</button>
+        </section>
+      `;
+      const backBtn = $('#backToDashboardBtn');
+      if (backBtn) {
+        backBtn.onclick = () => {
+          const storedSlug = getStoredSlug();
+          const storedToken = getStoredToken();
+          const storedAdmin = getStoredIsAdmin();
+          if (storedSlug) {
+            storeSession(storedSlug, storedToken, storedAdmin);
+          }
+          loadDashboard();
+        };
+      }
+      return;
+    }
+    if (!res.ok) {
+      const backendMessage = typeof data.error === 'string' ? data.error : '';
+      throw new Error(backendMessage || 'No fue posible obtener la lista de misiones.');
+    }
+    missions = Array.isArray(data.missions) ? data.missions : [];
+  } catch (err) {
+    content.innerHTML = `
+      <section class="status-error">
+        <p>${err && err.message ? err.message : 'Ocurrió un error al cargar las misiones.'}</p>
+        <button id="retryMissionAdminBtn">Reintentar</button>
+      </section>
+    `;
+    const retryBtn = $('#retryMissionAdminBtn');
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        renderMissionAdminPanel();
+      };
+    }
+    return;
+  }
+
+  const missionOptions = missions
+    .map((mission) => {
+      const missionId = mission && mission.mission_id ? String(mission.mission_id) : '';
+      if (!missionId) {
+        return '';
+      }
+      return `<option value="${missionId}">${missionId}</option>`;
+    })
+    .join('');
+  const roleOptions = [...ADMIN_AVAILABLE_ROLES];
+  missions.forEach((mission) => {
+    const missionRoles = Array.isArray(mission.roles) ? mission.roles : [];
+    missionRoles.forEach((role) => {
+      const normalizedRole = typeof role === 'string' ? role : '';
+      if (normalizedRole && !roleOptions.includes(normalizedRole)) {
+        roleOptions.push(normalizedRole);
+      }
+    });
+  });
+  const rolesCheckboxes = roleOptions
+    .map(
+      (role) =>
+        `<label><input type="checkbox" class="mission-role-option" value="${role}"> ${role}</label>`
+    )
+    .join('');
+
+  content.innerHTML = `
+    <section class="mission-admin">
+      <h2>Configuración de misiones</h2>
+      <div class="mission-admin-selector">
+        <label for="missionAdminSelect">Misiones disponibles</label>
+        <select id="missionAdminSelect">
+          <option value="">Selecciona una misión</option>
+          ${missionOptions}
+        </select>
+      </div>
+      <form id="missionAdminForm" class="mission-admin-form">
+        <div class="form-field">
+          <label for="missionTitleInput">Título</label>
+          <input type="text" id="missionTitleInput" name="title">
+        </div>
+        <fieldset class="form-field">
+          <legend>Roles disponibles</legend>
+          <div class="mission-role-options">${rolesCheckboxes}</div>
+        </fieldset>
+        <div class="form-field">
+          <label for="missionContentInput">Contenido (JSON)</label>
+          <textarea id="missionContentInput" rows="12"></textarea>
+        </div>
+        <div id="missionAdminFeedback" class="mission-admin-feedback"></div>
+        <div class="mission-admin-actions">
+          <button type="submit" id="missionAdminSaveBtn">Guardar cambios</button>
+          <button type="button" id="missionAdminBackBtn">Volver al dashboard</button>
+        </div>
+      </form>
+    </section>
+  `;
+
+  const missionSelect = $('#missionAdminSelect');
+  const missionTitleInput = $('#missionTitleInput');
+  const missionContentInput = $('#missionContentInput');
+  const feedbackContainer = $('#missionAdminFeedback');
+  const saveButton = $('#missionAdminSaveBtn');
+  const roleInputs = Array.from(
+    document.querySelectorAll('.mission-role-option')
+  );
+
+  function showFeedback(message, type = 'info') {
+    if (!feedbackContainer) {
+      return;
+    }
+    if (!message) {
+      feedbackContainer.innerHTML = '';
+      return;
+    }
+    const typeClass =
+      type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info';
+    feedbackContainer.innerHTML = `<div class="${typeClass}">${message}</div>`;
+  }
+
+  function fillMissionForm(missionId) {
+    const mission = missions.find((m) => m.mission_id === missionId);
+    if (!mission) {
+      if (missionTitleInput) {
+        missionTitleInput.value = '';
+      }
+      if (missionContentInput) {
+        missionContentInput.value = '';
+      }
+      roleInputs.forEach((input) => {
+        input.checked = false;
+      });
+      return;
+    }
+    if (missionTitleInput) {
+      missionTitleInput.value = mission.title || '';
+    }
+    const normalizedRoles = Array.isArray(mission.roles) ? mission.roles : [];
+    roleInputs.forEach((input) => {
+      input.checked = normalizedRoles.includes(input.value);
+    });
+    if (missionContentInput) {
+      const contentValue =
+        mission.content && typeof mission.content === 'object'
+          ? JSON.stringify(mission.content, null, 2)
+          : JSON.stringify({}, null, 2);
+      missionContentInput.value = contentValue;
+    }
+    showFeedback('', 'info');
+  }
+
+  if (missionSelect) {
+    missionSelect.onchange = () => {
+      const selectedId = missionSelect.value;
+      fillMissionForm(selectedId);
+    };
+  }
+
+  if (missions.length > 0 && missionSelect) {
+    const firstMissionId =
+      missions[0] && missions[0].mission_id ? String(missions[0].mission_id) : '';
+    if (firstMissionId) {
+      missionSelect.value = firstMissionId;
+      fillMissionForm(firstMissionId);
+    }
+    if (saveButton) {
+      saveButton.disabled = false;
+    }
+  } else if (saveButton) {
+    saveButton.disabled = true;
+    showFeedback('No hay misiones disponibles para editar.', 'info');
+  }
+
+  const missionForm = $('#missionAdminForm');
+  if (missionForm) {
+    missionForm.onsubmit = async (event) => {
+      event.preventDefault();
+      const missionId = missionSelect ? missionSelect.value : '';
+      if (!missionId) {
+        showFeedback('Selecciona una misión antes de guardar.', 'error');
+        return;
+      }
+      const payload = {};
+      if (missionTitleInput) {
+        payload.title = missionTitleInput.value;
+      }
+      const selectedRoles = roleInputs
+        .filter((input) => input.checked)
+        .map((input) => input.value);
+      payload.roles = selectedRoles;
+      let parsedContent = null;
+      try {
+        parsedContent = missionContentInput ? JSON.parse(missionContentInput.value || '{}') : {};
+      } catch (parseError) {
+        showFeedback('El contenido debe ser un JSON válido.', 'error');
+        return;
+      }
+      if (parsedContent === null || typeof parsedContent !== 'object' || Array.isArray(parsedContent)) {
+        showFeedback('El contenido debe ser un objeto JSON.', 'error');
+        return;
+      }
+      payload.content = parsedContent;
+      showFeedback('Guardando cambios...', 'info');
+      try {
+        const res = await apiFetch(`/api/admin/missions/${encodeURIComponent(missionId)}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          throw new Error(backendMessage || 'No pudimos guardar los cambios de la misión.');
+        }
+        const updatedMission = data.mission;
+        if (updatedMission) {
+          const index = missions.findIndex((m) => m.mission_id === missionId);
+          if (index !== -1) {
+            missions[index] = updatedMission;
+          }
+          fillMissionForm(missionId);
+        }
+        showFeedback('Los cambios se guardaron correctamente.', 'success');
+      } catch (saveError) {
+        showFeedback(
+          saveError && saveError.message
+            ? saveError.message
+            : 'Ocurrió un error al guardar los cambios.',
+          'error'
+        );
+      }
+    };
+  }
+
+  const backBtn = $('#missionAdminBackBtn');
+  if (backBtn) {
+    backBtn.onclick = () => {
+      const storedSlug = getStoredSlug();
+      const storedToken = getStoredToken();
+      const storedAdmin = getStoredIsAdmin();
+      if (storedSlug) {
+        storeSession(storedSlug, storedToken, storedAdmin);
+      }
+      loadDashboard();
+    };
+  }
 }
 
 /**
