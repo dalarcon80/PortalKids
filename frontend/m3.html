@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>M3 — Cofres CSV y DataFrames</title>
-  <!--  <link rel="stylesheet" href="assets/css/style.css" />
-  <!--  <link rel="stylesheet" href="assets/css/style.css" />-->
+  <title>M3 — Portal de Misiones BlockCorp</title>
   <link rel="stylesheet" href="assets/css/style-dark.css" />
 </head>
 <body>
@@ -20,11 +18,11 @@
       </div>
       <nav class="portal-header__nav" aria-label="Navegación principal">
         <a class="portal-header__link" href="/index.html">Inicio</a>
-        <a class="portal-header__link"
-           href="#"
-           onclick="setCurrentMission('m3'); clearSession(); renderEnrollForm(); return false;">
-          Inscribirme
-        </a>
+        <a
+          class="portal-header__link"
+          href="#"
+          onclick="setCurrentMission('m3'); clearSession(); renderEnrollForm(); return false;"
+        >Inscribirme</a>
       </nav>
       <div class="portal-header__user">
         <div class="portal-header__user-info">
@@ -32,149 +30,26 @@
           <span class="portal-header__user-name">agente.nova</span>
         </div>
         <div class="portal-header__actions">
-          <button class="portal-header__action portal-header__action--ghost" type="button">
-            Centro de ayuda
-          </button>
-          <button class="portal-header__action" type="button">
-            Cerrar sesión
-          </button>
+          <button class="portal-header__action portal-header__action--ghost" type="button">Centro de ayuda</button>
+          <button class="portal-header__action" type="button">Cerrar sesión</button>
         </div>
       </div>
     </div>
     <div class="portal-header__body">
-      <h1 class="portal-header__heading">M3 — Cofres CSV y DataFrames (pandas)</h1>
+      <h1 class="portal-header__heading" data-mission-title>M3 — Cargando misión…</h1>
     </div>
   </header>
-  <main hidden>
-    <section class="mission">
-      <h2>Historia</h2>
-      <p>El pasillo conduce a una bodega con cofres etiquetados: orders, products, customers. “Estos cofres son CSV”, explica Byte. “Parecen listas, pero esconden tablas. Para leerlos sin perdernos, usaremos una lupa especial: pandas. Con pandas, los cofres se transforman en DataFrames.”</p>
-      <p>Byte coloca cuatro tarjetas: head, shape, dtypes, columns. “Son tus cuatro sentidos para reconocer un DataFrame. head te muestra el comienzo; shape te dice cuántas filas y columnas hay; dtypes revela los tipos; columns te presenta cada campo por su nombre. Si dominas estos cuatro, sabrás qué tienes delante antes de tocarlo.”</p>
-      <h2>¿Para qué sirve?</h2>
-      <p>Cargar y entender datos rápidamente: validar columnas, tipos, tamaño y primeras filas para detectar problemas temprano.</p>
-      <h2>Al final podrás…</h2>
-      <ul>
-        <li>Escribir un programa que lea un CSV real.</li>
-        <li>Imprimir número de columnas, nombres, head(5), shape y dtypes.</li>
-        <li>Guardar notas y un resumen técnico en docs.</li>
-      </ul>
-      <h2>Videos</h2>
-      <ul>
-        <li><a href="https://www.youtube.com/watch?v=WkVpnTgAQLU" target="_blank">Leer y escribir CSV con pandas</a></li>
-        <li><a href="https://www.youtube.com/watch?v=sKQW-oIneFM" target="_blank">Leer CSV con pandas (rápido)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=w7fNwreUsIk" target="_blank">¿Qué es una librería en Python?</a></li>
-        <li><a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.shape.html" target="_blank">DataFrame.shape (referencia oficial)</a></li>
-      </ul>
-      <h2>Investigación — Fichas</h2>
-      <p>Completa 4 fichas: librería, pip, pandas, DataFrame. Para cada ficha incluye:</p>
-      <ul>
-        <li>Definición</li>
-        <li>Ejemplo en este proyecto (¿qué harás con ello hoy?)</li>
-        <li>Error común</li>
-        <li>Fuente vista</li>
-      </ul>
-      <p>Además, añade un mini‑mapa: para qué sirve cada propiedad head/shape/dtypes/columns.</p>
-      <h2>Práctica — Contrato</h2>
-      <p><strong>Entrada:</strong> C:\\MinecraftShop\\minecraft_shop_project\\sources\\orders_seed.csv.</p>
-      <p><strong>Logro:</strong> programa que lee el CSV (si falla por codificación, reintenta con otra) y muestra/guarda lo pedido.</p>
-      <p><strong>Salidas:</strong></p>
-      <ul>
-        <li><code>docs/m3_csv_notes.md</code> (lista de columnas + 1 duda)</li>
-        <li><code>docs/m3_practice_output.txt</code> (resumen con head/shape/dtypes/columns y valores)</li>
-      </ul>
-      <h2>Parte aplicada (detallada)</h2>
-      <p><strong>Situación:</strong> en M4 necesitarás una preview (3 filas) antes de copiar a Bronze.</p>
-      <p><strong>Qué debes hacer hoy:</strong></p>
-      <ul>
-        <li>Deja tu programa parametrizable por ruta (que puedas cambiar el archivo sin alterar la lógica).</li>
-        <li>Asegura que si no existe el archivo o hay error de codificación, el programa explique el problema con un mensaje claro (no stacktrace crudo).</li>
-        <li>Anota en tus notas cómo probarás tu programa con otro CSV del proyecto (si existiera).</li>
-      </ul>
-      <p><strong>Meta de calidad:</strong> tu programa sirve como visor reutilizable.</p>
-      <h2>Entregables</h2>
-      <p>m3_csv_notes.md, m3_practice_output.txt, scripts/m3_explorer.py</p>
-      <h2>Verificación</h2>
-      <p>El script existe y la salida contiene shape y columnas.</p>
-      <h2>Micro‑quiz (5)</h2>
-      <ol>
-        <li>¿Qué es una librería?</li>
-        <li>¿Cómo se lee un CSV en pandas?</li>
-        <li>¿Para qué sirve DataFrame.head()?</li>
-        <li>¿Qué información da DataFrame.shape?</li>
-        <li>¿Cómo verificas los tipos de columna?</li>
-      </ol>
-      <h2>Checklist</h2>
-      <ul>
-        <li>Videos vistos</li>
-        <li>Fichas completadas</li>
-        <li>Script creado y probado</li>
-        <li>Notas documentadas</li>
-      </ul>
-      <h2>Rúbrica (10)</h2>
-      <ul>
-        <li>Fichas (3)</li>
-        <li>Práctica (4)</li>
-        <li>Evidencias (2)</li>
-        <li>Orden (1)</li>
-      </ul>
-      <h2>Errores comunes</h2>
-      <ul>
-        <li>No manejar errores de codificación</li>
-        <li>No revisar shape antes de procesar</li>
-      </ul>
-    </section>
-    <section class="verification">
-      <button id="verifyBtn">Verificar y Entregar Misión</button>
-      <div id="verifyResult"></div>
+
+  <main id="missionMain" hidden>
+    <section class="status-info">
+      <p>Cargando contenido de la misión…</p>
     </section>
   </main>
+
   <script src="assets/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      const missionId = 'm3';
-      const mainContent = document.querySelector('main');
-      const resultDiv = document.getElementById('verifyResult');
-      const verifyBtn = document.getElementById('verifyBtn');
-
-      const showMission = () => {
-        if (mainContent) {
-          mainContent.removeAttribute('hidden');
-        }
-        if (verifyBtn && resultDiv) {
-          verifyBtn.addEventListener('click', () => {
-            verifyMission(missionId, resultDiv);
-          });
-        }
-      };
-
-      const showMessage = (message) => {
-        document.body.innerHTML = `
-          <main class="mission-locked">
-            <section class="status-error">
-              <h2>Acceso restringido</h2>
-              <p>${message}</p>
-              <p><a href="index.html">Volver al portal</a></p>
-            </section>
-          </main>
-        `;
-      };
-
-      try {
-        const access = await ensureMissionUnlocked(missionId);
-        if (access.allowed) {
-          showMission();
-          return;
-        }
-        if (access.action === 'redirect' && access.redirectTo) {
-          window.location.href = access.redirectTo;
-          return;
-        }
-        showMessage(
-          access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.'
-        );
-      } catch (err) {
-        showMessage('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
-      }
+    document.addEventListener('DOMContentLoaded', () => {
+      renderMissionContent('m3');
     });
   </script>
 </body>

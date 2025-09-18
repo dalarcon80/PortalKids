@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>M4 — Bronze: Ingesta y Copia fiel</title>
-   <!--  <link rel="stylesheet" href="assets/css/style.css" />
-  <!--  <link rel="stylesheet" href="assets/css/style.css" />-->
+  <title>M4 — Portal de Misiones BlockCorp</title>
   <link rel="stylesheet" href="assets/css/style-dark.css" />
 </head>
 <body>
@@ -20,11 +18,11 @@
       </div>
       <nav class="portal-header__nav" aria-label="Navegación principal">
         <a class="portal-header__link" href="/index.html">Inicio</a>
-        <a class="portal-header__link"
-           href="#"
-           onclick="setCurrentMission('m4'); clearSession(); renderEnrollForm(); return false;">
-          Inscribirme
-        </a>
+        <a
+          class="portal-header__link"
+          href="#"
+          onclick="setCurrentMission('m4'); clearSession(); renderEnrollForm(); return false;"
+        >Inscribirme</a>
       </nav>
       <div class="portal-header__user">
         <div class="portal-header__user-info">
@@ -32,148 +30,26 @@
           <span class="portal-header__user-name">agente.nova</span>
         </div>
         <div class="portal-header__actions">
-          <button class="portal-header__action portal-header__action--ghost" type="button">
-            Centro de ayuda
-          </button>
-          <button class="portal-header__action" type="button">
-            Cerrar sesión
-          </button>
+          <button class="portal-header__action portal-header__action--ghost" type="button">Centro de ayuda</button>
+          <button class="portal-header__action" type="button">Cerrar sesión</button>
         </div>
       </div>
     </div>
     <div class="portal-header__body">
-      <h1 class="portal-header__heading">M4 — Bronze: Ingesta y Copia fiel</h1>
+      <h1 class="portal-header__heading" data-mission-title>M4 — Cargando misión…</h1>
     </div>
   </header>
-  <main hidden>
-    <section class="mission">
-      <h2>Historia</h2>
-      <p>El pasillo conduce a la Cámara Bronze, un cuarto frío con estantes alineados. “Aquí no se toca nada”, advierte Byte. “Bronze es la foto exacta de lo que llegó. Si cambias una mayúscula, ya no es la misma foto.”</p>
-      <p>“Antes de guardar, haz una preview de 3 filas para estar seguro de lo que copiarás. Después, mueve el archivo tal cual según tu rol y, por último, verifica: cuenta filas y columnas en el origen y en Bronze. Si son iguales, la puerta siguiente se abrirá sin ruidos.”</p>
-      <h2>¿Para qué sirve?</h2>
-      <p>Contar con una copia confiable del origen: sin transformar, con preview y verificación objetiva.</p>
-      <h2>Al final podrás…</h2>
-      <ul>
-        <li>Generar una preview (3 filas).</li>
-        <li>Copiar sin transformar a <code>data/bronze/</code>.</li>
-        <li>Verificar igualdad de filas y columnas (origen vs Bronze).</li>
-      </ul>
-      <h2>Videos</h2>
-      <ul>
-        <li><a href="https://www.youtube.com/watch?v=qFWSAGtD8VQ" target="_blank">Arquitectura Medallion (Bronce/Plata/Oro) — explicación</a></li>
-        <li><a href="https://www.youtube.com/watch?v=mMWhzpGeiKY" target="_blank">Arquitectura de Datos Moderna (Bronce/Plata/Oro)</a></li>
-        <li><a href="https://www.ibm.com/mx-es/think/topics/data-ingestion" target="_blank">¿Qué es la ingesta de datos? (IBM)</a></li>
-      </ul>
-      <h2>Investigación — Fichas</h2>
-      <p>Completa 3 fichas: ingesta, copia fiel, preview. Para cada ficha incluye:</p>
-      <ul>
-        <li>Definición</li>
-        <li>Ejemplo en este proyecto (qué vas a copiar)</li>
-        <li>Error común (por ejemplo, transformar en Bronze)</li>
-        <li>Fuente vista</li>
-      </ul>
-      <h2>Práctica — Contrato</h2>
-      <p><strong>Entrada:</strong> sources/orders_seed.csv.</p>
-      <p><strong>Logro:</strong></p>
-      <ul>
-        <li><code>reports/m4_preview.txt</code> (3 filas con nombres)</li>
-        <li>Copia fiel a: Ventas → <code>data/bronze/orders_ventas.csv</code> · Operaciones → <code>data/bronze/orders_ops.csv</code></li>
-        <li><code>reports/m4_verify.txt</code> con src_rows/dest_rows/rows_equal y src_cols/dest_cols/cols_equal</li>
-      </ul>
-      <h2>Parte aplicada (detallada)</h2>
-      <p><strong>Situación:</strong> Bronze es el punto de verdad del proyecto; cualquier error aquí se arrastra a Silver y Gold.</p>
-      <p><strong>Qué debes hacer:</strong></p>
-      <ul>
-        <li>Compara manualmente (además del archivo de verificación) que los encabezados del destino sean idénticos a los del origen (orden y escritura).</li>
-        <li>Repite el proceso si detectas diferencias: la copia debe ser exacta (sin cambios de mayúsculas, separadores ni tipos).</li>
-        <li>Documenta en <code>m4_notes.md</code> si encontraste inconsistencias (1–2 líneas) y cómo las resolviste.</li>
-      </ul>
-      <p><strong>Criterio de aceptación:</strong> rows_equal=True y cols_equal=True + archivos no vacíos.</p>
-      <h2>Entregables</h2>
-      <p>reports/m4_preview.txt, orders_[rol].csv en data/bronze, reports/m4_verify.txt, m4_notes.md.</p>
-      <h2>Verificación</h2>
-      <p>Archivos de preview y verificación existen.</p>
-      <h2>Micro‑quiz (5)</h2>
-      <ol>
-        <li>¿Qué es Bronze en la arquitectura de datos?</li>
-        <li>¿Por qué no se transforma la información en Bronze?</li>
-        <li>¿Qué significa copia fiel?</li>
-        <li>¿Por qué es importante la preview antes de copiar?</li>
-        <li>¿Cómo verificas que la copia es exacta?</li>
-      </ol>
-      <h2>Checklist</h2>
-      <ul>
-        <li>Videos vistos</li>
-        <li>Fichas completadas</li>
-        <li>Preview generada</li>
-        <li>Archivo copiado correctamente</li>
-        <li>Verificación realizada</li>
-      </ul>
-      <h2>Rúbrica (10)</h2>
-      <ul>
-        <li>Fichas (3)</li>
-        <li>Práctica (4)</li>
-        <li>Evidencias (2)</li>
-        <li>Orden (1)</li>
-      </ul>
-      <h2>Errores comunes</h2>
-      <ul>
-        <li>Modificar el archivo al copiar</li>
-        <li>Olvidar la verificación de filas y columnas</li>
-      </ul>
-    </section>
-    <section class="verification">
-      <button id="verifyBtn">Verificar y Entregar Misión</button>
-      <div id="verifyResult"></div>
+
+  <main id="missionMain" hidden>
+    <section class="status-info">
+      <p>Cargando contenido de la misión…</p>
     </section>
   </main>
+
   <script src="assets/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      const missionId = 'm4';
-      const mainContent = document.querySelector('main');
-      const resultDiv = document.getElementById('verifyResult');
-      const verifyBtn = document.getElementById('verifyBtn');
-
-      const showMission = () => {
-        if (mainContent) {
-          mainContent.removeAttribute('hidden');
-        }
-        if (verifyBtn && resultDiv) {
-          verifyBtn.addEventListener('click', () => {
-            verifyMission(missionId, resultDiv);
-          });
-        }
-      };
-
-      const showMessage = (message) => {
-        document.body.innerHTML = `
-          <main class="mission-locked">
-            <section class="status-error">
-              <h2>Acceso restringido</h2>
-              <p>${message}</p>
-              <p><a href="index.html">Volver al portal</a></p>
-            </section>
-          </main>
-        `;
-      };
-
-      try {
-        const access = await ensureMissionUnlocked(missionId);
-        if (access.allowed) {
-          showMission();
-          return;
-        }
-        if (access.action === 'redirect' && access.redirectTo) {
-          window.location.href = access.redirectTo;
-          return;
-        }
-        showMessage(
-          access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.'
-        );
-      } catch (err) {
-        showMessage('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
-      }
+    document.addEventListener('DOMContentLoaded', () => {
+      renderMissionContent('m4');
     });
   </script>
 </body>

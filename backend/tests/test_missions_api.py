@@ -4,8 +4,12 @@ import os
 from pathlib import Path
 
 import pytest
+import werkzeug
 
 from backend import app as backend_app
+
+if not hasattr(werkzeug, "__version__"):
+    werkzeug.__version__ = "0"
 
 
 @pytest.fixture()
@@ -142,3 +146,18 @@ def test_admin_mission_requires_admin(sqlite_backend):
         headers=headers,
     )
     assert response.status_code == 403
+
+
+def test_public_mission_detail_includes_display_html(sqlite_backend):
+    client = backend_app.app.test_client()
+    response = client.get("/api/missions/m1")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload is not None
+    mission = payload.get("mission")
+    assert mission and mission.get("mission_id") == "m1"
+    content = mission.get("content") if isinstance(mission, dict) else None
+    assert isinstance(content, dict)
+    assert "display_html" in content
+    assert isinstance(content.get("display_html"), str)
+    assert "<section" in content.get("display_html", "")

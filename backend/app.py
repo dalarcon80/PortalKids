@@ -795,6 +795,91 @@ def _seed_missions_from_file(cursor, is_sqlite: bool) -> None:
             )
 
 
+def _load_contract_payload() -> dict[str, dict]:
+    if not os.path.exists(CONTRACTS_PATH):
+        return {}
+    try:
+        with open(CONTRACTS_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as exc:
+        logger.error("Failed to decode missions contracts at %s: %s", CONTRACTS_PATH, exc)
+        return {}
+    if not isinstance(payload, dict):
+        logger.error(
+            "The missions contract file %s must contain a JSON object at the top level.",
+            CONTRACTS_PATH,
+        )
+        return {}
+    normalized: dict[str, dict] = {}
+    for key, value in payload.items():
+        if isinstance(value, dict):
+            normalized[str(key)] = value
+    return normalized
+
+
+def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
+    contracts = _load_contract_payload()
+    if not contracts:
+        return
+    try:
+        cursor.execute("SELECT mission_id, content_json FROM missions")
+        rows = cursor.fetchall()
+    except Exception as exc:
+        logger.error("Failed to inspect stored missions for presentation content: %s", exc)
+        return
+    timestamp = _format_timestamp(datetime.utcnow())
+    for row in rows:
+        mission_id_raw = row.get("mission_id") if isinstance(row, Mapping) else None
+        if isinstance(mission_id_raw, (bytes, bytearray)):
+            mission_id_raw = mission_id_raw.decode("utf-8", errors="ignore")
+        mission_id = str(mission_id_raw or "").strip()
+        if not mission_id:
+            continue
+        content_raw = row.get("content_json") if isinstance(row, Mapping) else None
+        if isinstance(content_raw, (bytes, bytearray)):
+            content_raw = content_raw.decode("utf-8", errors="ignore")
+        if not isinstance(content_raw, str) or not content_raw.strip():
+            continue
+        try:
+            content_payload = json.loads(content_raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(content_payload, dict) or "display_html" in content_payload:
+            continue
+        contract_payload = contracts.get(mission_id) or {}
+        display_html = contract_payload.get("display_html") if isinstance(contract_payload, Mapping) else ""
+        if not isinstance(display_html, str):
+            display_html = ""
+        content_payload["display_html"] = display_html
+        try:
+            encoded = json.dumps(content_payload, ensure_ascii=False)
+        except TypeError:
+            continue
+        params = (encoded, timestamp, mission_id)
+        if is_sqlite:
+            cursor.execute(
+                """
+                UPDATE missions
+                SET content_json = %s,
+                    updated_at = %s
+                WHERE mission_id = %s
+                """,
+                params,
+            )
+        else:
+            cursor.execute(
+                """
+                UPDATE missions
+                SET content_json = %s,
+                    updated_at = %s
+                WHERE mission_id = %s
+                """,
+                params,
+            )
+
+
 def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
     try:
         cursor.execute("SELECT COUNT(*) AS count FROM missions")
@@ -809,9 +894,9 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
         count = int(count_value or 0)
     except (TypeError, ValueError):
         count = 0
-    if count > 0:
-        return
-    _seed_missions_from_file(cursor, is_sqlite)
+    if count == 0:
+        _seed_missions_from_file(cursor, is_sqlite)
+    _ensure_presentations_in_storage(cursor, is_sqlite)
 
 
 def _fetch_missions_from_db(mission_id: str | None = None) -> List[dict]:
@@ -1845,6 +1930,14 @@ def api_public_missions():
                 filtered.append(mission)
         missions = filtered
     return jsonify({"missions": missions})
+
+
+@app.route("/api/missions/<mission_id>", methods=["GET"])
+def api_public_mission_detail(mission_id: str):
+    mission = _get_mission_by_id(mission_id)
+    if not mission:
+        return jsonify({"error": "Misión no encontrada."}), 404
+    return jsonify({"mission": mission})
 
 
 @app.route("/api/verify_mission", methods=["POST"])

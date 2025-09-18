@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>M5 — Silver: Limpieza y Tipos</title>
-  <!-- <link rel="stylesheet" href="assets/css/style.css" />
-    <!--  <link rel="stylesheet" href="assets/css/style.css" />-->
+  <title>M5 — Portal de Misiones BlockCorp</title>
   <link rel="stylesheet" href="assets/css/style-dark.css" />
 </head>
 <body>
@@ -20,11 +18,11 @@
       </div>
       <nav class="portal-header__nav" aria-label="Navegación principal">
         <a class="portal-header__link" href="/index.html">Inicio</a>
-        <a class="portal-header__link"
-           href="#"
-           onclick="setCurrentMission('m5'); clearSession(); renderEnrollForm(); return false;">
-          Inscribirme
-        </a>
+        <a
+          class="portal-header__link"
+          href="#"
+          onclick="setCurrentMission('m5'); clearSession(); renderEnrollForm(); return false;"
+        >Inscribirme</a>
       </nav>
       <div class="portal-header__user">
         <div class="portal-header__user-info">
@@ -32,150 +30,26 @@
           <span class="portal-header__user-name">agente.nova</span>
         </div>
         <div class="portal-header__actions">
-          <button class="portal-header__action portal-header__action--ghost" type="button">
-            Centro de ayuda
-          </button>
-          <button class="portal-header__action" type="button">
-            Cerrar sesión
-          </button>
+          <button class="portal-header__action portal-header__action--ghost" type="button">Centro de ayuda</button>
+          <button class="portal-header__action" type="button">Cerrar sesión</button>
         </div>
       </div>
     </div>
     <div class="portal-header__body">
-      <h1 class="portal-header__heading">M5 — Silver: Limpieza y Tipos</h1>
+      <h1 class="portal-header__heading" data-mission-title>M5 — Cargando misión…</h1>
     </div>
   </header>
-  <main hidden>
-    <section class="mission">
-      <h2>Historia</h2>
-      <p>La siguiente puerta se abre a un taller plateado. “Silver es donde quitamos lo que estorba”, dice Byte. “Recortamos espacios, corregimos tipos y eliminamos duplicados. No adornamos los datos: los dejamos confiables para unir en Gold.”</p>
-      <h2>¿Para qué sirve?</h2>
-      <p>Dejar los datos consistentes: texto limpio, tipos correctos, sin registros repetidos.</p>
-      <h2>Al final podrás…</h2>
-      <ul>
-        <li>Escribir un programa que limpie textos y convierta tipos.</li>
-        <li>Contar y eliminar duplicados con criterio.</li>
-        <li>Guardar CSV limpios y un resumen de cambios.</li>
-      </ul>
-      <h2>Videos</h2>
-      <ul>
-        <li><a href="https://www.youtube.com/watch?v=8tuyYql2duA" target="_blank">Método strip() (limpieza de espacios)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=BNLhP_r8pxU" target="_blank">to_datetime (convertir a fecha)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=BP_vv_NI-LM" target="_blank">Eliminar duplicados (drop_duplicates)</a></li>
-        <li><a href="https://www.youtube.com/watch?v=1HhV0JZs4qY" target="_blank">Regex para limpiar “basura” (opcional)</a></li>
-      </ul>
-      <h2>Investigación — Fichas</h2>
-      <p>Completa 3 fichas: limpieza de texto, conversiones de tipos (quantity→int, order_date→datetime), duplicados (criterio). Para cada ficha incluye:</p>
-      <ul>
-        <li>Definición</li>
-        <li>Ejemplo en este proyecto (qué columna limpiarás/convertirás)</li>
-        <li>Error común (por ejemplo, perder datos por conversión)</li>
-        <li>Fuente vista</li>
-      </ul>
-      <h2>Práctica — Contrato</h2>
-      <p><strong>Entrada:</strong> Bronze (o sources/ si no existe Bronze).</p>
-      <p><strong>Logro:</strong></p>
-      <ul>
-        <li>Cargar orders_[ventas|ops].csv (más opcionalmente products_seed.csv, customers_seed.csv)</li>
-        <li>Aplicar strip, convertir tipos, contar y eliminar duplicados (explica el criterio)</li>
-        <li>Guardar por rol en data/silver/ (hasta 3 CSV)</li>
-        <li>Escribir <code>reports/m5_limpieza_resumen.txt</code> (≥2 reglas aplicadas + # duplicados)</li>
-      </ul>
-      <h2>Parte aplicada (detallada)</h2>
-      <p><strong>Situación:</strong> Gold dependerá de que tipos y textos estén correctos.</p>
-      <p><strong>Qué debes hacer:</strong></p>
-      <ul>
-        <li>Justifica en el resumen por qué hiciste cada conversión (por ejemplo, para poder sumar quantity o ordenar por order_date).</li>
-        <li>Si alguna fecha no parseó, déjala como NaT y cuenta cuántas quedaron así; anótalo.</li>
-        <li>Si eliminas duplicados, explica el criterio (duplicado completo o por columnas clave) y cuántos quitaste.</li>
-      </ul>
-      <p><strong>Criterio de aceptación:</strong> CSV con encabezados correctos, tipos adecuados y resumen cuantificado.</p>
-      <h2>Entregables</h2>
-      <p>CSV limpios en data/silver, reports/m5_limpieza_resumen.txt, docs/m5_notes.md.</p>
-      <h2>Verificación</h2>
-      <p>Notas contienen keywords de limpieza, tipos y duplicados.</p>
-      <h2>Micro‑quiz (5)</h2>
-      <ol>
-        <li>¿Qué hace el método strip()?</li>
-        <li>¿Por qué convertir quantity a int?</li>
-        <li>¿Cómo convertir una columna a fecha en pandas?</li>
-        <li>¿Qué criterios usar para eliminar duplicados?</li>
-        <li>¿Qué pasa si no limpias textos antes de unir datos?</li>
-      </ol>
-      <h2>Checklist</h2>
-      <ul>
-        <li>Videos vistos</li>
-        <li>Fichas completadas</li>
-        <li>Programa de limpieza creado</li>
-        <li>CSV limpios generados</li>
-        <li>Resumen escrito</li>
-      </ul>
-      <h2>Rúbrica (10)</h2>
-      <ul>
-        <li>Fichas (3)</li>
-        <li>Práctica (4)</li>
-        <li>Evidencias (2)</li>
-        <li>Orden (1)</li>
-      </ul>
-      <h2>Errores comunes</h2>
-      <ul>
-        <li>No aplicar strip y dejar espacios al unir datos</li>
-        <li>Conversión de tipos fallida que provoca NaNs</li>
-        <li>Eliminar duplicados sin definir criterio claro</li>
-      </ul>
-    </section>
-    <section class="verification">
-      <button id="verifyBtn">Verificar y Entregar Misión</button>
-      <div id="verifyResult"></div>
+
+  <main id="missionMain" hidden>
+    <section class="status-info">
+      <p>Cargando contenido de la misión…</p>
     </section>
   </main>
+
   <script src="assets/js/main.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      const missionId = 'm5';
-      const mainContent = document.querySelector('main');
-      const resultDiv = document.getElementById('verifyResult');
-      const verifyBtn = document.getElementById('verifyBtn');
-
-      const showMission = () => {
-        if (mainContent) {
-          mainContent.removeAttribute('hidden');
-        }
-        if (verifyBtn && resultDiv) {
-          verifyBtn.addEventListener('click', () => {
-            verifyMission(missionId, resultDiv);
-          });
-        }
-      };
-
-      const showMessage = (message) => {
-        document.body.innerHTML = `
-          <main class="mission-locked">
-            <section class="status-error">
-              <h2>Acceso restringido</h2>
-              <p>${message}</p>
-              <p><a href="index.html">Volver al portal</a></p>
-            </section>
-          </main>
-        `;
-      };
-
-      try {
-        const access = await ensureMissionUnlocked(missionId);
-        if (access.allowed) {
-          showMission();
-          return;
-        }
-        if (access.action === 'redirect' && access.redirectTo) {
-          window.location.href = access.redirectTo;
-          return;
-        }
-        showMessage(
-          access.message || 'Debes completar la misión anterior antes de continuar con esta etapa.'
-        );
-      } catch (err) {
-        showMessage('No pudimos validar tu acceso. Abre la misión desde el portal principal.');
-      }
+    document.addEventListener('DOMContentLoaded', () => {
+      renderMissionContent('m5');
     });
   </script>
 </body>
