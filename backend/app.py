@@ -1,5 +1,6 @@
 import base64
 import binascii
+import heapq
 import json
 import logging
 import os
@@ -1834,6 +1835,58 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
 
 
 def _fetch_missions_from_db(mission_id: str | None = None) -> List[dict]:
+    def _sort_missions_by_dependencies(missions: List[dict]) -> List[dict]:
+        mission_map: dict[str, dict] = {}
+        unidentified: List[dict] = []
+        for mission in missions:
+            mission_id_value = str(mission.get("mission_id") or "").strip()
+            if mission_id_value:
+                mission_map[mission_id_value] = mission
+            else:
+                unidentified.append(mission)
+
+        indegree: dict[str, int] = {mission_id_key: 0 for mission_id_key in mission_map}
+        adjacency: dict[str, set[str]] = {mission_id_key: set() for mission_id_key in mission_map}
+
+        for mission_id_key, mission in mission_map.items():
+            content = mission.get("content") if isinstance(mission, Mapping) else {}
+            if isinstance(content, Mapping):
+                predecessors_raw = content.get("predecessors")
+            else:
+                predecessors_raw = None
+            if not isinstance(predecessors_raw, Iterable) or isinstance(predecessors_raw, (str, bytes)):
+                continue
+
+            seen_predecessors: set[str] = set()
+            for predecessor in predecessors_raw:
+                predecessor_id = str(predecessor or "").strip()
+                if not predecessor_id or predecessor_id in seen_predecessors:
+                    continue
+                seen_predecessors.add(predecessor_id)
+                if predecessor_id in mission_map:
+                    adjacency.setdefault(predecessor_id, set()).add(mission_id_key)
+                    indegree[mission_id_key] += 1
+
+        zero_indegree = [mission_id_key for mission_id_key, degree in indegree.items() if degree == 0]
+        heapq.heapify(zero_indegree)
+        ordered_ids: List[str] = []
+
+        while zero_indegree:
+            current_id = heapq.heappop(zero_indegree)
+            ordered_ids.append(current_id)
+            for dependent in adjacency.get(current_id, ()):  # pragma: no cover - defensive default
+                indegree[dependent] -= 1
+                if indegree[dependent] == 0:
+                    heapq.heappush(zero_indegree, dependent)
+
+        if len(ordered_ids) < len(mission_map):
+            remaining = sorted(set(mission_map) - set(ordered_ids))
+            ordered_ids.extend(remaining)
+
+        ordered_missions = [mission_map[mission_id_key] for mission_id_key in ordered_ids]
+        ordered_missions.extend(unidentified)
+        return ordered_missions
+
     try:
         init_db()
         with get_db_connection() as conn:
@@ -1868,6 +1921,8 @@ def _fetch_missions_from_db(mission_id: str | None = None) -> List[dict]:
             missions.append(_serialize_mission_row(row, roles_catalog))
         except Exception as exc:  # pragma: no cover - defensive serialization
             logger.error("Failed to serialize mission row: %s", exc)
+    if mission_id is None:
+        missions = _sort_missions_by_dependencies(missions)
     return missions
 
 
