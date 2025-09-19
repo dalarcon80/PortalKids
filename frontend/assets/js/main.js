@@ -1615,7 +1615,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="purpose"
-                placeholder="Presenta la misión y el escenario principal."
+                placeholder="ES: Titula la misión y resume la narrativa. Ej.: <strong>Rescate Lunar</strong> — 'Ayuda a la tripulación perdida'.&#10;EN: Title the mission and share the hook. E.g., <em>Lunar Rescue</em> — 'Guide the stranded crew.'"
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1625,7 +1625,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="outcome"
-                placeholder="Enumera los objetivos medibles que la persona deberá lograr."
+                placeholder="ES: Enumera objetivos medibles (Markdown). Ej.:&#10;- Entregar mapa actualizado&#10;- Validar rutas seguras&#10;EN: List measurable outcomes. E.g.,&#10;- Submit updated map&#10;- Confirm safe paths"
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1635,7 +1635,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="history"
-                placeholder="Describe el contexto narrativo que introduce la misión."
+                placeholder="ES: Da contexto breve y motivos. Ej.:&#10;<p>Hace 3 días una tormenta dejó aislada a la base.</p>&#10;- Base Alpha sin suministros&#10;- Ruta bloqueada por hielo&#10;EN: Provide setting and stakes. E.g.,&#10;<p>Three days ago a storm isolated the base.</p>"
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1645,7 +1645,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="resources"
-                placeholder="Incluye enlaces y materiales recomendados para prepararse."
+                placeholder="ES: Añade recursos clave en Markdown. Ej.:&#10;- [Guía rápida](https://ejemplo.com)&#10;- Video intro (YouTube)&#10;EN: Add prep resources. E.g.,&#10;- [Quick guide](https://example.com)&#10;- Intro video (YouTube)"
               ></textarea>
             </div>
             <fieldset class="admin-field admin-field--fieldset">
@@ -1657,7 +1657,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                   class="admin-field__control admin-field__control--textarea"
                   rows="3"
                   data-mission-extra="practice_contract_entry"
-                  placeholder="Describe cómo se presenta la práctica y qué información recibe la persona."
+                  placeholder="ES: Cuenta cómo inicia la práctica y el brief recibido. Ej.:&#10;<p>Recibes un mensaje del comandante con el plan inicial.</p>&#10;EN: Explain the entry point and briefing. E.g.,&#10;<p>You receive a note from command outlining the plan.</p>"
                 ></textarea>
               </div>
               <div class="admin-field">
@@ -1667,7 +1667,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                   class="admin-field__control admin-field__control--textarea"
                   rows="3"
                   data-mission-extra="practice_contract_steps"
-                  placeholder="Detalla las acciones concretas que deberá ejecutar la persona."
+                  placeholder="ES: Detalla pasos numerados. Ej.:&#10;1. Analiza el informe&#10;2. Diseña respuesta&#10;EN: List numbered actions. E.g.,&#10;1. Review report&#10;2. Draft response"
                 ></textarea>
               </div>
               <div class="admin-field">
@@ -1677,7 +1677,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                   class="admin-field__control admin-field__control--textarea"
                   rows="3"
                   data-mission-extra="practice_contract_expected"
-                  placeholder="Describe el resultado o criterio de éxito al finalizar la práctica."
+                  placeholder="ES: Explica resultado observable. Ej.: <strong>Checklist validada por mentor.</strong>&#10;EN: Describe success criteria. E.g., <em>Checklist signed off by mentor.</em>"
                 ></textarea>
               </div>
               <div class="admin-field">
@@ -1687,7 +1687,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                   class="admin-field__control admin-field__control--textarea"
                   rows="3"
                   data-mission-extra="practice_contract_outputs"
-                  placeholder="Enumera los archivos o artefactos que se deberán entregar."
+                  placeholder="ES: Enumera archivos a entregar. Ej.:&#10;- reports/brief.md&#10;- media/evidencia.png&#10;EN: List output files. E.g.,&#10;- reports/brief.md&#10;- media/evidence.png"
                 ></textarea>
               </div>
             </fieldset>
@@ -1698,7 +1698,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="research"
-                placeholder="Resume la investigación previa que respalda la misión."
+                placeholder="ES: Resume hallazgos clave. Ej.:&#10;<blockquote>Estudio 2024: 87% de éxito en rescates.</blockquote>&#10;EN: Capture supporting research. E.g.,&#10;<blockquote>2024 study: 87% rescue success.</blockquote>"
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1708,7 +1708,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="micro_quiz"
-                placeholder="Redacta preguntas y respuestas. Entrega en reports/m#_quiz.txt."
+                placeholder="ES: Redacta preguntas y respuestas breves. Ej.:&#10;Q: ¿Qué sensor calibras?&#10;A: LIDAR de drones.&#10;EN: Write mini Q&A items. E.g.,&#10;Q: Which sensor is tuned?&#10;A: Drone LIDAR."
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1718,7 +1718,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="pr_checklist"
-                placeholder="Define la lista de verificación. Entrega en reports/m#_pr_checklist.md."
+                placeholder="ES: Define checklist Markdown. Ej.:&#10;- [ ] Probé scripts&#10;- [ ] Actualicé README&#10;EN: Provide PR checklist. E.g.,&#10;- [ ] Ran tests&#10;- [ ] Updated README"
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1728,7 +1728,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="deliverables"
-                placeholder="Describe los entregables que debe entregar la persona."
+                placeholder="ES: Describe entregables obligatorios. Ej.:&#10;- Informe PDF&#10;- Demo grabada (link)&#10;EN: Detail required deliverables. E.g.,&#10;- PDF report&#10;- Recorded demo (link)"
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1738,7 +1738,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="evaluation_rubric"
-                placeholder="Explica los criterios de evaluación y asigna puntos (reports/m#_rubric.md)."
+                placeholder="ES: Asigna criterios con puntaje /10. Ej.:&#10;- 4 pts Documentación clara&#10;- 3 pts Evidencia técnica&#10;- 3 pts Presentación&#10;EN: Score criteria out of 10. E.g.,&#10;- 4 pts Clear docs&#10;- 3 pts Technical proof&#10;- 3 pts Presentation"
               ></textarea>
             </div>
             <div class="admin-field">
@@ -1748,7 +1748,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="review"
-                placeholder="Detalla el proceso de revisión y los siguientes pasos."
+                placeholder="ES: Explica revisión final y siguientes pasos. Ej.:&#10;<p>Mentor revisa checklist y agenda retro.</p>&#10;EN: Outline review flow and follow-up. E.g.,&#10;<p>Mentor checks checklist and schedules retro.</p>"
               ></textarea>
             </div>
             <div class="admin-field admin-field--details">
