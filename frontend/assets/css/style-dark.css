@@ -653,6 +653,11 @@ button#logoutBtn:hover {
   gap: 1rem;
 }
 
+.admin-card--list {
+  width: 100%;
+  max-width: 100%;
+}
+
 .admin-card__title {
   margin: 0;
   font-size: 1.05rem;
@@ -831,8 +836,16 @@ button#logoutBtn:hover {
   color: #facc15;
 }
 
+.admin-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .admin-table table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
 }
 
