@@ -60,16 +60,47 @@ except ImportError:  # pragma: no cover - allow "python backend/app.py"
 
 try:  # pragma: no cover - fallback for direct execution
     from .llm import (
+        APIConnectionError,
+        APIError,
         LLMConfigurationError,
         LLMEvaluationError,
+        OpenAI,
         OpenAILLMClient,
+        RateLimitError,
     )
 except ImportError:  # pragma: no cover - allow "python backend/app.py"
     from llm import (  # type: ignore
+        APIConnectionError,
+        APIError,
         LLMConfigurationError,
         LLMEvaluationError,
+        OpenAI,
         OpenAILLMClient,
+        RateLimitError,
     )
+
+try:  # pragma: no cover - optional dependency
+    import requests  # type: ignore
+    _REQUESTS_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    _REQUESTS_AVAILABLE = False
+
+    class _MissingRequestsException(RuntimeError):
+        """Raised when the optional 'requests' dependency is unavailable."""
+
+    class _MissingRequestsSession:
+        def __init__(self, *args, **kwargs) -> None:
+            raise _MissingRequestsException(
+                "La librería opcional 'requests' es necesaria para validar credenciales de GitHub."
+            )
+
+    class _MissingRequestsModule:
+        RequestException = _MissingRequestsException
+
+        def Session(self, *args, **kwargs):  # type: ignore[override]
+            return _MissingRequestsSession(*args, **kwargs)
+
+    requests = _MissingRequestsModule()  # type: ignore[assignment]
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -376,6 +407,140 @@ def set_service_setting(key: str, value: Optional[str]) -> None:
                     _store_service_setting(cur, normalized, stored_value, bool(definition.get("secret")))
     except Exception as exc:
         raise RuntimeError(f"Failed to persist service setting {normalized}: {exc}") from exc
+
+
+class IntegrationValidationError(ValueError):
+    """Raised when an external integration fails validation."""
+
+    def __init__(self, message: str, field: str | None = None) -> None:
+        super().__init__(message)
+        self.field = field
+
+
+def _effective_setting_value(key: str, value: Optional[str]) -> Optional[str]:
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if cleaned:
+            return cleaned
+    elif value is not None:
+        return str(value)
+    definition = _get_setting_definition(key)
+    if definition:
+        default_value = definition.get("default")
+        if isinstance(default_value, str):
+            default_clean = default_value.strip()
+            if default_clean:
+                return default_clean
+    return None
+
+
+def _build_effective_settings(settings: Mapping[str, Optional[str]]) -> Dict[str, Optional[str]]:
+    effective: Dict[str, Optional[str]] = {}
+    for key in SERVICE_SETTINGS_DEFINITIONS:
+        effective[key] = _effective_setting_value(key, settings.get(key))
+    return effective
+
+
+def _validate_github_credentials(settings: Mapping[str, Optional[str]]) -> None:
+    token = settings.get("github_token")
+    if not token:
+        return
+    if not _REQUESTS_AVAILABLE:
+        raise IntegrationValidationError(
+            "La librería opcional 'requests' es necesaria para validar las credenciales de GitHub. Instálala e intenta nuevamente.",
+            field="github_token",
+        )
+    api_url = (settings.get("github_api_url") or "https://api.github.com").rstrip("/")
+    timeout_raw = settings.get("github_timeout")
+    timeout = 10.0
+    if timeout_raw not in (None, ""):
+        try:
+            timeout = float(timeout_raw)
+        except (TypeError, ValueError):
+            timeout = 10.0
+    session = requests.Session()
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "User-Agent": os.environ.get("GITHUB_USER_AGENT", "PortalKidsVerifier/1.0"),
+    }
+    try:
+        session.headers.update(headers)  # type: ignore[call-arg]
+    except AttributeError:
+        session.headers = headers  # type: ignore[assignment]
+    url = f"{api_url}/user/repos"
+    try:
+        response = session.get(url, params={"per_page": 1}, timeout=timeout)
+    except requests.RequestException as exc:
+        raise IntegrationValidationError(
+            f"No se pudo conectar con GitHub usando el token proporcionado: {exc}",
+            field="github_token",
+        ) from exc
+    finally:
+        try:
+            session.close()
+        except Exception:  # pragma: no cover - best effort
+            pass
+    status_code = getattr(response, "status_code", 0)
+    if status_code >= 400:
+        try:
+            payload = response.json()
+            details = payload.get("message") or response.text
+        except ValueError:
+            details = response.text
+        details = (details or "").strip() or "Error desconocido"
+        if status_code == 401:
+            reason = "GitHub rechazó el token. Verifica que sea válido y tenga permisos de lectura."
+        elif status_code == 403:
+            reason = "GitHub denegó el acceso con el token proporcionado. Revisa los permisos y vigencia."
+        else:
+            reason = "GitHub devolvió un error al validar el token."
+        raise IntegrationValidationError(
+            f"{reason} Detalles: {details} (HTTP {status_code}).",
+            field="github_token",
+        )
+
+
+def _validate_openai_credentials(settings: Mapping[str, Optional[str]]) -> None:
+    api_key = settings.get("openai_api_key")
+    if not api_key:
+        return
+    timeout_raw = settings.get("openai_timeout")
+    timeout: float | None = None
+    if timeout_raw not in (None, ""):
+        try:
+            timeout = float(timeout_raw)
+        except (TypeError, ValueError):
+            timeout = None
+    try:
+        client = OpenAI(api_key=api_key)
+        if timeout is not None:
+            with_options = getattr(client, "with_options", None)
+            if callable(with_options):
+                client = with_options(timeout=timeout)
+        client.models.list()
+    except RateLimitError as exc:
+        raise IntegrationValidationError(
+            "OpenAI reportó un límite de uso excedido. Espera unos minutos o usa otra clave.",
+            field="openai_api_key",
+        ) from exc
+    except APIConnectionError as exc:
+        raise IntegrationValidationError(
+            "No se pudo conectar con OpenAI para validar la clave. Revisa tu conexión o intenta nuevamente.",
+            field="openai_api_key",
+        ) from exc
+    except APIError as exc:
+        message = getattr(exc, "message", "") or str(exc) or "Error desconocido"
+        message = str(message).strip()
+        raise IntegrationValidationError(
+            "OpenAI rechazó la clave proporcionada. Verifica el valor ingresado. "
+            f"Detalles: {message}.",
+            field="openai_api_key",
+        ) from exc
+    except Exception as exc:
+        raise IntegrationValidationError(
+            "No se pudo validar la clave de OpenAI. Revisa los datos ingresados y vuelve a intentarlo.",
+            field="openai_api_key",
+        ) from exc
 
 
 def _build_admin_setting_payload() -> List[dict]:
@@ -2775,10 +2940,31 @@ def api_admin_update_integrations():
     if not normalized_updates:
         settings = list_service_settings_for_admin()
         return jsonify({"settings": settings, "updated_keys": []})
-    applied: List[str] = []
+    current_settings = load_service_settings(SERVICE_SETTINGS_DEFINITIONS.keys())
+    pending_settings: Dict[str, Optional[str]] = {}
+    for setting_key in SERVICE_SETTINGS_DEFINITIONS:
+        pending_settings[setting_key] = current_settings.get(setting_key)
+    prepared_updates: List[Tuple[str, Optional[str]]] = []
     for key, value in normalized_updates:
         try:
-            set_service_setting(key, value)
+            cleaned_value = _validate_service_setting_input(key, value)
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "field": key}), 400
+        pending_settings[key] = cleaned_value
+        prepared_updates.append((key, cleaned_value))
+    effective_settings = _build_effective_settings(pending_settings)
+    try:
+        _validate_github_credentials(effective_settings)
+        _validate_openai_credentials(effective_settings)
+    except IntegrationValidationError as exc:
+        payload = {"error": str(exc)}
+        if exc.field:
+            payload["field"] = exc.field
+        return jsonify(payload), 400
+    applied: List[str] = []
+    for key, cleaned_value in prepared_updates:
+        try:
+            set_service_setting(key, cleaned_value)
         except ValueError as exc:
             return jsonify({"error": str(exc), "field": key}), 400
         except RuntimeError as exc:
