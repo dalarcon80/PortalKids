@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel de Integraciones - Portal de Misiones</title>
+    <link rel="stylesheet" href="../assets/css/style-dark.css" />
+  </head>
+  <body>
+    <header class="portal-header">
+      <div class="portal-header__top">
+        <div class="portal-header__brand">
+          <span class="portal-header__logo" aria-hidden="true">BC</span>
+          <div class="portal-header__brand-text">
+            <span class="portal-header__brand-title">Portal de Misiones</span>
+            <span class="portal-header__brand-subtitle">Administración</span>
+          </div>
+        </div>
+        <nav class="portal-header__nav" aria-label="Navegación principal">
+          <a class="portal-header__link" href="../index.html" data-action="login">Portal</a>
+          <a class="portal-header__link portal-header__link--active" href="#" data-action="admin" aria-current="page">Integraciones</a>
+          <a class="portal-header__link" href="#" data-action="login">Ingresar</a>
+        </nav>
+      </div>
+      <div class="portal-header__body">
+        <h1 class="portal-header__heading">Panel de integraciones externas</h1>
+      </div>
+    </header>
+    <main class="admin-shell">
+      <section class="admin-callout">
+        <p>
+          Configura aquí las credenciales de GitHub y OpenAI usadas por el portal. Las credenciales se validan automáticamente antes de guardarse.
+        </p>
+        <p>
+          Asegúrate de contar con los permisos adecuados y de ejecutar las pruebas automáticas sugeridas en la documentación antes de confirmar cambios.
+        </p>
+      </section>
+      <div id="adminGlobalMessage" class="admin-warning is-hidden"></div>
+      <div id="serviceForms"></div>
+    </main>
+    <script src="../assets/js/main.js"></script>
+    <script src="../assets/js/admin-service-configs.js"></script>
+  </body>
+</html>

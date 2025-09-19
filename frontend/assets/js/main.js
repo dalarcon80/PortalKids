@@ -4,7 +4,47 @@ const API_BASE = '';
 const STORAGE_KEYS = {
   slug: 'student_slug',
   token: 'session_token',
+  admin: 'is_admin',
 };
+
+const ADMIN_ROLES = ['admin', 'administrador'];
+
+function isAdminStored() {
+  return localStorage.getItem(STORAGE_KEYS.admin) === '1';
+}
+
+function updateAdminLinkVisibility(forceValue) {
+  const isAdmin =
+    typeof forceValue === 'boolean' ? forceValue : Boolean(isAdminStored());
+  const adminLinks = document.querySelectorAll('[data-action="admin"]');
+  adminLinks.forEach((link) => {
+    if (!link) {
+      return;
+    }
+    if (isAdmin) {
+      link.classList.remove('is-hidden');
+    } else {
+      link.classList.add('is-hidden');
+    }
+  });
+}
+
+function storeAdminFlag(isAdmin) {
+  if (isAdmin) {
+    localStorage.setItem(STORAGE_KEYS.admin, '1');
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.admin);
+  }
+  updateAdminLinkVisibility(Boolean(isAdmin));
+}
+
+function isAdminRoleName(role) {
+  if (!role) {
+    return false;
+  }
+  const normalized = String(role).trim().toLowerCase();
+  return ADMIN_ROLES.includes(normalized);
+}
 
 function storeSession(slug, token) {
   if (slug) {
@@ -20,6 +60,7 @@ function storeSession(slug, token) {
 function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.slug);
   localStorage.removeItem(STORAGE_KEYS.token);
+  storeAdminFlag(false);
 }
 
 function getStoredSlug() {
@@ -404,6 +445,8 @@ async function loadDashboard() {
  */
 function renderDashboard(student, completed) {
   const content = $('#content');
+  const isAdmin = Boolean(student && isAdminRoleName(student.role));
+  storeAdminFlag(isAdmin);
   // Definición de las misiones y sus roles permitidos
   const MISSIONS = [
     { id: 'm1', slug: 'm1', title: 'La Puerta de la Base', roles: ['Ventas', 'Operaciones'] },
@@ -555,6 +598,18 @@ function setupAccessLinks() {
     clearSession();
     renderEnrollForm();
   });
+
+  const adminLinks = document.querySelectorAll('[data-action="admin"]');
+  attachHandler(adminLinks, () => {
+    const slug = getStoredSlug();
+    const token = getStoredToken();
+    if (!slug || !token) {
+      clearSession();
+      window.location.href = 'index.html';
+      return;
+    }
+    window.location.href = 'admin/index.html';
+  });
 }
 
 function isLandingPage() {
@@ -563,10 +618,16 @@ function isLandingPage() {
     return true;
   }
   const normalizedPath = path.toLowerCase();
-  return normalizedPath.endsWith('/index.html') || normalizedPath.endsWith('index.html');
+  if (normalizedPath.includes('/admin/')) {
+    return false;
+  }
+  return (
+    normalizedPath.endsWith('/index.html') || normalizedPath.endsWith('index.html')
+  );
 }
 
 function initializeLandingView() {
+  updateAdminLinkVisibility();
   if (!isLandingPage()) {
     return;
   }
@@ -593,6 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.addEventListener('pageshow', (event) => {
   if (event.persisted) {
+    updateAdminLinkVisibility();
     initializeLandingView();
   }
 });
