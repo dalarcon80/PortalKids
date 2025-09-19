@@ -112,8 +112,9 @@ function updateMissionAdminLink(isAdmin) {
     return;
   }
   if (existingLink) {
+    existingLink.textContent = 'Panel administrativo';
     existingLink.onclick = () => {
-      renderMissionAdminPanel();
+      renderAdminModule('missions');
     };
     return;
   }
@@ -121,9 +122,9 @@ function updateMissionAdminLink(isAdmin) {
   adminButton.type = 'button';
   adminButton.className = 'portal-header__link portal-header__link--admin';
   adminButton.dataset.action = 'mission-admin';
-  adminButton.textContent = 'Configurar misiones';
+  adminButton.textContent = 'Panel administrativo';
   adminButton.onclick = () => {
-    renderMissionAdminPanel();
+    renderAdminModule('missions');
   };
   const loginLink = navigation.querySelector('[data-action="login"]');
   if (loginLink) {
@@ -310,6 +311,18 @@ function getStoredIsAdmin() {
 
 function $(selector) {
   return document.querySelector(selector);
+}
+
+function escapeHtml(value) {
+  if (value === null || typeof value === 'undefined') {
+    return '';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -812,30 +825,166 @@ function renderDashboard(student, missions, completed) {
   };
 }
 
-async function renderMissionAdminPanel() {
+function _getAdminSessionContext() {
   const slug = getStoredSlug();
   const token = getStoredToken();
   const isAdmin = getStoredIsAdmin();
   if (!slug || !token || !_normalizeBooleanFlag(isAdmin)) {
+    return null;
+  }
+  return { slug, token };
+}
+
+function renderAdminModule(defaultSection = 'missions') {
+  const session = _getAdminSessionContext();
+  if (!session) {
     clearSession();
     renderLoginForm();
     return;
   }
-  const content = $('#content');
+  const content = getContentContainer();
   content.innerHTML = `
-    <section class="mission-admin">
-      <h2>Configuración de misiones</h2>
-      <p>Cargando misiones disponibles...</p>
+    <section class="admin-module">
+      <div class="admin-module__header">
+        <h2 class="admin-module__title">Panel administrativo</h2>
+        <div class="admin-module__actions">
+          <button type="button" class="admin-button admin-button--ghost" data-action="admin-back-dashboard">
+            Volver al dashboard
+          </button>
+        </div>
+      </div>
+      <div class="admin-module__layout">
+        <nav class="admin-module__nav" aria-label="Secciones administrativas">
+          <button type="button" class="admin-module__nav-btn" data-section="missions">Misiones</button>
+          <button type="button" class="admin-module__nav-btn" data-section="users">Usuarios</button>
+          <button type="button" class="admin-module__nav-btn" data-section="roles">Roles</button>
+        </nav>
+        <div class="admin-module__content">
+          <div class="admin-module__section" data-active-section=""></div>
+        </div>
+      </div>
     </section>
   `;
+  const backButton = content.querySelector('[data-action="admin-back-dashboard"]');
+  if (backButton) {
+    backButton.onclick = () => {
+      const storedSlug = getStoredSlug();
+      const storedToken = getStoredToken();
+      const storedAdmin = getStoredIsAdmin();
+      if (storedSlug) {
+        storeSession(storedSlug, storedToken, storedAdmin);
+      }
+      loadDashboard();
+    };
+  }
+  const navButtons = Array.from(content.querySelectorAll('.admin-module__nav-btn'));
+  const sectionContainer = content.querySelector('.admin-module__section');
+  let currentSection = '';
+  let rolesCache = null;
+  const moduleState = {
+    session,
+    async loadRoles(force = false) {
+      if (!force && Array.isArray(rolesCache)) {
+        return rolesCache;
+      }
+      const response = await apiFetch('/api/admin/roles', {
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+        },
+      });
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        data = {};
+      }
+      if (!response.ok) {
+        const backendMessage = typeof data.error === 'string' ? data.error : '';
+        const error = new Error(backendMessage || 'No fue posible obtener el catálogo de roles.');
+        error.status = response.status;
+        error.payload = data;
+        throw error;
+      }
+      const roles = Array.isArray(data.roles) ? data.roles : [];
+      rolesCache = roles;
+      return roles;
+    },
+    invalidateRoles() {
+      rolesCache = null;
+    },
+    refreshCurrentSection() {
+      if (currentSection) {
+        showSection(currentSection, { force: true });
+      }
+    },
+  };
+  async function showSection(sectionName, { force = false } = {}) {
+    if (!sectionContainer) {
+      return;
+    }
+    if (!force && currentSection === sectionName) {
+      return;
+    }
+    currentSection = sectionName;
+    sectionContainer.dataset.activeSection = sectionName;
+    navButtons.forEach((btn) => {
+      const isActive = btn.dataset.section === sectionName;
+      btn.classList.toggle('is-active', isActive);
+      if (isActive) {
+        btn.setAttribute('aria-current', 'page');
+      } else {
+        btn.removeAttribute('aria-current');
+      }
+    });
+    sectionContainer.innerHTML =
+      '<div class="admin-module__status admin-module__status--loading"><p>Cargando sección...</p></div>';
+    try {
+      if (sectionName === 'missions') {
+        await renderAdminMissionsSection(sectionContainer, moduleState);
+      } else if (sectionName === 'users') {
+        await renderAdminUsersSection(sectionContainer, moduleState);
+      } else if (sectionName === 'roles') {
+        await renderAdminRolesSection(sectionContainer, moduleState);
+      } else if (sectionContainer.dataset.activeSection === sectionName) {
+        sectionContainer.innerHTML =
+          '<div class="status-error"><p>Sección desconocida.</p></div>';
+      }
+    } catch (err) {
+      if (sectionContainer.dataset.activeSection !== sectionName) {
+        return;
+      }
+      const message = err && err.message ? err.message : 'No fue posible cargar la sección seleccionada.';
+      sectionContainer.innerHTML = `<div class="status-error"><p>${escapeHtml(message)}</p></div>`;
+    }
+  }
+  navButtons.forEach((btn) => {
+    btn.onclick = () => {
+      const target = btn.dataset.section || 'missions';
+      showSection(target);
+    };
+  });
+  showSection(defaultSection || 'missions');
+}
+
+async function renderAdminMissionsSection(sectionContainer, moduleState) {
+  if (!sectionContainer) {
+    return;
+  }
+  const sectionKey = 'missions';
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  sectionContainer.innerHTML =
+    '<div class="admin-module__status admin-module__status--loading"><p>Cargando misiones disponibles...</p></div>';
+  const { token } = moduleState.session;
   let missions = [];
   try {
-    const headers = {
-      Authorization: `Bearer ${token}`,
-    };
     const res = await apiFetch('/api/admin/missions', {
       credentials: 'include',
-      headers,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
     let data = {};
     try {
@@ -843,15 +992,18 @@ async function renderMissionAdminPanel() {
     } catch (parseError) {
       data = {};
     }
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
     if (res.status === 401) {
       clearSession();
-      content.innerHTML = `
-        <section class="status-error">
+      sectionContainer.innerHTML = `
+        <div class="status-error">
           <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
-          <button id="adminLoginBtn">Iniciar sesión</button>
-        </section>
+          <button type="button" class="admin-button" data-action="admin-login">Iniciar sesión</button>
+        </div>
       `;
-      const loginBtn = $('#adminLoginBtn');
+      const loginBtn = sectionContainer.querySelector('[data-action="admin-login"]');
       if (loginBtn) {
         loginBtn.onclick = () => {
           renderLoginForm();
@@ -860,21 +1012,15 @@ async function renderMissionAdminPanel() {
       return;
     }
     if (res.status === 403) {
-      content.innerHTML = `
-        <section class="status-error">
+      sectionContainer.innerHTML = `
+        <div class="status-error">
           <p>No tienes permisos para configurar misiones.</p>
-          <button id="backToDashboardBtn">Volver</button>
-        </section>
+          <button type="button" class="admin-button" data-action="admin-back">Volver</button>
+        </div>
       `;
-      const backBtn = $('#backToDashboardBtn');
+      const backBtn = sectionContainer.querySelector('[data-action="admin-back"]');
       if (backBtn) {
         backBtn.onclick = () => {
-          const storedSlug = getStoredSlug();
-          const storedToken = getStoredToken();
-          const storedAdmin = getStoredIsAdmin();
-          if (storedSlug) {
-            storeSession(storedSlug, storedToken, storedAdmin);
-          }
           loadDashboard();
         };
       }
@@ -886,88 +1032,110 @@ async function renderMissionAdminPanel() {
     }
     missions = Array.isArray(data.missions) ? data.missions : [];
   } catch (err) {
-    content.innerHTML = `
-      <section class="status-error">
-        <p>${err && err.message ? err.message : 'Ocurrió un error al cargar las misiones.'}</p>
-        <button id="retryMissionAdminBtn">Reintentar</button>
-      </section>
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    const message = err && err.message ? err.message : 'Ocurrió un error al cargar las misiones.';
+    sectionContainer.innerHTML = `
+      <div class="status-error">
+        <p>${escapeHtml(message)}</p>
+        <button type="button" class="admin-button admin-button--ghost" data-action="retry-missions">Reintentar</button>
+      </div>
     `;
-    const retryBtn = $('#retryMissionAdminBtn');
+    const retryBtn = sectionContainer.querySelector('[data-action="retry-missions"]');
     if (retryBtn) {
       retryBtn.onclick = () => {
-        renderMissionAdminPanel();
+        renderAdminMissionsSection(sectionContainer, moduleState);
       };
     }
     return;
   }
-
-  const missionOptions = missions
-    .map((mission) => {
-      const missionId = mission && mission.mission_id ? String(mission.mission_id) : '';
-      if (!missionId) {
-        return '';
-      }
-      return `<option value="${missionId}">${missionId}</option>`;
-    })
-    .join('');
-  const roleOptions = [...ADMIN_AVAILABLE_ROLES];
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  const roleOptionsSet = new Set(ADMIN_AVAILABLE_ROLES);
   missions.forEach((mission) => {
-    const missionRoles = Array.isArray(mission.roles) ? mission.roles : [];
+    const missionRoles = Array.isArray(mission && mission.roles) ? mission.roles : [];
     missionRoles.forEach((role) => {
-      const normalizedRole = typeof role === 'string' ? role : '';
-      if (normalizedRole && !roleOptions.includes(normalizedRole)) {
-        roleOptions.push(normalizedRole);
+      if (role && typeof role === 'string') {
+        roleOptionsSet.add(role);
       }
     });
   });
+  const roleOptions = Array.from(roleOptionsSet)
+    .filter((role) => typeof role === 'string' && role)
+    .sort((a, b) => a.localeCompare(b));
+  const missionOptions = missions
+    .map((mission) => {
+      const missionId = mission && mission.mission_id != null ? String(mission.mission_id) : '';
+      if (!missionId) {
+        return '';
+      }
+      return `<option value="${escapeHtml(missionId)}">${escapeHtml(missionId)}</option>`;
+    })
+    .join('');
   const rolesCheckboxes = roleOptions
     .map(
       (role) =>
-        `<label><input type="checkbox" class="mission-role-option" value="${role}"> ${role}</label>`
+        `<label class="admin-checkbox"><input type="checkbox" class="mission-role-option" value="${escapeHtml(
+          role
+        )}"> <span>${escapeHtml(role)}</span></label>`
     )
     .join('');
-
-  content.innerHTML = `
-    <section class="mission-admin">
-      <h2>Configuración de misiones</h2>
-      <div class="mission-admin-selector">
-        <label for="missionAdminSelect">Misiones disponibles</label>
-        <select id="missionAdminSelect">
-          <option value="">Selecciona una misión</option>
-          ${missionOptions}
-        </select>
+  sectionContainer.innerHTML = `
+    <div class="admin-section admin-section--missions">
+      <div class="admin-section__header">
+        <div>
+          <h3 class="admin-section__title">Misiones</h3>
+          <p class="admin-section__description">Selecciona una misión para editar su título, roles y contenido.</p>
+        </div>
+        <button type="button" class="admin-button admin-button--ghost" data-action="refresh-missions">Actualizar lista</button>
       </div>
-      <form id="missionAdminForm" class="mission-admin-form">
-        <div class="form-field">
-          <label for="missionTitleInput">Título</label>
-          <input type="text" id="missionTitleInput" name="title">
+      <div class="admin-section__grid admin-section__grid--two-columns">
+        <div class="admin-card admin-card--selector">
+          <label class="admin-field" for="missionAdminSelect">
+            <span class="admin-field__label">Misiones disponibles</span>
+            <select id="missionAdminSelect" class="admin-field__control">
+              <option value="">Selecciona una misión</option>
+              ${missionOptions}
+            </select>
+          </label>
         </div>
-        <fieldset class="form-field">
-          <legend>Roles disponibles</legend>
-          <div class="mission-role-options">${rolesCheckboxes}</div>
-        </fieldset>
-        <div class="form-field">
-          <label for="missionContentInput">Contenido (JSON)</label>
-          <textarea id="missionContentInput" rows="12"></textarea>
-        </div>
-        <div id="missionAdminFeedback" class="mission-admin-feedback"></div>
-        <div class="mission-admin-actions">
-          <button type="submit" id="missionAdminSaveBtn">Guardar cambios</button>
-          <button type="button" id="missionAdminBackBtn">Volver al dashboard</button>
-        </div>
-      </form>
-    </section>
+        <form id="missionAdminForm" class="admin-card admin-card--form">
+          <div class="admin-field">
+            <label class="admin-field__label" for="missionTitleInput">Título</label>
+            <input type="text" id="missionTitleInput" class="admin-field__control" name="title">
+          </div>
+          <fieldset class="admin-field admin-field--fieldset">
+            <legend>Roles disponibles</legend>
+            <div class="admin-checkbox-grid">
+              ${rolesCheckboxes}
+            </div>
+          </fieldset>
+          <div class="admin-field">
+            <label class="admin-field__label" for="missionContentInput">Contenido (JSON)</label>
+            <textarea id="missionContentInput" class="admin-field__control admin-field__control--textarea" rows="12"></textarea>
+          </div>
+          <div id="missionAdminFeedback" class="admin-feedback"></div>
+          <div class="admin-form__actions">
+            <button type="submit" class="admin-button" id="missionAdminSaveBtn">Guardar cambios</button>
+          </div>
+        </form>
+      </div>
+    </div>
   `;
-
-  const missionSelect = $('#missionAdminSelect');
-  const missionTitleInput = $('#missionTitleInput');
-  const missionContentInput = $('#missionContentInput');
-  const feedbackContainer = $('#missionAdminFeedback');
-  const saveButton = $('#missionAdminSaveBtn');
-  const roleInputs = Array.from(
-    document.querySelectorAll('.mission-role-option')
-  );
-
+  const refreshBtn = sectionContainer.querySelector('[data-action="refresh-missions"]');
+  if (refreshBtn) {
+    refreshBtn.onclick = () => {
+      renderAdminMissionsSection(sectionContainer, moduleState);
+    };
+  }
+  const missionSelect = sectionContainer.querySelector('#missionAdminSelect');
+  const missionTitleInput = sectionContainer.querySelector('#missionTitleInput');
+  const missionContentInput = sectionContainer.querySelector('#missionContentInput');
+  const feedbackContainer = sectionContainer.querySelector('#missionAdminFeedback');
+  const saveButton = sectionContainer.querySelector('#missionAdminSaveBtn');
+  const roleInputs = Array.from(sectionContainer.querySelectorAll('.mission-role-option'));
   function showFeedback(message, type = 'info') {
     if (!feedbackContainer) {
       return;
@@ -978,18 +1146,18 @@ async function renderMissionAdminPanel() {
     }
     const typeClass =
       type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info';
-    feedbackContainer.innerHTML = `<div class="${typeClass}">${message}</div>`;
+    feedbackContainer.innerHTML = `<div class="${typeClass}">${escapeHtml(message)}</div>`;
   }
-
   function fillMissionForm(missionId) {
-    const normalizedMissionId =
-      missionId != null && missionId !== undefined ? String(missionId) : '';
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    const normalizedMissionId = missionId != null ? String(missionId) : '';
     const mission = missions.find((m) => {
       if (!m || !Object.prototype.hasOwnProperty.call(m, 'mission_id')) {
         return false;
       }
-      const candidateId =
-        m.mission_id != null && m.mission_id !== undefined ? String(m.mission_id) : '';
+      const candidateId = m.mission_id != null ? String(m.mission_id) : '';
       return candidateId === normalizedMissionId;
     });
     if (!mission) {
@@ -1002,6 +1170,10 @@ async function renderMissionAdminPanel() {
       roleInputs.forEach((input) => {
         input.checked = false;
       });
+      showFeedback('Selecciona una misión para comenzar.', 'info');
+      if (saveButton) {
+        saveButton.disabled = true;
+      }
       return;
     }
     if (missionTitleInput) {
@@ -1012,39 +1184,36 @@ async function renderMissionAdminPanel() {
       input.checked = normalizedRoles.includes(input.value);
     });
     if (missionContentInput) {
-      const contentValue =
-        mission.content && typeof mission.content === 'object' ? mission.content : {};
+      const contentValue = mission && mission.content && typeof mission.content === 'object' ? mission.content : {};
       missionContentInput.value = JSON.stringify(contentValue, null, 2);
-    }
-    showFeedback('', 'info');
-  }
-
-  if (missionSelect) {
-    missionSelect.onchange = () => {
-      const selectedId = missionSelect.value;
-      fillMissionForm(selectedId);
-    };
-  }
-
-  if (missions.length > 0 && missionSelect) {
-    const firstMissionId =
-      missions[0] && missions[0].mission_id ? String(missions[0].mission_id) : '';
-    if (firstMissionId) {
-      missionSelect.value = firstMissionId;
-      fillMissionForm(firstMissionId);
     }
     if (saveButton) {
       saveButton.disabled = false;
+    }
+    showFeedback('', 'info');
+  }
+  if (missionSelect) {
+    missionSelect.onchange = () => {
+      fillMissionForm(missionSelect.value);
+    };
+  }
+  if (missions.length > 0 && missionSelect) {
+    const firstMissionId = missions[0] && missions[0].mission_id != null ? String(missions[0].mission_id) : '';
+    if (firstMissionId) {
+      missionSelect.value = firstMissionId;
+      fillMissionForm(firstMissionId);
     }
   } else if (saveButton) {
     saveButton.disabled = true;
     showFeedback('No hay misiones disponibles para editar.', 'info');
   }
-
-  const missionForm = $('#missionAdminForm');
+  const missionForm = sectionContainer.querySelector('#missionAdminForm');
   if (missionForm) {
     missionForm.onsubmit = async (event) => {
       event.preventDefault();
+      if (sectionContainer.dataset.activeSection !== sectionKey) {
+        return;
+      }
       const missionId = missionSelect ? missionSelect.value : '';
       if (!missionId) {
         showFeedback('Selecciona una misión antes de guardar.', 'error');
@@ -1093,62 +1262,1130 @@ async function renderMissionAdminPanel() {
         }
         const updatedMission = data.mission;
         if (updatedMission) {
-          const normalizedMissionId =
-            missionId != null && missionId !== undefined ? String(missionId) : '';
+          const normalizedMissionId = missionId != null ? String(missionId) : '';
           const index = missions.findIndex((m) => {
             if (!m || !Object.prototype.hasOwnProperty.call(m, 'mission_id')) {
               return false;
             }
-            const candidateId =
-              m.mission_id != null && m.mission_id !== undefined
-                ? String(m.mission_id)
-                : '';
+            const candidateId = m.mission_id != null ? String(m.mission_id) : '';
             return candidateId === normalizedMissionId;
           });
           if (index !== -1) {
-            const updatedEntry = {
-              ...missions[index],
-              ...updatedMission,
-            };
-            updatedEntry.mission_id = normalizedMissionId;
-            missions[index] = updatedEntry;
+            missions[index] = { ...missions[index], ...updatedMission, mission_id: normalizedMissionId };
           }
-          fillMissionForm(normalizedMissionId);
+          fillMissionForm(missionId);
         }
         showFeedback('Los cambios se guardaron correctamente.', 'success');
-        setTimeout(() => {
-          const storedSlug = getStoredSlug();
-          const storedToken = getStoredToken();
-          const storedAdmin = getStoredIsAdmin();
-          if (storedSlug) {
-            storeSession(storedSlug, storedToken, storedAdmin);
-          }
-          loadDashboard();
-        }, 800);
       } catch (saveError) {
-        showFeedback(
-          saveError && saveError.message
-            ? saveError.message
-            : 'Ocurrió un error al guardar los cambios.',
-          'error'
-        );
+        const message =
+          saveError && saveError.message ? saveError.message : 'Ocurrió un error al guardar los cambios.';
+        showFeedback(message, 'error');
       }
-    };
-  }
-
-  const backBtn = $('#missionAdminBackBtn');
-  if (backBtn) {
-    backBtn.onclick = () => {
-      const storedSlug = getStoredSlug();
-      const storedToken = getStoredToken();
-      const storedAdmin = getStoredIsAdmin();
-      if (storedSlug) {
-        storeSession(storedSlug, storedToken, storedAdmin);
-      }
-      loadDashboard();
     };
   }
 }
+
+async function renderAdminUsersSection(sectionContainer, moduleState) {
+  if (!sectionContainer) {
+    return;
+  }
+  const sectionKey = 'users';
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  sectionContainer.innerHTML =
+    '<div class="admin-module__status admin-module__status--loading"><p>Cargando usuarios...</p></div>';
+  const { token } = moduleState.session;
+  let students = [];
+  try {
+    const res = await apiFetch('/api/admin/students', {
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseError) {
+      data = {};
+    }
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    if (res.status === 401) {
+      clearSession();
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
+          <button type="button" class="admin-button" data-action="admin-login">Iniciar sesión</button>
+        </div>
+      `;
+      const loginBtn = sectionContainer.querySelector('[data-action="admin-login"]');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
+      }
+      return;
+    }
+    if (res.status === 403) {
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>No tienes permisos para administrar usuarios.</p>
+          <button type="button" class="admin-button" data-action="admin-back">Volver</button>
+        </div>
+      `;
+      const backBtn = sectionContainer.querySelector('[data-action="admin-back"]');
+      if (backBtn) {
+        backBtn.onclick = () => {
+          loadDashboard();
+        };
+      }
+      return;
+    }
+    if (!res.ok) {
+      const backendMessage = typeof data.error === 'string' ? data.error : '';
+      throw new Error(backendMessage || 'No fue posible obtener la lista de usuarios.');
+    }
+    students = Array.isArray(data.students) ? data.students : [];
+  } catch (err) {
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    const message = err && err.message ? err.message : 'Ocurrió un error al cargar los usuarios.';
+    sectionContainer.innerHTML = `
+      <div class="status-error">
+        <p>${escapeHtml(message)}</p>
+        <button type="button" class="admin-button admin-button--ghost" data-action="retry-users">Reintentar</button>
+      </div>
+    `;
+    const retryBtn = sectionContainer.querySelector('[data-action="retry-users"]');
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        renderAdminUsersSection(sectionContainer, moduleState);
+      };
+    }
+    return;
+  }
+  let roles = [];
+  let rolesLoadError = '';
+  try {
+    roles = await moduleState.loadRoles();
+  } catch (rolesError) {
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    const status = rolesError && rolesError.status;
+    if (status === 401) {
+      clearSession();
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
+          <button type="button" class="admin-button" data-action="admin-login">Iniciar sesión</button>
+        </div>
+      `;
+      const loginBtn = sectionContainer.querySelector('[data-action="admin-login"]');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
+      }
+      return;
+    }
+    if (status === 403) {
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>No tienes permisos para administrar usuarios.</p>
+          <button type="button" class="admin-button" data-action="admin-back">Volver</button>
+        </div>
+      `;
+      const backBtn = sectionContainer.querySelector('[data-action="admin-back"]');
+      if (backBtn) {
+        backBtn.onclick = () => {
+          loadDashboard();
+        };
+      }
+      return;
+    }
+    roles = [];
+    rolesLoadError =
+      rolesError && rolesError.message
+        ? rolesError.message
+        : 'No fue posible obtener el catálogo de roles. Podrás continuar, pero sin sugerencias.';
+  }
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  const roleOptionsHtml = roles
+    .map((role) => {
+      const slug = role && role.slug ? String(role.slug) : '';
+      const name = role && role.name ? String(role.name) : slug;
+      if (!slug) {
+        return '';
+      }
+      return `<option value="${escapeHtml(slug)}">${escapeHtml(name || slug)}</option>`;
+    })
+    .join('');
+  sectionContainer.innerHTML = `
+    <div class="admin-section admin-section--users">
+      <div class="admin-section__header">
+        <div>
+          <h3 class="admin-section__title">Usuarios</h3>
+          <p class="admin-section__description">Gestiona cuentas, privilegios y contraseñas desde un solo lugar.</p>
+        </div>
+        <button type="button" class="admin-button admin-button--ghost" data-action="refresh-users">Actualizar</button>
+      </div>
+      ${rolesLoadError ? `<div class="status-warning"><p>${escapeHtml(rolesLoadError)}</p></div>` : ''}
+      <div class="admin-section__grid admin-section__grid--two-columns">
+        <div class="admin-card admin-card--list">
+          <h4 class="admin-card__title">Listado de usuarios</h4>
+          <div class="admin-table" id="adminUsersTable"></div>
+        </div>
+        <div class="admin-card admin-card--form">
+          <h4 class="admin-card__title">Crear usuario</h4>
+          <form id="adminUserCreateForm" class="admin-form">
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminCreateSlug">Slug</label>
+              <input type="text" id="adminCreateSlug" class="admin-field__control" required>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminCreateName">Nombre</label>
+              <input type="text" id="adminCreateName" class="admin-field__control" required>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminCreateEmail">Correo electrónico</label>
+              <input type="email" id="adminCreateEmail" class="admin-field__control" required>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminCreateRole">Rol</label>
+              <select id="adminCreateRole" class="admin-field__control">
+                <option value="">Sin rol asignado</option>
+                ${roleOptionsHtml}
+              </select>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminCreateWorkdir">Carpeta de trabajo (opcional)</label>
+              <input type="text" id="adminCreateWorkdir" class="admin-field__control" placeholder="/home/usuario/proyecto">
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminCreatePassword">Contraseña temporal</label>
+              <input type="password" id="adminCreatePassword" class="admin-field__control" required>
+            </div>
+            <div class="admin-field admin-field--checkbox">
+              <label class="admin-checkbox">
+                <input type="checkbox" id="adminCreateIsAdmin">
+                <span>Con acceso administrativo</span>
+              </label>
+            </div>
+            <div class="admin-form__actions">
+              <button type="submit" class="admin-button">Crear usuario</button>
+            </div>
+          </form>
+          <div id="adminUserCreateFeedback" class="admin-feedback"></div>
+        </div>
+      </div>
+      <div class="admin-card admin-card--form admin-card--wide">
+        <h4 class="admin-card__title">Editar usuario</h4>
+        <p class="admin-card__hint">Selecciona un usuario de la lista para habilitar el formulario.</p>
+        <form id="adminUserEditForm" class="admin-form" autocomplete="off">
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminEditSlug">Slug</label>
+            <input type="text" id="adminEditSlug" class="admin-field__control" readonly>
+          </div>
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminEditName">Nombre</label>
+            <input type="text" id="adminEditName" class="admin-field__control" required>
+          </div>
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminEditEmail">Correo electrónico</label>
+            <input type="email" id="adminEditEmail" class="admin-field__control" required>
+          </div>
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminEditRole">Rol</label>
+            <select id="adminEditRole" class="admin-field__control">
+              <option value="">Sin rol asignado</option>
+              ${roleOptionsHtml}
+            </select>
+          </div>
+          <div class="admin-field admin-field--checkbox">
+            <label class="admin-checkbox">
+              <input type="checkbox" id="adminEditIsAdmin">
+              <span>Con acceso administrativo</span>
+            </label>
+          </div>
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminEditCurrentPassword">Contraseña actual (opcional)</label>
+            <input type="password" id="adminEditCurrentPassword" class="admin-field__control">
+          </div>
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminEditPassword">Nueva contraseña (opcional)</label>
+            <input type="password" id="adminEditPassword" class="admin-field__control">
+          </div>
+          <div class="admin-form__actions admin-form__actions--split">
+            <button type="submit" class="admin-button" id="adminUserSaveBtn" disabled>Guardar cambios</button>
+            <button type="button" class="admin-button admin-button--danger" id="adminUserDeleteBtn" disabled>Eliminar usuario</button>
+          </div>
+        </form>
+        <div id="adminUserEditFeedback" class="admin-feedback"></div>
+        <div id="adminUserProgress" class="admin-user-progress"></div>
+      </div>
+    </div>
+  `;
+  const refreshBtn = sectionContainer.querySelector('[data-action="refresh-users"]');
+  if (refreshBtn) {
+    refreshBtn.onclick = () => {
+      moduleState.invalidateRoles();
+      renderAdminUsersSection(sectionContainer, moduleState);
+    };
+  }
+  const tableContainer = sectionContainer.querySelector('#adminUsersTable');
+  if (tableContainer) {
+    tableContainer.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Slug</th>
+            <th>Rol</th>
+            <th>Admin</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="adminUsersTableBody"></tbody>
+      </table>
+    `;
+  }
+  const tableBody = sectionContainer.querySelector('#adminUsersTableBody');
+  const createForm = sectionContainer.querySelector('#adminUserCreateForm');
+  const createFeedback = sectionContainer.querySelector('#adminUserCreateFeedback');
+  const createSlugInput = sectionContainer.querySelector('#adminCreateSlug');
+  const createNameInput = sectionContainer.querySelector('#adminCreateName');
+  const createEmailInput = sectionContainer.querySelector('#adminCreateEmail');
+  const createRoleSelect = sectionContainer.querySelector('#adminCreateRole');
+  const createWorkdirInput = sectionContainer.querySelector('#adminCreateWorkdir');
+  const createPasswordInput = sectionContainer.querySelector('#adminCreatePassword');
+  const createIsAdminInput = sectionContainer.querySelector('#adminCreateIsAdmin');
+  const editForm = sectionContainer.querySelector('#adminUserEditForm');
+  const editFeedback = sectionContainer.querySelector('#adminUserEditFeedback');
+  const editSlugInput = sectionContainer.querySelector('#adminEditSlug');
+  const editNameInput = sectionContainer.querySelector('#adminEditName');
+  const editEmailInput = sectionContainer.querySelector('#adminEditEmail');
+  const editRoleSelect = sectionContainer.querySelector('#adminEditRole');
+  const editIsAdminInput = sectionContainer.querySelector('#adminEditIsAdmin');
+  const editCurrentPasswordInput = sectionContainer.querySelector('#adminEditCurrentPassword');
+  const editPasswordInput = sectionContainer.querySelector('#adminEditPassword');
+  const editSaveBtn = sectionContainer.querySelector('#adminUserSaveBtn');
+  const editDeleteBtn = sectionContainer.querySelector('#adminUserDeleteBtn');
+  const progressContainer = sectionContainer.querySelector('#adminUserProgress');
+  let selectedSlug = '';
+  function showFeedback(container, message, type = 'info') {
+    if (!container) {
+      return;
+    }
+    if (!message) {
+      container.innerHTML = '';
+      return;
+    }
+    const typeClass =
+      type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : type === 'warning' ? 'status-warning' : 'status-info';
+    container.innerHTML = `<div class="${typeClass}">${escapeHtml(message)}</div>`;
+  }
+  function renderUsersTable() {
+    if (!tableBody) {
+      return;
+    }
+    if (!students.length) {
+      tableBody.innerHTML = '<tr><td colspan="5">No hay usuarios registrados.</td></tr>';
+      return;
+    }
+    tableBody.innerHTML = students
+      .map((student) => {
+        const slug = student && student.slug ? String(student.slug) : '';
+        const name = student && student.name ? String(student.name) : slug;
+        const email = student && student.email ? String(student.email) : '';
+        const roleName = student && student.role_name ? student.role_name : student && student.role ? student.role : '—';
+        const isAdmin = _normalizeBooleanFlag(student && student.is_admin);
+        const isSelected = slug && slug === selectedSlug;
+        return `
+          <tr data-slug="${escapeHtml(slug)}" class="${isSelected ? 'is-selected' : ''}">
+            <td>
+              <div class="admin-table__primary">${escapeHtml(name || slug)}</div>
+              ${email ? `<div class="admin-table__secondary">${escapeHtml(email)}</div>` : ''}
+            </td>
+            <td>${escapeHtml(slug)}</td>
+            <td>${escapeHtml(roleName || '—')}</td>
+            <td>${isAdmin ? 'Sí' : 'No'}</td>
+            <td class="admin-table__actions">
+              <button type="button" class="admin-button admin-button--small" data-action="select-user" data-slug="${escapeHtml(slug)}">Editar</button>
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+  }
+  function updateProgress(student) {
+    if (!progressContainer) {
+      return;
+    }
+    const completed = student && Array.isArray(student.completed_missions) ? student.completed_missions : [];
+    if (!completed.length) {
+      progressContainer.innerHTML = '<p class="admin-user-progress__empty">Sin misiones completadas registradas.</p>';
+      return;
+    }
+    const items = completed
+      .map((missionId) => `<li>${escapeHtml(String(missionId))}</li>`)
+      .join('');
+    progressContainer.innerHTML = `
+      <p class="admin-user-progress__title">Misiones completadas</p>
+      <ul class="admin-user-progress__list">${items}</ul>
+    `;
+  }
+  function clearProgress() {
+    if (progressContainer) {
+      progressContainer.innerHTML = '';
+    }
+  }
+  function selectUser(slug) {
+    if (!editForm) {
+      return;
+    }
+    const normalizedSlug = slug != null ? String(slug) : '';
+    const student = students.find((entry) => entry && entry.slug && String(entry.slug) === normalizedSlug);
+    if (!student) {
+      return;
+    }
+    selectedSlug = normalizedSlug;
+    if (tableBody) {
+      Array.from(tableBody.querySelectorAll('tr')).forEach((row) => {
+        row.classList.toggle('is-selected', row.dataset.slug === normalizedSlug);
+      });
+    }
+    if (editSlugInput) {
+      editSlugInput.value = normalizedSlug;
+    }
+    if (editNameInput) {
+      editNameInput.value = student.name || '';
+    }
+    if (editEmailInput) {
+      editEmailInput.value = student.email || '';
+    }
+    if (editRoleSelect) {
+      editRoleSelect.value = student.role || '';
+    }
+    if (editIsAdminInput) {
+      editIsAdminInput.checked = _normalizeBooleanFlag(student.is_admin);
+    }
+    if (editCurrentPasswordInput) {
+      editCurrentPasswordInput.value = '';
+    }
+    if (editPasswordInput) {
+      editPasswordInput.value = '';
+    }
+    showFeedback(editFeedback, '', 'info');
+    updateProgress(student);
+    if (editSaveBtn) {
+      editSaveBtn.disabled = false;
+    }
+    if (editDeleteBtn) {
+      editDeleteBtn.disabled = false;
+    }
+  }
+  function resetEditForm() {
+    selectedSlug = '';
+    if (editForm) {
+      editForm.reset();
+      editForm.dataset.slug = '';
+    }
+    if (editSaveBtn) {
+      editSaveBtn.disabled = true;
+    }
+    if (editDeleteBtn) {
+      editDeleteBtn.disabled = true;
+    }
+    if (tableBody) {
+      Array.from(tableBody.querySelectorAll('tr')).forEach((row) => {
+        row.classList.remove('is-selected');
+      });
+    }
+    showFeedback(editFeedback, 'Selecciona un usuario para editar sus datos.', 'info');
+    clearProgress();
+  }
+  renderUsersTable();
+  if (createForm) {
+    createForm.onsubmit = async (event) => {
+      event.preventDefault();
+      if (sectionContainer.dataset.activeSection !== sectionKey) {
+        return;
+      }
+      const slug = (createSlugInput && createSlugInput.value ? createSlugInput.value : '').trim();
+      const name = (createNameInput && createNameInput.value ? createNameInput.value : '').trim();
+      const email = (createEmailInput && createEmailInput.value ? createEmailInput.value : '').trim();
+      const role = createRoleSelect ? createRoleSelect.value : '';
+      const workdir = (createWorkdirInput && createWorkdirInput.value ? createWorkdirInput.value : '').trim();
+      const password = createPasswordInput ? createPasswordInput.value : '';
+      const isAdmin = createIsAdminInput ? createIsAdminInput.checked : false;
+      if (!slug || !name || !email || !password) {
+        showFeedback(createFeedback, 'Completa los campos obligatorios antes de continuar.', 'error');
+        return;
+      }
+      const payload = {
+        slug,
+        name,
+        email,
+        password,
+        is_admin: isAdmin,
+      };
+      if (role) {
+        payload.role = role;
+      }
+      if (workdir) {
+        payload.workdir = workdir;
+      }
+      showFeedback(createFeedback, 'Creando usuario...', 'info');
+      try {
+        const res = await apiFetch('/api/admin/students', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          throw new Error(backendMessage || 'No se pudo crear el usuario.');
+        }
+        if (data.student) {
+          const createdSlug = data.student.slug ? String(data.student.slug) : slug;
+          const index = students.findIndex((entry) => entry && entry.slug && String(entry.slug) === createdSlug);
+          if (index === -1) {
+            students.push(data.student);
+          } else {
+            students[index] = data.student;
+          }
+        } else if (Array.isArray(data.students)) {
+          students = data.students;
+        } else {
+          moduleState.refreshCurrentSection();
+          return;
+        }
+        renderUsersTable();
+        if (createForm) {
+          createForm.reset();
+        }
+        showFeedback(createFeedback, 'Usuario creado correctamente.', 'success');
+      } catch (createError) {
+        const message =
+          createError && createError.message ? createError.message : 'No se pudo crear el usuario.';
+        showFeedback(createFeedback, message, 'error');
+      }
+    };
+  }
+  if (tableContainer) {
+    tableContainer.addEventListener('click', (event) => {
+      const target = event.target instanceof HTMLElement ? event.target.closest('[data-action="select-user"]') : null;
+      if (!target) {
+        return;
+      }
+      event.preventDefault();
+      const slug = target.getAttribute('data-slug');
+      if (slug) {
+        selectUser(slug);
+      }
+    });
+  }
+  if (editForm) {
+    editForm.onsubmit = async (event) => {
+      event.preventDefault();
+      if (sectionContainer.dataset.activeSection !== sectionKey) {
+        return;
+      }
+      if (!selectedSlug) {
+        showFeedback(editFeedback, 'Selecciona un usuario de la lista.', 'error');
+        return;
+      }
+      const name = (editNameInput && editNameInput.value ? editNameInput.value : '').trim();
+      const email = (editEmailInput && editEmailInput.value ? editEmailInput.value : '').trim();
+      const role = editRoleSelect ? editRoleSelect.value : '';
+      const isAdmin = editIsAdminInput ? editIsAdminInput.checked : false;
+      if (!name || !email) {
+        showFeedback(editFeedback, 'Nombre y correo electrónico son obligatorios.', 'error');
+        return;
+      }
+      const payload = {
+        name,
+        email,
+        is_admin: isAdmin,
+      };
+      payload.role = role || null;
+      const newPassword = editPasswordInput ? editPasswordInput.value : '';
+      const currentPassword = editCurrentPasswordInput ? editCurrentPasswordInput.value : '';
+      if (newPassword) {
+        payload.password = newPassword;
+      }
+      if (currentPassword) {
+        payload.current_password = currentPassword;
+      }
+      showFeedback(editFeedback, 'Guardando cambios...', 'info');
+      try {
+        const res = await apiFetch(`/api/admin/students/${encodeURIComponent(selectedSlug)}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          throw new Error(backendMessage || 'No se pudieron guardar los cambios.');
+        }
+        if (data.student) {
+          const updatedSlug = data.student.slug ? String(data.student.slug) : selectedSlug;
+          const index = students.findIndex((entry) => entry && entry.slug && String(entry.slug) === updatedSlug);
+          if (index !== -1) {
+            students[index] = data.student;
+          }
+          renderUsersTable();
+          selectUser(updatedSlug);
+          showFeedback(editFeedback, 'Los cambios se guardaron correctamente.', 'success');
+        } else {
+          moduleState.refreshCurrentSection();
+        }
+      } catch (updateError) {
+        const message =
+          updateError && updateError.message ? updateError.message : 'No se pudieron guardar los cambios.';
+        showFeedback(editFeedback, message, 'error');
+      }
+    };
+  }
+  if (editDeleteBtn) {
+    editDeleteBtn.onclick = async () => {
+      if (!selectedSlug) {
+        showFeedback(editFeedback, 'Selecciona un usuario antes de eliminar.', 'error');
+        return;
+      }
+      const confirmed =
+        typeof window !== 'undefined'
+          ? window.confirm(`¿Deseas eliminar al usuario ${selectedSlug}? Esta acción no se puede deshacer.`)
+          : true;
+      if (!confirmed) {
+        return;
+      }
+      showFeedback(editFeedback, 'Eliminando usuario...', 'info');
+      try {
+        const res = await apiFetch(`/api/admin/students/${encodeURIComponent(selectedSlug)}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          throw new Error(backendMessage || 'No se pudo eliminar el usuario.');
+        }
+        students = students.filter((entry) => !entry || String(entry.slug) !== selectedSlug);
+        renderUsersTable();
+        resetEditForm();
+        showFeedback(editFeedback, 'Usuario eliminado correctamente.', 'success');
+      } catch (deleteError) {
+        const message =
+          deleteError && deleteError.message ? deleteError.message : 'No se pudo eliminar el usuario.';
+        showFeedback(editFeedback, message, 'error');
+      }
+    };
+  }
+  if (editForm && !selectedSlug) {
+    showFeedback(editFeedback, 'Selecciona un usuario para editar sus datos.', 'info');
+  }
+}
+
+async function renderAdminRolesSection(sectionContainer, moduleState) {
+  if (!sectionContainer) {
+    return;
+  }
+  const sectionKey = 'roles';
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  sectionContainer.innerHTML =
+    '<div class="admin-module__status admin-module__status--loading"><p>Cargando roles...</p></div>';
+  const { token } = moduleState.session;
+  let roles = [];
+  try {
+    roles = await moduleState.loadRoles(true);
+  } catch (err) {
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    const status = err && err.status;
+    if (status === 401) {
+      clearSession();
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
+          <button type="button" class="admin-button" data-action="admin-login">Iniciar sesión</button>
+        </div>
+      `;
+      const loginBtn = sectionContainer.querySelector('[data-action="admin-login"]');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
+      }
+      return;
+    }
+    if (status === 403) {
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>No tienes permisos para administrar roles.</p>
+          <button type="button" class="admin-button" data-action="admin-back">Volver</button>
+        </div>
+      `;
+      const backBtn = sectionContainer.querySelector('[data-action="admin-back"]');
+      if (backBtn) {
+        backBtn.onclick = () => {
+          loadDashboard();
+        };
+      }
+      return;
+    }
+    const message = err && err.message ? err.message : 'No fue posible obtener los roles.';
+    sectionContainer.innerHTML = `
+      <div class="status-error">
+        <p>${escapeHtml(message)}</p>
+        <button type="button" class="admin-button admin-button--ghost" data-action="retry-roles">Reintentar</button>
+      </div>
+    `;
+    const retryBtn = sectionContainer.querySelector('[data-action="retry-roles"]');
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        renderAdminRolesSection(sectionContainer, moduleState);
+      };
+    }
+    return;
+  }
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  sectionContainer.innerHTML = `
+    <div class="admin-section admin-section--roles">
+      <div class="admin-section__header">
+        <div>
+          <h3 class="admin-section__title">Roles</h3>
+          <p class="admin-section__description">Define los perfiles disponibles y su metadata asociada.</p>
+        </div>
+        <button type="button" class="admin-button admin-button--ghost" data-action="refresh-roles">Actualizar</button>
+      </div>
+      <div class="admin-section__grid admin-section__grid--two-columns">
+        <div class="admin-card admin-card--list">
+          <h4 class="admin-card__title">Roles registrados</h4>
+          <div class="admin-table" id="adminRolesTable"></div>
+        </div>
+        <div class="admin-card admin-card--form">
+          <h4 class="admin-card__title">Crear rol</h4>
+          <form id="adminRoleCreateForm" class="admin-form">
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminRoleCreateSlug">Identificador</label>
+              <input type="text" id="adminRoleCreateSlug" class="admin-field__control" required>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminRoleCreateName">Nombre</label>
+              <input type="text" id="adminRoleCreateName" class="admin-field__control" required>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="adminRoleCreateMetadata">Metadata (JSON)</label>
+              <textarea id="adminRoleCreateMetadata" class="admin-field__control admin-field__control--textarea" rows="8" placeholder='{"description": "..."}'></textarea>
+            </div>
+            <div class="admin-form__actions">
+              <button type="submit" class="admin-button">Crear rol</button>
+            </div>
+          </form>
+          <div id="adminRoleCreateFeedback" class="admin-feedback"></div>
+        </div>
+      </div>
+      <div class="admin-card admin-card--form admin-card--wide">
+        <h4 class="admin-card__title">Editar rol</h4>
+        <p class="admin-card__hint">El slug es inmutable. Ajusta nombre y metadata según sea necesario.</p>
+        <form id="adminRoleEditForm" class="admin-form">
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminRoleEditSlug">Identificador</label>
+            <input type="text" id="adminRoleEditSlug" class="admin-field__control" readonly>
+          </div>
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminRoleEditName">Nombre</label>
+            <input type="text" id="adminRoleEditName" class="admin-field__control" required>
+          </div>
+          <div class="admin-field">
+            <label class="admin-field__label" for="adminRoleEditMetadata">Metadata (JSON)</label>
+            <textarea id="adminRoleEditMetadata" class="admin-field__control admin-field__control--textarea" rows="10"></textarea>
+          </div>
+          <div class="admin-form__actions admin-form__actions--split">
+            <button type="submit" class="admin-button" id="adminRoleSaveBtn" disabled>Guardar cambios</button>
+            <button type="button" class="admin-button admin-button--danger" id="adminRoleDeleteBtn" disabled>Eliminar rol</button>
+          </div>
+        </form>
+        <div id="adminRoleEditFeedback" class="admin-feedback"></div>
+      </div>
+    </div>
+  `;
+  const refreshBtn = sectionContainer.querySelector('[data-action="refresh-roles"]');
+  if (refreshBtn) {
+    refreshBtn.onclick = () => {
+      moduleState.invalidateRoles();
+      renderAdminRolesSection(sectionContainer, moduleState);
+    };
+  }
+  const tableContainer = sectionContainer.querySelector('#adminRolesTable');
+  if (tableContainer) {
+    tableContainer.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Slug</th>
+            <th>Nombre</th>
+            <th>Descripción</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="adminRolesTableBody"></tbody>
+      </table>
+    `;
+  }
+  const tableBody = sectionContainer.querySelector('#adminRolesTableBody');
+  const createForm = sectionContainer.querySelector('#adminRoleCreateForm');
+  const createFeedback = sectionContainer.querySelector('#adminRoleCreateFeedback');
+  const createSlugInput = sectionContainer.querySelector('#adminRoleCreateSlug');
+  const createNameInput = sectionContainer.querySelector('#adminRoleCreateName');
+  const createMetadataInput = sectionContainer.querySelector('#adminRoleCreateMetadata');
+  const editForm = sectionContainer.querySelector('#adminRoleEditForm');
+  const editFeedback = sectionContainer.querySelector('#adminRoleEditFeedback');
+  const editSlugInput = sectionContainer.querySelector('#adminRoleEditSlug');
+  const editNameInput = sectionContainer.querySelector('#adminRoleEditName');
+  const editMetadataInput = sectionContainer.querySelector('#adminRoleEditMetadata');
+  const editSaveBtn = sectionContainer.querySelector('#adminRoleSaveBtn');
+  const editDeleteBtn = sectionContainer.querySelector('#adminRoleDeleteBtn');
+  let selectedRole = '';
+  function showFeedback(container, message, type = 'info') {
+    if (!container) {
+      return;
+    }
+    if (!message) {
+      container.innerHTML = '';
+      return;
+    }
+    const typeClass =
+      type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : type === 'warning' ? 'status-warning' : 'status-info';
+    container.innerHTML = `<div class="${typeClass}">${escapeHtml(message)}</div>`;
+  }
+  function renderRolesTable() {
+    if (!tableBody) {
+      return;
+    }
+    if (!roles.length) {
+      tableBody.innerHTML = '<tr><td colspan="4">Aún no hay roles registrados.</td></tr>';
+      return;
+    }
+    tableBody.innerHTML = roles
+      .map((role) => {
+        const slug = role && role.slug ? String(role.slug) : '';
+        const name = role && role.name ? String(role.name) : slug;
+        const metadata = role && role.metadata && typeof role.metadata === 'object' ? role.metadata : {};
+        const description = metadata && metadata.description ? String(metadata.description) : '';
+        const isSelected = slug && slug === selectedRole;
+        return `
+          <tr data-slug="${escapeHtml(slug)}" class="${isSelected ? 'is-selected' : ''}">
+            <td>${escapeHtml(slug)}</td>
+            <td>${escapeHtml(name)}</td>
+            <td>${escapeHtml(description || '—')}</td>
+            <td class="admin-table__actions">
+              <button type="button" class="admin-button admin-button--small" data-action="select-role" data-slug="${escapeHtml(slug)}">Editar</button>
+            </td>
+          </tr>
+        `;
+      })
+      .join('');
+  }
+  function selectRole(slug) {
+    if (!editForm) {
+      return;
+    }
+    const normalizedSlug = slug != null ? String(slug) : '';
+    const role = roles.find((entry) => entry && entry.slug && String(entry.slug) === normalizedSlug);
+    if (!role) {
+      return;
+    }
+    selectedRole = normalizedSlug;
+    if (tableBody) {
+      Array.from(tableBody.querySelectorAll('tr')).forEach((row) => {
+        row.classList.toggle('is-selected', row.dataset.slug === normalizedSlug);
+      });
+    }
+    if (editSlugInput) {
+      editSlugInput.value = normalizedSlug;
+    }
+    if (editNameInput) {
+      editNameInput.value = role.name || '';
+    }
+    if (editMetadataInput) {
+      const metadata = role && role.metadata && typeof role.metadata === 'object' ? role.metadata : {};
+      editMetadataInput.value = JSON.stringify(metadata, null, 2);
+    }
+    showFeedback(editFeedback, '', 'info');
+    if (editSaveBtn) {
+      editSaveBtn.disabled = false;
+    }
+    if (editDeleteBtn) {
+      editDeleteBtn.disabled = false;
+    }
+  }
+  renderRolesTable();
+  if (createForm) {
+    createForm.onsubmit = async (event) => {
+      event.preventDefault();
+      if (sectionContainer.dataset.activeSection !== sectionKey) {
+        return;
+      }
+      const slug = (createSlugInput && createSlugInput.value ? createSlugInput.value : '').trim();
+      const name = (createNameInput && createNameInput.value ? createNameInput.value : '').trim();
+      const metadataRaw = createMetadataInput && createMetadataInput.value ? createMetadataInput.value.trim() : '';
+      if (!slug || !name) {
+        showFeedback(createFeedback, 'Slug y nombre son obligatorios.', 'error');
+        return;
+      }
+      let metadataObj = {};
+      if (metadataRaw) {
+        try {
+          const parsed = JSON.parse(metadataRaw);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            metadataObj = parsed;
+          } else {
+            throw new Error('La metadata debe ser un objeto JSON.');
+          }
+        } catch (parseError) {
+          showFeedback(createFeedback, 'La metadata debe ser un objeto JSON válido.', 'error');
+          return;
+        }
+      }
+      const payload = {
+        slug,
+        name,
+        metadata: metadataObj,
+      };
+      showFeedback(createFeedback, 'Creando rol...', 'info');
+      try {
+        const res = await apiFetch('/api/admin/roles', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          throw new Error(backendMessage || 'No se pudo crear el rol.');
+        }
+        if (data.role) {
+          roles.push(data.role);
+          moduleState.invalidateRoles();
+          renderRolesTable();
+        } else {
+          moduleState.invalidateRoles();
+          moduleState.refreshCurrentSection();
+          return;
+        }
+        if (createForm) {
+          createForm.reset();
+        }
+        showFeedback(createFeedback, 'Rol creado correctamente.', 'success');
+      } catch (createError) {
+        const message =
+          createError && createError.message ? createError.message : 'No se pudo crear el rol.';
+        showFeedback(createFeedback, message, 'error');
+      }
+    };
+  }
+  if (tableContainer) {
+    tableContainer.addEventListener('click', (event) => {
+      const target = event.target instanceof HTMLElement ? event.target.closest('[data-action="select-role"]') : null;
+      if (!target) {
+        return;
+      }
+      event.preventDefault();
+      const slug = target.getAttribute('data-slug');
+      if (slug) {
+        selectRole(slug);
+      }
+    });
+  }
+  if (editForm) {
+    editForm.onsubmit = async (event) => {
+      event.preventDefault();
+      if (sectionContainer.dataset.activeSection !== sectionKey) {
+        return;
+      }
+      if (!selectedRole) {
+        showFeedback(editFeedback, 'Selecciona un rol para continuar.', 'error');
+        return;
+      }
+      const name = (editNameInput && editNameInput.value ? editNameInput.value : '').trim();
+      const metadataRaw = editMetadataInput && editMetadataInput.value ? editMetadataInput.value.trim() : '';
+      if (!name) {
+        showFeedback(editFeedback, 'El nombre es obligatorio.', 'error');
+        return;
+      }
+      let metadataObj = null;
+      if (metadataRaw) {
+        try {
+          const parsed = JSON.parse(metadataRaw);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            metadataObj = parsed;
+          } else {
+            throw new Error('La metadata debe ser un objeto JSON.');
+          }
+        } catch (parseError) {
+          showFeedback(editFeedback, 'La metadata debe ser un objeto JSON válido.', 'error');
+          return;
+        }
+      }
+      const payload = { name };
+      if (metadataObj !== null) {
+        payload.metadata = metadataObj;
+      }
+      showFeedback(editFeedback, 'Guardando cambios...', 'info');
+      try {
+        const res = await apiFetch(`/api/admin/roles/${encodeURIComponent(selectedRole)}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          throw new Error(backendMessage || 'No se pudieron guardar los cambios.');
+        }
+        if (data.role) {
+          const index = roles.findIndex((entry) => entry && entry.slug && String(entry.slug) === selectedRole);
+          if (index !== -1) {
+            roles[index] = data.role;
+          }
+          moduleState.invalidateRoles();
+          renderRolesTable();
+          selectRole(selectedRole);
+          showFeedback(editFeedback, 'Los cambios se guardaron correctamente.', 'success');
+        } else {
+          moduleState.invalidateRoles();
+          moduleState.refreshCurrentSection();
+        }
+      } catch (updateError) {
+        const message =
+          updateError && updateError.message ? updateError.message : 'No se pudieron guardar los cambios.';
+        showFeedback(editFeedback, message, 'error');
+      }
+    };
+  }
+  if (editDeleteBtn) {
+    editDeleteBtn.onclick = async () => {
+      if (!selectedRole) {
+        showFeedback(editFeedback, 'Selecciona un rol antes de eliminar.', 'error');
+        return;
+      }
+      const confirmed =
+        typeof window !== 'undefined'
+          ? window.confirm(`¿Deseas eliminar el rol ${selectedRole}? Esta acción no se puede deshacer.`)
+          : true;
+      if (!confirmed) {
+        return;
+      }
+      showFeedback(editFeedback, 'Eliminando rol...', 'info');
+      try {
+        const res = await apiFetch(`/api/admin/roles/${encodeURIComponent(selectedRole)}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          throw new Error(backendMessage || 'No se pudo eliminar el rol.');
+        }
+        roles = roles.filter((entry) => !entry || String(entry.slug) !== selectedRole);
+        moduleState.invalidateRoles();
+        selectedRole = '';
+        if (editForm) {
+          editForm.reset();
+        }
+        if (editSaveBtn) {
+          editSaveBtn.disabled = true;
+        }
+        if (editDeleteBtn) {
+          editDeleteBtn.disabled = true;
+        }
+        renderRolesTable();
+        showFeedback(editFeedback, 'Rol eliminado correctamente.', 'success');
+      } catch (deleteError) {
+        const message =
+          deleteError && deleteError.message ? deleteError.message : 'No se pudo eliminar el rol.';
+        showFeedback(editFeedback, message, 'error');
+      }
+    };
+  }
+  if (editForm && !selectedRole) {
+    showFeedback(editFeedback, 'Selecciona un rol para editar sus datos.', 'info');
+  }
+}
+
+function renderMissionAdminPanel() {
+  renderAdminModule('missions');
+}
+
+
 
 /**
  * Confirma si una misión está desbloqueada para el estudiante actual.
