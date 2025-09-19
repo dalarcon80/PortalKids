@@ -1648,8 +1648,51 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
                 placeholder="Incluye enlaces y materiales recomendados para prepararse."
               ></textarea>
             </div>
+            <fieldset class="admin-field admin-field--fieldset">
+              <legend>5. Práctica — Contrato</legend>
+              <div class="admin-field">
+                <label class="admin-field__label" for="missionExtraPracticeEntry">Entrada</label>
+                <textarea
+                  id="missionExtraPracticeEntry"
+                  class="admin-field__control admin-field__control--textarea"
+                  rows="3"
+                  data-mission-extra="practice_contract_entry"
+                  placeholder="Describe cómo se presenta la práctica y qué información recibe la persona."
+                ></textarea>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="missionExtraPracticeSteps">Pasos a realizar</label>
+                <textarea
+                  id="missionExtraPracticeSteps"
+                  class="admin-field__control admin-field__control--textarea"
+                  rows="3"
+                  data-mission-extra="practice_contract_steps"
+                  placeholder="Detalla las acciones concretas que deberá ejecutar la persona."
+                ></textarea>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="missionExtraPracticeExpected">Logro esperado</label>
+                <textarea
+                  id="missionExtraPracticeExpected"
+                  class="admin-field__control admin-field__control--textarea"
+                  rows="3"
+                  data-mission-extra="practice_contract_expected"
+                  placeholder="Describe el resultado o criterio de éxito al finalizar la práctica."
+                ></textarea>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="missionExtraPracticeOutputs">Archivos de salida</label>
+                <textarea
+                  id="missionExtraPracticeOutputs"
+                  class="admin-field__control admin-field__control--textarea"
+                  rows="3"
+                  data-mission-extra="practice_contract_outputs"
+                  placeholder="Enumera los archivos o artefactos que se deberán entregar."
+                ></textarea>
+              </div>
+            </fieldset>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraResearch">5. Investigación previa (fichas)</label>
+              <label class="admin-field__label" for="missionExtraResearch">6. Investigación previa (fichas)</label>
               <textarea
                 id="missionExtraResearch"
                 class="admin-field__control admin-field__control--textarea"
@@ -1659,27 +1702,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraGuidance">6. Guía previa a la práctica</label>
-              <textarea
-                id="missionExtraGuidance"
-                class="admin-field__control admin-field__control--textarea"
-                rows="3"
-                data-mission-extra="guidance"
-                placeholder="Explica los pasos previos que preparan la práctica."
-              ></textarea>
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraClone">7. Setup del repositorio y entorno</label>
-              <textarea
-                id="missionExtraClone"
-                class="admin-field__control admin-field__control--textarea"
-                rows="3"
-                data-mission-extra="clone"
-                placeholder="Detalla cómo clonar el repositorio y configurar el entorno local."
-              ></textarea>
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraMicroQuiz">8. Micro-quiz</label>
+              <label class="admin-field__label" for="missionExtraMicroQuiz">7. Micro-quiz</label>
               <textarea
                 id="missionExtraMicroQuiz"
                 class="admin-field__control admin-field__control--textarea"
@@ -1689,17 +1712,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraPractice">9. Práctica principal</label>
-              <textarea
-                id="missionExtraPractice"
-                class="admin-field__control admin-field__control--textarea"
-                rows="3"
-                data-mission-extra="practice"
-                placeholder="Detalla la actividad práctica que desarrollará la misión."
-              ></textarea>
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraPrChecklist">10. Checklist para el Pull Request</label>
+              <label class="admin-field__label" for="missionExtraPrChecklist">8. Checklist para el Pull Request</label>
               <textarea
                 id="missionExtraPrChecklist"
                 class="admin-field__control admin-field__control--textarea"
@@ -1709,7 +1722,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraDeliverables">11. Entregables obligatorios</label>
+              <label class="admin-field__label" for="missionExtraDeliverables">9. Entregables obligatorios</label>
               <textarea
                 id="missionExtraDeliverables"
                 class="admin-field__control admin-field__control--textarea"
@@ -1719,7 +1732,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraEvaluationRubric">12. Rúbrica de evaluación (10 puntos)</label>
+              <label class="admin-field__label" for="missionExtraEvaluationRubric">10. Rúbrica de evaluación (10 puntos)</label>
               <textarea
                 id="missionExtraEvaluationRubric"
                 class="admin-field__control admin-field__control--textarea"
@@ -1729,7 +1742,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraReview">13. Revisión final</label>
+              <label class="admin-field__label" for="missionExtraReview">11. Revisión final</label>
               <textarea
                 id="missionExtraReview"
                 class="admin-field__control admin-field__control--textarea"
@@ -1805,30 +1818,74 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       legacyHeadings: ['📚 Material de aprendizaje sugerido…'],
     },
     {
+      key: 'practice_contract',
+      heading: '5. Práctica — Contrato',
+      type: 'group',
+      subheadingTag: 'h4',
+      subfields: [
+        {
+          key: 'practice_contract_entry',
+          heading: 'Entrada',
+          legacyHeadings: ['6. Guía previa a la práctica', '🧭 Guía detallada antes de la práctica'],
+        },
+        {
+          key: 'practice_contract_steps',
+          heading: 'Pasos a realizar',
+          legacyHeadings: ['7. Setup del repositorio y entorno', '📦 Clonar el repositorio…'],
+        },
+        {
+          key: 'practice_contract_expected',
+          heading: 'Logro esperado',
+          legacyHeadings: ['9. Práctica principal', '🚀 Práctica…'],
+        },
+        {
+          key: 'practice_contract_outputs',
+          heading: 'Archivos de salida',
+        },
+      ],
+    },
+    {
       key: 'research',
-      heading: '5. Investigación previa (fichas)',
+      heading: '6. Investigación previa (fichas)',
       legacyHeadings: ['📝 Investigación (Fichas)'],
     },
-    {
-      key: 'guidance',
-      heading: '6. Guía previa a la práctica',
-      legacyHeadings: ['🧭 Guía detallada antes de la práctica'],
-    },
-    { key: 'clone', heading: '7. Setup del repositorio y entorno', legacyHeadings: ['📦 Clonar el repositorio…'] },
-    { key: 'micro_quiz', heading: '8. Micro-quiz' },
-    { key: 'practice', heading: '9. Práctica principal', legacyHeadings: ['🚀 Práctica…'] },
-    { key: 'pr_checklist', heading: '10. Checklist para el Pull Request' },
+    { key: 'micro_quiz', heading: '7. Micro-quiz' },
+    { key: 'pr_checklist', heading: '8. Checklist para el Pull Request' },
     {
       key: 'deliverables',
-      heading: '11. Entregables obligatorios',
+      heading: '9. Entregables obligatorios',
       legacyHeadings: ['📋 Entregables obligatorios'],
     },
-    { key: 'evaluation_rubric', heading: '12. Rúbrica de evaluación (10 puntos)' },
-    { key: 'review', heading: '13. Revisión final', legacyHeadings: ['👁 Revisión'] },
+    { key: 'evaluation_rubric', heading: '10. Rúbrica de evaluación (10 puntos)' },
+    { key: 'review', heading: '11. Revisión final', legacyHeadings: ['👁 Revisión'] },
   ];
+  const missionExtraFieldDefinitions = missionExtraSectionDefinitions.flatMap((definition) => {
+    if (definition.type === 'group' && Array.isArray(definition.subfields)) {
+      return definition.subfields.map((subfield) => ({
+        ...subfield,
+        parentKey: definition.key,
+        parentHeading: definition.heading,
+        headingTag: (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase(),
+        fullHeading:
+          subfield.fullHeading ||
+          (definition.heading && subfield.heading
+            ? `${definition.heading} — ${subfield.heading}`
+            : subfield.heading || definition.heading),
+      }));
+    }
+    return [
+      {
+        ...definition,
+        parentKey: null,
+        parentHeading: null,
+        headingTag: (definition.headingTag || 'h3').toLowerCase(),
+        fullHeading: definition.heading,
+      },
+    ];
+  });
   const missionExtrasFieldNodes = {};
   let missionDisplaySectionValues = {};
-  missionExtraSectionDefinitions.forEach((definition) => {
+  missionExtraFieldDefinitions.forEach((definition) => {
     const field = sectionContainer.querySelector(`[data-mission-extra="${definition.key}"]`);
     if (field) {
       missionExtrasFieldNodes[definition.key] = field;
@@ -1921,14 +1978,14 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
 
   function createEmptyMissionDisplaySections() {
     const initialValues = {};
-    missionExtraSectionDefinitions.forEach((definition) => {
+    missionExtraFieldDefinitions.forEach((definition) => {
       initialValues[definition.key] = '';
     });
     return initialValues;
   }
 
   function setMissionSectionFieldValues(values) {
-    missionExtraSectionDefinitions.forEach((definition) => {
+    missionExtraFieldDefinitions.forEach((definition) => {
       const field = missionExtrasFieldNodes[definition.key];
       if (field) {
         const fieldValue = values && typeof values[definition.key] === 'string' ? values[definition.key] : '';
@@ -1950,7 +2007,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   }
 
   function clearMissionSectionFieldErrors() {
-    missionExtraSectionDefinitions.forEach((definition) => {
+    missionExtraFieldDefinitions.forEach((definition) => {
       setMissionSectionFieldError(definition.key, false);
     });
   }
@@ -1964,13 +2021,13 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   function collectMissionSectionFieldValues() {
     const values = createEmptyMissionDisplaySections();
     const missing = [];
-    missionExtraSectionDefinitions.forEach((definition) => {
+    missionExtraFieldDefinitions.forEach((definition) => {
       const field = missionExtrasFieldNodes[definition.key];
       const rawValue = field ? field.value : '';
       values[definition.key] = rawValue;
       const normalized = typeof rawValue === 'string' ? rawValue.trim() : '';
       if (!normalized) {
-        missing.push(definition);
+        missing.push({ ...definition, heading: definition.fullHeading || definition.heading });
         setMissionSectionFieldError(definition.key, true);
       } else {
         setMissionSectionFieldError(definition.key, false);
@@ -1996,29 +2053,113 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     const missionSection = container.querySelector('section.mission');
     const root = missionSection || container;
     const headingElements = Array.from(root.querySelectorAll('h3'));
-    missionExtraSectionDefinitions.forEach((definition) => {
-      const candidateHeadings = [definition.heading]
-        .concat(Array.isArray(definition.legacyHeadings) ? definition.legacyHeadings : [])
-        .map((text) => normalizeMissionExtraHeading(text))
-        .filter((text) => Boolean(text));
-      const headingElement = headingElements.find((element) => {
-        const normalizedHeading = normalizeMissionExtraHeading(element.textContent);
-        return candidateHeadings.includes(normalizedHeading);
-      });
-      if (!headingElement) {
-        parsedValues[definition.key] = '';
+    const headingMap = new Map();
+    headingElements.forEach((element) => {
+      const normalized = normalizeMissionExtraHeading(element.textContent);
+      if (!normalized) {
         return;
       }
+      if (!headingMap.has(normalized)) {
+        headingMap.set(normalized, []);
+      }
+      headingMap.get(normalized).push(element);
+    });
+
+    const collectContentUntilNextHeading = (headingElement) => {
       const fragmentContainer = document.createElement('div');
       let sibling = headingElement.nextSibling;
       while (sibling) {
-        if (sibling.nodeType === 1 && sibling.tagName && sibling.tagName.toLowerCase() === 'h3') {
-          break;
+        if (sibling.nodeType === 1 && sibling.tagName) {
+          const tagName = sibling.tagName.toLowerCase();
+          if (tagName === 'h3') {
+            break;
+          }
         }
         fragmentContainer.appendChild(sibling.cloneNode(true));
         sibling = sibling.nextSibling;
       }
-      parsedValues[definition.key] = fragmentContainer.innerHTML.trim();
+      return fragmentContainer.innerHTML.trim();
+    };
+
+    const extractByHeadings = (candidateHeadings) => {
+      for (const headingText of candidateHeadings) {
+        const normalized = normalizeMissionExtraHeading(headingText);
+        if (!normalized) {
+          continue;
+        }
+        const elements = headingMap.get(normalized);
+        if (elements && elements.length > 0) {
+          const headingElement = elements[0];
+          return collectContentUntilNextHeading(headingElement);
+        }
+      }
+      return '';
+    };
+
+    missionExtraSectionDefinitions.forEach((definition) => {
+      if (definition.type === 'group' && Array.isArray(definition.subfields) && definition.subfields.length) {
+        const contractContainer = root.querySelector(`[data-contract="${definition.key}"]`);
+        let fallbackGroupHtml = '';
+        if (!contractContainer) {
+          const candidateGroupHeadings = [definition.heading]
+            .concat(Array.isArray(definition.legacyHeadings) ? definition.legacyHeadings : []);
+          fallbackGroupHtml = extractByHeadings(candidateGroupHeadings);
+        }
+        definition.subfields.forEach((subfield) => {
+          const headingTagName = (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase();
+          let content = '';
+          if (contractContainer) {
+            const itemElement = contractContainer.querySelector(`[data-contract-part="${subfield.key}"]`);
+            if (itemElement) {
+              const clone = itemElement.cloneNode(true);
+              const headingElement = clone.querySelector(headingTagName);
+              if (headingElement && headingElement.parentNode) {
+                headingElement.parentNode.removeChild(headingElement);
+              }
+              content = clone.innerHTML.trim();
+            }
+          }
+          if (!content && fallbackGroupHtml) {
+            const fragment = document.createElement('div');
+            fragment.innerHTML = fallbackGroupHtml;
+            const candidateSubHeadings = [subfield.heading]
+              .concat(Array.isArray(subfield.legacyHeadings) ? subfield.legacyHeadings : [])
+              .map((text) => normalizeMissionExtraHeading(text))
+              .filter((text) => Boolean(text));
+            const subheadingElements = Array.from(fragment.querySelectorAll(headingTagName));
+            const matchedHeading = subheadingElements.find((element) => {
+              const normalizedText = normalizeMissionExtraHeading(element.textContent);
+              return candidateSubHeadings.includes(normalizedText);
+            });
+            if (matchedHeading) {
+              const subFragment = document.createElement('div');
+              let sibling = matchedHeading.nextSibling;
+              while (sibling) {
+                if (
+                  sibling.nodeType === 1 &&
+                  sibling.tagName &&
+                  sibling.tagName.toLowerCase() === headingTagName
+                ) {
+                  break;
+                }
+                subFragment.appendChild(sibling.cloneNode(true));
+                sibling = sibling.nextSibling;
+              }
+              content = subFragment.innerHTML.trim();
+            }
+          }
+          if (!content) {
+            const fallbackHeadings = [subfield.heading]
+              .concat(Array.isArray(subfield.legacyHeadings) ? subfield.legacyHeadings : []);
+            content = extractByHeadings(fallbackHeadings);
+          }
+          parsedValues[subfield.key] = content;
+        });
+        return;
+      }
+      const candidateHeadings = [definition.heading]
+        .concat(Array.isArray(definition.legacyHeadings) ? definition.legacyHeadings : []);
+      parsedValues[definition.key] = extractByHeadings(candidateHeadings);
     });
     return parsedValues;
   }
@@ -2034,6 +2175,27 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   function buildMissionExtrasDisplayHtml(sectionValues) {
     const values = sectionValues || {};
     const sectionHtmlParts = missionExtraSectionDefinitions.map((definition) => {
+      if (definition.type === 'group' && Array.isArray(definition.subfields) && definition.subfields.length) {
+        const headingLines = [`<h3>${definition.heading}</h3>`];
+        const containerLines = [`<div class="mission-contract" data-contract="${definition.key}">`];
+        definition.subfields.forEach((subfield) => {
+          const headingTagName = (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase();
+          const content = typeof values[subfield.key] === 'string' ? values[subfield.key].trim() : '';
+          const itemLines = [
+            `<div class="mission-contract__item" data-contract-part="${subfield.key}">`,
+            `  <${headingTagName}>${subfield.heading}</${headingTagName}>`,
+          ];
+          if (content) {
+            content.split('\n').forEach((line) => {
+              itemLines.push(line);
+            });
+          }
+          itemLines.push(`</div>`);
+          containerLines.push(itemLines.join('\n'));
+        });
+        containerLines.push(`</div>`);
+        return headingLines.concat(containerLines).join('\n');
+      }
       const content = typeof values[definition.key] === 'string' ? values[definition.key].trim() : '';
       return `<h3>${definition.heading}</h3>${content}`;
     });
