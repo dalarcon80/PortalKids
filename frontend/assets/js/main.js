@@ -3336,93 +3336,95 @@ async function renderAdminUsersSection(sectionContainer, moduleState) {
           <h4 class="admin-card__title">Listado de usuarios</h4>
           <div class="admin-table" id="adminUsersTable"></div>
         </div>
-        <div class="admin-card admin-card--form">
-          <h4 class="admin-card__title">Crear usuario</h4>
-          <form id="adminUserCreateForm" class="admin-form">
-            <div class="admin-field">
-              <label class="admin-field__label" for="adminCreateSlug">Slug</label>
-              <input type="text" id="adminCreateSlug" class="admin-field__control" required>
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="adminCreateName">Nombre</label>
-              <input type="text" id="adminCreateName" class="admin-field__control" required>
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="adminCreateEmail">Correo electrónico</label>
-              <input type="email" id="adminCreateEmail" class="admin-field__control" required>
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="adminCreateRole">Rol</label>
-              <select id="adminCreateRole" class="admin-field__control">
-                <option value="">Sin rol asignado</option>
-                ${roleOptionsHtml}
-              </select>
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="adminCreateWorkdir">Carpeta de trabajo (opcional)</label>
-              <input type="text" id="adminCreateWorkdir" class="admin-field__control" placeholder="/home/usuario/proyecto">
-            </div>
-            <div class="admin-field">
-              <label class="admin-field__label" for="adminCreatePassword">Contraseña temporal</label>
-              <input type="password" id="adminCreatePassword" class="admin-field__control" required>
-            </div>
-            <div class="admin-field admin-field--checkbox">
-              <label class="admin-checkbox">
-                <input type="checkbox" id="adminCreateIsAdmin">
-                <span>Con acceso administrativo</span>
-              </label>
-            </div>
-            <div class="admin-form__actions">
-              <button type="submit" class="admin-button">Crear usuario</button>
-            </div>
-          </form>
-          <div id="adminUserCreateFeedback" class="admin-feedback"></div>
+        <div class="admin-section__stack">
+          <div class="admin-card admin-card--form">
+            <h4 class="admin-card__title">Crear usuario</h4>
+            <form id="adminUserCreateForm" class="admin-form">
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminCreateSlug">Slug</label>
+                <input type="text" id="adminCreateSlug" class="admin-field__control" required>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminCreateName">Nombre</label>
+                <input type="text" id="adminCreateName" class="admin-field__control" required>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminCreateEmail">Correo electrónico</label>
+                <input type="email" id="adminCreateEmail" class="admin-field__control" required>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminCreateRole">Rol</label>
+                <select id="adminCreateRole" class="admin-field__control">
+                  <option value="">Sin rol asignado</option>
+                  ${roleOptionsHtml}
+                </select>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminCreateWorkdir">Carpeta de trabajo (opcional)</label>
+                <input type="text" id="adminCreateWorkdir" class="admin-field__control" placeholder="/home/usuario/proyecto">
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminCreatePassword">Contraseña temporal</label>
+                <input type="password" id="adminCreatePassword" class="admin-field__control" required>
+              </div>
+              <div class="admin-field admin-field--checkbox">
+                <label class="admin-checkbox">
+                  <input type="checkbox" id="adminCreateIsAdmin">
+                  <span>Con acceso administrativo</span>
+                </label>
+              </div>
+              <div class="admin-form__actions">
+                <button type="submit" class="admin-button">Crear usuario</button>
+              </div>
+            </form>
+            <div id="adminUserCreateFeedback" class="admin-feedback"></div>
+          </div>
+          <div class="admin-card admin-card--form">
+            <h4 class="admin-card__title">Editar usuario</h4>
+            <p class="admin-card__hint">Selecciona un usuario de la lista para habilitar el formulario.</p>
+            <form id="adminUserEditForm" class="admin-form" autocomplete="off">
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminEditSlug">Slug</label>
+                <input type="text" id="adminEditSlug" class="admin-field__control" readonly>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminEditName">Nombre</label>
+                <input type="text" id="adminEditName" class="admin-field__control" required>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminEditEmail">Correo electrónico</label>
+                <input type="email" id="adminEditEmail" class="admin-field__control" required>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminEditRole">Rol</label>
+                <select id="adminEditRole" class="admin-field__control">
+                  <option value="">Sin rol asignado</option>
+                  ${roleOptionsHtml}
+                </select>
+              </div>
+              <div class="admin-field admin-field--checkbox">
+                <label class="admin-checkbox">
+                  <input type="checkbox" id="adminEditIsAdmin">
+                  <span>Con acceso administrativo</span>
+                </label>
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminEditCurrentPassword">Contraseña actual (opcional)</label>
+                <input type="password" id="adminEditCurrentPassword" class="admin-field__control">
+              </div>
+              <div class="admin-field">
+                <label class="admin-field__label" for="adminEditPassword">Nueva contraseña (opcional)</label>
+                <input type="password" id="adminEditPassword" class="admin-field__control">
+              </div>
+              <div class="admin-form__actions admin-form__actions--split">
+                <button type="submit" class="admin-button" id="adminUserSaveBtn" disabled>Guardar cambios</button>
+                <button type="button" class="admin-button admin-button--danger" id="adminUserDeleteBtn" disabled>Eliminar usuario</button>
+              </div>
+            </form>
+            <div id="adminUserEditFeedback" class="admin-feedback"></div>
+            <div id="adminUserProgress" class="admin-user-progress"></div>
+          </div>
         </div>
-      </div>
-      <div class="admin-card admin-card--form admin-card--wide">
-        <h4 class="admin-card__title">Editar usuario</h4>
-        <p class="admin-card__hint">Selecciona un usuario de la lista para habilitar el formulario.</p>
-        <form id="adminUserEditForm" class="admin-form" autocomplete="off">
-          <div class="admin-field">
-            <label class="admin-field__label" for="adminEditSlug">Slug</label>
-            <input type="text" id="adminEditSlug" class="admin-field__control" readonly>
-          </div>
-          <div class="admin-field">
-            <label class="admin-field__label" for="adminEditName">Nombre</label>
-            <input type="text" id="adminEditName" class="admin-field__control" required>
-          </div>
-          <div class="admin-field">
-            <label class="admin-field__label" for="adminEditEmail">Correo electrónico</label>
-            <input type="email" id="adminEditEmail" class="admin-field__control" required>
-          </div>
-          <div class="admin-field">
-            <label class="admin-field__label" for="adminEditRole">Rol</label>
-            <select id="adminEditRole" class="admin-field__control">
-              <option value="">Sin rol asignado</option>
-              ${roleOptionsHtml}
-            </select>
-          </div>
-          <div class="admin-field admin-field--checkbox">
-            <label class="admin-checkbox">
-              <input type="checkbox" id="adminEditIsAdmin">
-              <span>Con acceso administrativo</span>
-            </label>
-          </div>
-          <div class="admin-field">
-            <label class="admin-field__label" for="adminEditCurrentPassword">Contraseña actual (opcional)</label>
-            <input type="password" id="adminEditCurrentPassword" class="admin-field__control">
-          </div>
-          <div class="admin-field">
-            <label class="admin-field__label" for="adminEditPassword">Nueva contraseña (opcional)</label>
-            <input type="password" id="adminEditPassword" class="admin-field__control">
-          </div>
-          <div class="admin-form__actions admin-form__actions--split">
-            <button type="submit" class="admin-button" id="adminUserSaveBtn" disabled>Guardar cambios</button>
-            <button type="button" class="admin-button admin-button--danger" id="adminUserDeleteBtn" disabled>Eliminar usuario</button>
-          </div>
-        </form>
-        <div id="adminUserEditFeedback" class="admin-feedback"></div>
-        <div id="adminUserProgress" class="admin-user-progress"></div>
       </div>
     </div>
   `;

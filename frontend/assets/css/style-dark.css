@@ -636,6 +636,12 @@ button#logoutBtn:hover {
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 2fr);
 }
 
+.admin-section__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 @media (max-width: 960px) {
   .admin-section__grid--two-columns {
     grid-template-columns: 1fr;
