@@ -82,7 +82,7 @@ def test_blank_titles_are_reseeded(sqlite_backend):
                     "m1",
                     "   ",
                     "[]",
-                    "{}",
+                    "",
                     backend_app._format_timestamp(datetime.utcnow()),
                 ),
             )
@@ -97,6 +97,12 @@ def test_blank_titles_are_reseeded(sqlite_backend):
     mission = next((m for m in missions if m.get("mission_id") == "m1"), None)
     assert mission is not None
     assert mission.get("title") == "M1 — La Puerta de la Base"
+    assert mission.get("roles") == ["Ventas", "Operaciones"]
+    content = mission.get("content")
+    assert isinstance(content, dict)
+    assert content.get("verification_type") == "evidence"
+    display_html = content.get("display_html")
+    assert isinstance(display_html, str) and display_html.strip()
 
 
 def test_admin_mission_crud_flow(sqlite_backend):
