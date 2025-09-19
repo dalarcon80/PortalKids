@@ -1809,55 +1809,86 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const missionExtrasFeedback = sectionContainer.querySelector('#missionExtrasFeedback');
   const missionExtrasAdvancedDetails = sectionContainer.querySelector('#missionExtrasAdvancedDetails');
   const missionExtraSectionDefinitions = [
-    { key: 'purpose', heading: '1. Nombre y narrativa', legacyHeadings: ['💡 ¿Para qué sirve?'] },
-    { key: 'outcome', heading: '2. Objetivos de la misión', legacyHeadings: ['🏆 Al final podrás…'] },
-    { key: 'history', heading: '3. Historia / contexto breve' },
+    {
+      key: 'purpose',
+      heading: '1. Nombre y narrativa',
+      aliases: ['1. Nombre y narrativa', '💡 ¿Para qué sirve?'],
+      legacyHeadings: ['💡 ¿Para qué sirve?'],
+    },
+    {
+      key: 'outcome',
+      heading: '2. Objetivos de la misión',
+      aliases: ['2. Objetivos de la misión', '🏆 Al final podrás…'],
+      legacyHeadings: ['🏆 Al final podrás…'],
+    },
+    { key: 'history', heading: '3. Historia / contexto breve', aliases: ['3. Historia / contexto breve'] },
     {
       key: 'resources',
       heading: '4. Recursos de aprendizaje sugeridos',
+      aliases: ['4. Recursos de aprendizaje sugeridos', '📚 Material de aprendizaje sugerido…'],
       legacyHeadings: ['📚 Material de aprendizaje sugerido…'],
     },
     {
       key: 'practice_contract',
       heading: '5. Práctica — Contrato',
+      aliases: ['5. Práctica — Contrato'],
       type: 'group',
       subheadingTag: 'h4',
       subfields: [
         {
           key: 'practice_contract_entry',
           heading: 'Entrada',
+          aliases: ['Entrada', '6. Guía previa a la práctica', '🧭 Guía detallada antes de la práctica'],
           legacyHeadings: ['6. Guía previa a la práctica', '🧭 Guía detallada antes de la práctica'],
         },
         {
           key: 'practice_contract_steps',
           heading: 'Pasos a realizar',
+          aliases: ['Pasos a realizar', '7. Setup del repositorio y entorno', '📦 Clonar el repositorio…'],
           legacyHeadings: ['7. Setup del repositorio y entorno', '📦 Clonar el repositorio…'],
         },
         {
           key: 'practice_contract_expected',
           heading: 'Logro esperado',
+          aliases: ['Logro esperado', '9. Práctica principal', '🚀 Práctica…'],
           legacyHeadings: ['9. Práctica principal', '🚀 Práctica…'],
         },
         {
           key: 'practice_contract_outputs',
           heading: 'Archivos de salida',
+          aliases: ['Archivos de salida'],
         },
       ],
     },
     {
       key: 'research',
       heading: '6. Investigación previa (fichas)',
+      aliases: ['6. Investigación previa (fichas)', '📝 Investigación (Fichas)'],
       legacyHeadings: ['📝 Investigación (Fichas)'],
     },
-    { key: 'micro_quiz', heading: '7. Micro-quiz' },
-    { key: 'pr_checklist', heading: '8. Checklist para el Pull Request' },
+    { key: 'micro_quiz', heading: '7. Micro-quiz', aliases: ['7. Micro-quiz'] },
+    {
+      key: 'pr_checklist',
+      heading: '8. Checklist para el Pull Request',
+      aliases: ['8. Checklist para el Pull Request'],
+    },
     {
       key: 'deliverables',
       heading: '9. Entregables obligatorios',
+      aliases: ['9. Entregables obligatorios', '📋 Entregables obligatorios'],
       legacyHeadings: ['📋 Entregables obligatorios'],
     },
-    { key: 'evaluation_rubric', heading: '10. Rúbrica de evaluación (10 puntos)' },
-    { key: 'review', heading: '11. Revisión final', legacyHeadings: ['👁 Revisión'] },
+    {
+      key: 'evaluation_rubric',
+      heading: '10. Rúbrica de evaluación (10 puntos)',
+      aliases: ['10. Rúbrica de evaluación (10 puntos)'],
+    },
+    {
+      key: 'review',
+      heading: '11. Revisión final',
+      aliases: ['11. Revisión final', '👁 Revisión'],
+      legacyHeadings: ['👁 Revisión'],
+    },
   ];
   const missionExtraFieldDefinitions = missionExtraSectionDefinitions.flatMap((definition) => {
     if (definition.type === 'group' && Array.isArray(definition.subfields)) {
@@ -1885,6 +1916,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   });
   const missionExtrasFieldNodes = {};
   let missionDisplaySectionValues = {};
+  let missionDisplaySectionHeadings = {};
   missionExtraFieldDefinitions.forEach((definition) => {
     const field = sectionContainer.querySelector(`[data-mission-extra="${definition.key}"]`);
     if (field) {
@@ -1898,6 +1930,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     }
   });
   missionDisplaySectionValues = createEmptyMissionDisplaySections();
+  missionDisplaySectionHeadings = createDefaultMissionDisplayHeadings();
   resetMissionSectionFieldValues();
   const deliverablesList = sectionContainer.querySelector('#missionDeliverablesList');
   const deliverablesSummary = sectionContainer.querySelector('#missionDeliverablesSummary');
@@ -1984,6 +2017,15 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     return initialValues;
   }
 
+  function createDefaultMissionDisplayHeadings() {
+    const initialHeadings = {};
+    missionExtraSectionDefinitions.forEach((definition) => {
+      initialHeadings[definition.key] =
+        typeof definition.heading === 'string' ? definition.heading : '';
+    });
+    return initialHeadings;
+  }
+
   function setMissionSectionFieldValues(values) {
     missionExtraFieldDefinitions.forEach((definition) => {
       const field = missionExtrasFieldNodes[definition.key];
@@ -2014,6 +2056,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
 
   function resetMissionSectionFieldValues() {
     missionDisplaySectionValues = createEmptyMissionDisplaySections();
+    missionDisplaySectionHeadings = createDefaultMissionDisplayHeadings();
     setMissionSectionFieldValues(missionDisplaySectionValues);
     clearMissionSectionFieldErrors();
   }
@@ -2040,13 +2083,40 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().toLowerCase() : '';
   }
 
+  function getMissionExtraHeadingAliases(definition) {
+    const aliases = [];
+    const seen = new Set();
+    const addAlias = (value) => {
+      if (typeof value !== 'string') {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        return;
+      }
+      aliases.push(trimmed);
+      seen.add(trimmed);
+    };
+    if (definition && typeof definition === 'object') {
+      if (Array.isArray(definition.aliases)) {
+        definition.aliases.forEach(addAlias);
+      }
+      addAlias(definition.heading);
+      if (Array.isArray(definition.legacyHeadings)) {
+        definition.legacyHeadings.forEach(addAlias);
+      }
+    }
+    return aliases;
+  }
+
   function parseMissionExtrasDisplaySections(displayHtml) {
     const parsedValues = createEmptyMissionDisplaySections();
+    const parsedHeadings = createDefaultMissionDisplayHeadings();
     if (!displayHtml || typeof displayHtml !== 'string') {
-      return parsedValues;
+      return { values: parsedValues, headings: parsedHeadings };
     }
     if (typeof document === 'undefined') {
-      return parsedValues;
+      return { values: parsedValues, headings: parsedHeadings };
     }
     const container = document.createElement('div');
     container.innerHTML = displayHtml;
@@ -2081,7 +2151,10 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       return fragmentContainer.innerHTML.trim();
     };
 
-    const extractByHeadings = (candidateHeadings) => {
+    const takeHeadingElement = (candidateHeadings) => {
+      if (!Array.isArray(candidateHeadings)) {
+        return null;
+      }
       for (const headingText of candidateHeadings) {
         const normalized = normalizeMissionExtraHeading(headingText);
         if (!normalized) {
@@ -2089,21 +2162,24 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         }
         const elements = headingMap.get(normalized);
         if (elements && elements.length > 0) {
-          const headingElement = elements[0];
-          return collectContentUntilNextHeading(headingElement);
+          return elements.shift();
         }
       }
-      return '';
+      return null;
     };
 
     missionExtraSectionDefinitions.forEach((definition) => {
+      const candidateHeadings = getMissionExtraHeadingAliases(definition);
+      const headingElement = takeHeadingElement(candidateHeadings);
+      const headingText = headingElement ? headingElement.textContent.trim() : '';
+      if (headingText) {
+        parsedHeadings[definition.key] = headingText;
+      }
       if (definition.type === 'group' && Array.isArray(definition.subfields) && definition.subfields.length) {
         const contractContainer = root.querySelector(`[data-contract="${definition.key}"]`);
         let fallbackGroupHtml = '';
-        if (!contractContainer) {
-          const candidateGroupHeadings = [definition.heading]
-            .concat(Array.isArray(definition.legacyHeadings) ? definition.legacyHeadings : []);
-          fallbackGroupHtml = extractByHeadings(candidateGroupHeadings);
+        if (!contractContainer && headingElement) {
+          fallbackGroupHtml = collectContentUntilNextHeading(headingElement);
         }
         definition.subfields.forEach((subfield) => {
           const headingTagName = (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase();
@@ -2122,8 +2198,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
           if (!content && fallbackGroupHtml) {
             const fragment = document.createElement('div');
             fragment.innerHTML = fallbackGroupHtml;
-            const candidateSubHeadings = [subfield.heading]
-              .concat(Array.isArray(subfield.legacyHeadings) ? subfield.legacyHeadings : [])
+            const candidateSubHeadings = getMissionExtraHeadingAliases(subfield)
               .map((text) => normalizeMissionExtraHeading(text))
               .filter((text) => Boolean(text));
             const subheadingElements = Array.from(fragment.querySelectorAll(headingTagName));
@@ -2149,34 +2224,55 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
             }
           }
           if (!content) {
-            const fallbackHeadings = [subfield.heading]
-              .concat(Array.isArray(subfield.legacyHeadings) ? subfield.legacyHeadings : []);
-            content = extractByHeadings(fallbackHeadings);
+            const fallbackHeadingElement = takeHeadingElement(getMissionExtraHeadingAliases(subfield));
+            if (fallbackHeadingElement) {
+              content = collectContentUntilNextHeading(fallbackHeadingElement);
+            }
           }
           parsedValues[subfield.key] = content;
         });
         return;
       }
-      const candidateHeadings = [definition.heading]
-        .concat(Array.isArray(definition.legacyHeadings) ? definition.legacyHeadings : []);
-      parsedValues[definition.key] = extractByHeadings(candidateHeadings);
+      parsedValues[definition.key] = headingElement
+        ? collectContentUntilNextHeading(headingElement)
+        : '';
     });
-    return parsedValues;
+    return { values: parsedValues, headings: parsedHeadings };
   }
 
   function syncMissionSectionFieldsFromExtras(extras) {
     const html = extras && typeof extras.display_html === 'string' ? extras.display_html : '';
     const parsedSections = parseMissionExtrasDisplaySections(html);
-    missionDisplaySectionValues = { ...createEmptyMissionDisplaySections(), ...parsedSections };
+    const parsedValues = parsedSections && parsedSections.values ? parsedSections.values : {};
+    const parsedHeadings = parsedSections && parsedSections.headings ? parsedSections.headings : {};
+    missionDisplaySectionValues = { ...createEmptyMissionDisplaySections(), ...parsedValues };
+    missionDisplaySectionHeadings = {
+      ...createDefaultMissionDisplayHeadings(),
+      ...parsedHeadings,
+    };
     setMissionSectionFieldValues(missionDisplaySectionValues);
     clearMissionSectionFieldErrors();
   }
 
-  function buildMissionExtrasDisplayHtml(sectionValues) {
+  function buildMissionExtrasDisplayHtml(sectionValues, sectionHeadings) {
     const values = sectionValues || {};
+    const headings = sectionHeadings || {};
+    const resolveHeadingText = (definition) => {
+      if (!definition || !definition.key) {
+        return '';
+      }
+      const storedHeading =
+        headings && typeof headings[definition.key] === 'string' ? headings[definition.key] : '';
+      return storedHeading !== ''
+        ? storedHeading
+        : typeof definition.heading === 'string'
+        ? definition.heading
+        : '';
+    };
     const sectionHtmlParts = missionExtraSectionDefinitions.map((definition) => {
+      const headingText = resolveHeadingText(definition);
       if (definition.type === 'group' && Array.isArray(definition.subfields) && definition.subfields.length) {
-        const headingLines = [`<h3>${definition.heading}</h3>`];
+        const headingLines = [`<h3>${headingText}</h3>`];
         const containerLines = [`<div class="mission-contract" data-contract="${definition.key}">`];
         definition.subfields.forEach((subfield) => {
           const headingTagName = (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase();
@@ -2197,7 +2293,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         return headingLines.concat(containerLines).join('\n');
       }
       const content = typeof values[definition.key] === 'string' ? values[definition.key].trim() : '';
-      return `<h3>${definition.heading}</h3>${content}`;
+      return `<h3>${headingText}</h3>${content}`;
     });
     return `<section class="mission">\n${sectionHtmlParts.join('\n')}\n</section>`;
   }
@@ -2508,7 +2604,10 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         return;
       }
       missionDisplaySectionValues = { ...createEmptyMissionDisplaySections(), ...sectionValues };
-      const displayHtml = buildMissionExtrasDisplayHtml(missionDisplaySectionValues);
+      const displayHtml = buildMissionExtrasDisplayHtml(
+        missionDisplaySectionValues,
+        missionDisplaySectionHeadings
+      );
       const extrasForPayload = cloneMissionContentExtras(missionContentExtras);
       extrasForPayload.display_html = displayHtml;
       missionContentExtras = extrasForPayload;
