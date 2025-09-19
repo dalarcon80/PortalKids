@@ -1282,6 +1282,39 @@ def _serialize_student(row: Mapping[str, object]) -> dict:
     }
 
 
+def _get_row_value(row, key):
+    if isinstance(row, Mapping):
+        return row.get(key)
+    try:  # pragma: no cover - defensive branch for unexpected row types
+        return row[key]
+    except (TypeError, KeyError):
+        return None
+
+
+def _collect_completed_missions(cursor, slugs: Iterable[str]) -> dict[str, List[str]]:
+    slug_list = [str(slug).strip() for slug in slugs if str(slug).strip()]
+    if not slug_list:
+        return {}
+    placeholders = ", ".join(["%s"] * len(slug_list))
+    cursor.execute(
+        f"SELECT student_slug, mission_id FROM completed_missions "
+        f"WHERE student_slug IN ({placeholders}) ORDER BY completed_at",
+        tuple(slug_list),
+    )
+    mapping: dict[str, List[str]] = {slug: [] for slug in slug_list}
+    for row in cursor.fetchall():
+        slug_value = _get_row_value(row, "student_slug")
+        mission_value = _get_row_value(row, "mission_id")
+        if slug_value is None or mission_value is None:
+            continue
+        slug_key = str(slug_value).strip()
+        mission_id = str(mission_value)
+        if not slug_key:
+            continue
+        mapping.setdefault(slug_key, []).append(mission_id)
+    return {slug: mapping.get(slug, []) for slug in slug_list}
+
+
 def _purge_expired_sessions(cursor) -> None:
     cutoff = _session_expiration_threshold()
     cutoff_str = _format_timestamp(cutoff)
@@ -1860,6 +1893,162 @@ def api_students():
         print(f"Database error on /api/students: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
     return jsonify({"students": students})
+
+
+@app.route("/api/admin/students", methods=["GET"])
+def api_admin_list_students():
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    students: List[dict] = []
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT slug, name, role, workdir, email, is_admin, created_at
+                    FROM students
+                    ORDER BY name
+                    """
+                )
+                rows = list(cur.fetchall())
+                students = [_serialize_student(row) for row in rows]
+                slugs = [student.get("slug") for student in students if student.get("slug")]
+                completed_map = _collect_completed_missions(cur, slugs)
+                for student in students:
+                    slug_value = student.get("slug")
+                    student["completed_missions"] = completed_map.get(slug_value, [])
+    except Exception as exc:
+        print(f"Database error on GET /api/admin/students: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"students": students})
+
+
+@app.route("/api/admin/students/<slug>", methods=["PUT"])
+def api_admin_update_student(slug: str):
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    data = get_request_json()
+    student_payload: dict | None = None
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT slug, name, role, workdir, email, is_admin, password_hash, created_at
+                    FROM students
+                    WHERE slug = %s
+                    """,
+                    (slug,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Student not found."}), 404
+                stored_hash = _get_row_value(row, "password_hash")
+                assignments: List[Tuple[str, object]] = []
+                if "name" in data:
+                    name_value = data.get("name")
+                    formatted = None if name_value is None else str(name_value).strip()
+                    assignments.append(("name", formatted))
+                if "email" in data:
+                    email_value = data.get("email")
+                    formatted_email = None if email_value is None else str(email_value).strip()
+                    assignments.append(("email", formatted_email))
+                if "role" in data:
+                    role_value = data.get("role")
+                    formatted_role = None if role_value is None else str(role_value).strip()
+                    assignments.append(("role", formatted_role))
+                if "is_admin" in data:
+                    is_admin_value = 1 if _coerce_db_bool(data.get("is_admin")) else 0
+                    assignments.append(("is_admin", is_admin_value))
+                if "password" in data:
+                    password_raw = data.get("password")
+                    current_password = data.get("current_password")
+                    if current_password not in (None, ""):
+                        if stored_hash:
+                            try:
+                                password_matches = verify_password(current_password, stored_hash)
+                            except PasswordValidationError as exc:
+                                return jsonify({"error": str(exc)}), 400
+                            except PasswordVerificationError as exc:
+                                print(
+                                    "Password verification error on admin student update: %s"
+                                    % exc,
+                                    file=sys.stderr,
+                                )
+                                return jsonify({"error": "No se pudo verificar la contraseña actual."}), 500
+                            if not password_matches:
+                                return jsonify({"error": "La contraseña actual no es válida."}), 400
+                        else:
+                            return jsonify({"error": "El estudiante no tiene una contraseña registrada."}), 400
+                    try:
+                        new_password_hash = hash_password(password_raw)
+                    except PasswordValidationError as exc:
+                        return jsonify({"error": str(exc)}), 400
+                    except PasswordHashingError as exc:
+                        print(
+                            "Password hashing error on admin student update: %s" % exc,
+                            file=sys.stderr,
+                        )
+                        return jsonify({"error": "No se pudo actualizar la contraseña."}), 500
+                    assignments.append(("password_hash", new_password_hash))
+                if assignments:
+                    set_clause = ", ".join(f"{column} = %s" for column, _ in assignments)
+                    params = [value for _, value in assignments] + [slug]
+                    cur.execute(
+                        f"UPDATE students SET {set_clause} WHERE slug = %s",
+                        tuple(params),
+                    )
+                    cur.execute(
+                        """
+                        SELECT slug, name, role, workdir, email, is_admin, password_hash, created_at
+                        FROM students
+                        WHERE slug = %s
+                        """,
+                        (slug,),
+                    )
+                    row = cur.fetchone()
+                slug_key = str(_get_row_value(row, "slug") or slug).strip()
+                student_payload = _serialize_student(row)
+                completed_map = _collect_completed_missions(cur, [slug_key])
+                student_payload["completed_missions"] = completed_map.get(slug_key, [])
+    except Exception as exc:
+        print(f"Database error on PUT /api/admin/students/{slug}: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"student": student_payload})
+
+
+@app.route("/api/admin/students/<slug>", methods=["DELETE"])
+def api_admin_delete_student(slug: str):
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT slug FROM students WHERE slug = %s",
+                    (slug,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"error": "Student not found."}), 404
+                cur.execute("DELETE FROM students WHERE slug = %s", (slug,))
+                deleted = getattr(cur, "rowcount", 0)
+                if not deleted:
+                    return jsonify({"error": "Student not found."}), 404
+                cur.execute(
+                    "DELETE FROM completed_missions WHERE student_slug = %s",
+                    (slug,),
+                )
+    except Exception as exc:
+        print(f"Database error on DELETE /api/admin/students/{slug}: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"deleted": True})
 
 
 @app.route("/api/enroll", methods=["POST"])
