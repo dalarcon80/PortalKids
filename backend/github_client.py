@@ -89,7 +89,7 @@ class GitHubClient:
     def __init__(self, token: str, api_url: str = "https://api.github.com", timeout: float = 10.0) -> None:
         if not token:
             raise GitHubConfigurationError(
-                "Configura la variable de entorno GITHUB_TOKEN para habilitar la verificación remota."
+                "Configura la integración de GitHub desde el panel administrativo o define la variable de entorno GITHUB_TOKEN."
             )
         self.api_url = api_url.rstrip("/")
         self.timeout = timeout
@@ -108,6 +108,33 @@ class GitHubClient:
         timeout_value = os.environ.get("GITHUB_TIMEOUT", "10")
         try:
             timeout = float(timeout_value)
+        except (TypeError, ValueError):
+            timeout = 10.0
+        return cls(token=token or "", api_url=api_url, timeout=timeout)
+
+    @classmethod
+    def from_settings(cls) -> "GitHubClient":
+        try:
+            from . import app as app_module  # type: ignore
+        except ImportError:  # pragma: no cover - fallback for direct execution
+            import app as app_module  # type: ignore
+
+        settings = app_module.load_service_settings(
+            ["github_token", "github_api_url", "github_timeout"]
+        )
+        token = settings.get("github_token") or os.environ.get("GITHUB_TOKEN")
+        api_url = (
+            settings.get("github_api_url")
+            or os.environ.get("GITHUB_API_URL")
+            or "https://api.github.com"
+        )
+        timeout_value = (
+            settings.get("github_timeout")
+            or os.environ.get("GITHUB_TIMEOUT")
+            or "10"
+        )
+        try:
+            timeout = float(timeout_value) if timeout_value is not None else 10.0
         except (TypeError, ValueError):
             timeout = 10.0
         return cls(token=token or "", api_url=api_url, timeout=timeout)

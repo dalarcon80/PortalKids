@@ -116,7 +116,7 @@ class OpenAILLMClient:
     def __init__(self, api_key: str, *, model: str = DEFAULT_OPENAI_MODEL, timeout: float | None = None) -> None:
         if not api_key:
             raise LLMConfigurationError(
-                "Configura la variable de entorno OPENAI_API_KEY para habilitar la evaluación automática."
+                "Configura la integración de OpenAI desde el panel administrativo o define la variable de entorno OPENAI_API_KEY."
             )
         model_name = (model or DEFAULT_OPENAI_MODEL).strip() or DEFAULT_OPENAI_MODEL
         self._client = OpenAI(api_key=api_key)
@@ -140,6 +140,37 @@ class OpenAILLMClient:
                 raise LLMConfigurationError("OPENAI_TIMEOUT debe ser un número en segundos.") from exc
             if timeout <= 0:
                 raise LLMConfigurationError("OPENAI_TIMEOUT debe ser mayor a cero segundos.")
+        return cls(api_key=api_key, model=model, timeout=timeout)
+
+    @classmethod
+    def from_settings(cls) -> "OpenAILLMClient":
+        try:
+            from . import app as app_module  # type: ignore
+        except ImportError:  # pragma: no cover - fallback for direct execution
+            import app as app_module  # type: ignore
+
+        settings = app_module.load_service_settings(
+            ["openai_api_key", "openai_model", "openai_timeout"]
+        )
+        api_key = (settings.get("openai_api_key") or os.environ.get("OPENAI_API_KEY") or "").strip()
+        if not api_key:
+            raise LLMConfigurationError(
+                "Configura la integración de OpenAI desde el panel administrativo o define la variable de entorno OPENAI_API_KEY."
+            )
+        model = (
+            settings.get("openai_model")
+            or os.environ.get("OPENAI_MODEL")
+            or DEFAULT_OPENAI_MODEL
+        ).strip() or DEFAULT_OPENAI_MODEL
+        timeout_value = settings.get("openai_timeout") or os.environ.get("OPENAI_TIMEOUT")
+        timeout = None
+        if timeout_value:
+            try:
+                timeout = float(timeout_value)
+            except ValueError as exc:
+                raise LLMConfigurationError("El timeout de OpenAI debe ser un número en segundos.") from exc
+            if timeout <= 0:
+                raise LLMConfigurationError("El timeout de OpenAI debe ser mayor a cero segundos.")
         return cls(api_key=api_key, model=model, timeout=timeout)
 
     def evaluate_deliverable(

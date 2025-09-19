@@ -1,3 +1,5 @@
+import base64
+import binascii
 import json
 import logging
 import os
@@ -10,7 +12,7 @@ import tempfile
 from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
-from typing import Iterable, List, Mapping, Optional, Tuple
+from typing import Dict, Iterable, List, Mapping, Optional, Tuple
 
 import bcrypt
 
@@ -103,9 +105,309 @@ DEFAULT_ROLE_SEEDS = [
 ]
 
 
+SERVICE_SETTINGS_SECRET_FILE = Path(BASE_DIR) / ".service_settings_key"
+
+SERVICE_SETTINGS_DEFINITIONS = {
+    "github_token": {
+        "label": "Token personal de GitHub",
+        "category": "github",
+        "help_text": (
+            "Token con permisos de lectura (scope repo). Formato esperado: ghp_xxxxxxxxx."  # noqa: E501
+        ),
+        "placeholder": "ghp_xxxxxxxxxxxxxxxxx",
+        "secret": True,
+    },
+    "github_api_url": {
+        "label": "API de GitHub",
+        "category": "github",
+        "help_text": (
+            "URL base para la API de GitHub. Usa https://api.github.com salvo que tengas Enterprise."  # noqa: E501
+        ),
+        "placeholder": "https://api.github.com",
+        "default": "https://api.github.com",
+        "secret": False,
+    },
+    "github_timeout": {
+        "label": "Timeout de GitHub (segundos)",
+        "category": "github",
+        "help_text": "Tiempo máximo en segundos para cada solicitud. Ejemplo: 10.",
+        "placeholder": "10",
+        "secret": False,
+    },
+    "openai_api_key": {
+        "label": "API Key de OpenAI",
+        "category": "openai",
+        "help_text": (
+            "Clave privada de OpenAI (prefijo sk-). Nunca la compartas fuera del panel administrativo."  # noqa: E501
+        ),
+        "placeholder": "sk-xxxxxxxxxxxxxxxx",
+        "secret": True,
+    },
+    "openai_model": {
+        "label": "Modelo de OpenAI",
+        "category": "openai",
+        "help_text": "Nombre del modelo de chat a utilizar. Ejemplo: gpt-3.5-turbo.",
+        "placeholder": "gpt-3.5-turbo",
+        "default": "gpt-3.5-turbo",
+        "secret": False,
+    },
+    "openai_timeout": {
+        "label": "Timeout de OpenAI (segundos)",
+        "category": "openai",
+        "help_text": "Tiempo máximo en segundos para la petición al modelo. Ejemplo: 30.",
+        "placeholder": "30",
+        "secret": False,
+    },
+}
+
+
 def _use_sqlite_backend() -> bool:
     required_keys = ["DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST"]
     return any(not os.environ.get(key) for key in required_keys)
+
+
+def _normalize_setting_key(key: str) -> str:
+    return (key or "").strip().lower()
+
+
+def _get_setting_definition(key: str) -> Optional[dict]:
+    normalized = _normalize_setting_key(key)
+    return SERVICE_SETTINGS_DEFINITIONS.get(normalized)
+
+
+_SERVICE_SETTINGS_SECRET_CACHE: Optional[bytes] = None
+
+
+def _load_service_settings_secret() -> bytes:
+    global _SERVICE_SETTINGS_SECRET_CACHE
+    if _SERVICE_SETTINGS_SECRET_CACHE:
+        return _SERVICE_SETTINGS_SECRET_CACHE
+
+    try:
+        if SERVICE_SETTINGS_SECRET_FILE.exists():
+            encoded = SERVICE_SETTINGS_SECRET_FILE.read_text(encoding="utf-8").strip()
+            if encoded:
+                try:
+                    secret_bytes = base64.urlsafe_b64decode(encoded.encode("utf-8"))
+                except (ValueError, binascii.Error):  # pragma: no cover - defensive
+                    secret_bytes = base64.urlsafe_b64decode(encoded + "==")
+                _SERVICE_SETTINGS_SECRET_CACHE = secret_bytes
+                return secret_bytes
+    except (OSError, ValueError, binascii.Error) as exc:
+        logger.warning(
+            "Failed to read service settings secret key from %s: %s",
+            SERVICE_SETTINGS_SECRET_FILE,
+            exc,
+        )
+
+    secret_bytes = secrets.token_bytes(32)
+    encoded_secret = base64.urlsafe_b64encode(secret_bytes).decode("utf-8")
+    try:
+        SERVICE_SETTINGS_SECRET_FILE.write_text(encoded_secret, encoding="utf-8")
+        try:
+            os.chmod(SERVICE_SETTINGS_SECRET_FILE, 0o600)
+        except OSError:  # pragma: no cover - best effort on non-POSIX
+            pass
+    except OSError as exc:
+        logger.warning(
+            "Generated ephemeral service settings secret key; could not persist to %s: %s",
+            SERVICE_SETTINGS_SECRET_FILE,
+            exc,
+        )
+    _SERVICE_SETTINGS_SECRET_CACHE = secret_bytes
+    return secret_bytes
+
+
+def _xor_bytes(data: bytes, key: bytes) -> bytes:
+    key_length = len(key)
+    if key_length == 0:
+        raise ValueError("Encryption key must not be empty")
+    return bytes(b ^ key[i % key_length] for i, b in enumerate(data))
+
+
+def _encrypt_setting_value(value: str) -> str:
+    key = _load_service_settings_secret()
+    data = value.encode("utf-8")
+    cipher = _xor_bytes(data, key)
+    return base64.urlsafe_b64encode(cipher).decode("utf-8")
+
+
+def _decrypt_setting_value(value: str) -> str:
+    if not value:
+        return ""
+    key = _load_service_settings_secret()
+    try:
+        cipher = base64.urlsafe_b64decode(value.encode("utf-8"))
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError("Encrypted value has invalid format") from exc
+    plain = _xor_bytes(cipher, key)
+    return plain.decode("utf-8")
+
+
+def _fetch_service_setting_row(cur, key: str):
+    cur.execute(
+        "SELECT setting_key, value, is_secret FROM service_settings WHERE setting_key = %s",
+        (key,),
+    )
+    return cur.fetchone()
+
+
+def get_service_setting(key: str) -> Optional[str]:
+    definition = _get_setting_definition(key)
+    if not definition:
+        raise KeyError(f"Unknown service setting: {key}")
+    normalized = _normalize_setting_key(key)
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                row = _fetch_service_setting_row(cur, normalized)
+    except Exception as exc:
+        logger.error("Failed to read service setting %s: %s", normalized, exc)
+        return None
+    if not row:
+        return None
+    if isinstance(row, Mapping):
+        value = row.get("value")
+    else:
+        value = None
+        try:  # pragma: no cover - defensive fallback
+            value = row["value"]  # type: ignore[index]
+        except Exception:
+            try:
+                value = row[1]  # type: ignore[index]
+            except Exception:
+                value = None
+    if value is None:
+        return None
+    if definition.get("secret"):
+        try:
+            return _decrypt_setting_value(str(value))
+        except ValueError as exc:
+            logger.warning("Could not decrypt service setting %s: %s", normalized, exc)
+            return None
+    return str(value)
+
+
+def load_service_settings(keys: Iterable[str]) -> Dict[str, Optional[str]]:
+    result: Dict[str, Optional[str]] = {}
+    for key in keys:
+        normalized = _normalize_setting_key(key)
+        try:
+            result[normalized] = get_service_setting(normalized)
+        except KeyError:
+            result[normalized] = None
+    return result
+
+
+def _validate_numeric_timeout(value: str, setting_key: str) -> None:
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"El campo '{setting_key}' debe ser un número entero o decimal en segundos."
+        ) from exc
+    if timeout <= 0:
+        raise ValueError(f"El campo '{setting_key}' debe ser mayor a cero segundos.")
+
+
+def _validate_service_setting_input(key: str, value: Optional[str]) -> Optional[str]:
+    definition = _get_setting_definition(key)
+    if not definition:
+        raise KeyError(f"Unknown service setting: {key}")
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    normalized = _normalize_setting_key(key)
+    if normalized in {"github_timeout", "openai_timeout"}:
+        _validate_numeric_timeout(cleaned, normalized)
+    return cleaned
+
+
+def _delete_service_setting(cur, key: str) -> None:
+    cur.execute("DELETE FROM service_settings WHERE setting_key = %s", (key,))
+
+
+def _store_service_setting(cur, key: str, value: str, is_secret: bool) -> None:
+    if getattr(cur, "__class__", None).__name__ == "SQLiteCursorWrapper":
+        cur.execute(
+            """
+            INSERT INTO service_settings (setting_key, value, is_secret)
+            VALUES (%s, %s, %s)
+            ON CONFLICT(setting_key)
+            DO UPDATE SET value = excluded.value, is_secret = excluded.is_secret,
+                          updated_at = CURRENT_TIMESTAMP
+            """,
+            (key, value, 1 if is_secret else 0),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO service_settings (setting_key, value, is_secret)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE value = VALUES(value),
+                                    is_secret = VALUES(is_secret),
+                                    updated_at = CURRENT_TIMESTAMP
+            """,
+            (key, value, 1 if is_secret else 0),
+        )
+
+
+def set_service_setting(key: str, value: Optional[str]) -> None:
+    definition = _get_setting_definition(key)
+    if not definition:
+        raise KeyError(f"Unknown service setting: {key}")
+    normalized = _normalize_setting_key(key)
+    cleaned = _validate_service_setting_input(normalized, value)
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                if cleaned is None:
+                    _delete_service_setting(cur, normalized)
+                else:
+                    stored_value = (
+                        _encrypt_setting_value(cleaned)
+                        if definition.get("secret")
+                        else cleaned
+                    )
+                    _store_service_setting(cur, normalized, stored_value, bool(definition.get("secret")))
+    except Exception as exc:
+        raise RuntimeError(f"Failed to persist service setting {normalized}: {exc}") from exc
+
+
+def _build_admin_setting_payload() -> List[dict]:
+    payload: List[dict] = []
+    for key, definition in SERVICE_SETTINGS_DEFINITIONS.items():
+        try:
+            stored_value = get_service_setting(key)
+        except KeyError:
+            stored_value = None
+        entry = {
+            "key": key,
+            "label": definition.get("label", key),
+            "category": definition.get("category", "general"),
+            "help_text": definition.get("help_text", ""),
+            "placeholder": definition.get("placeholder", ""),
+            "is_secret": bool(definition.get("secret")),
+            "configured": bool(stored_value),
+        }
+        if definition.get("secret"):
+            entry["value"] = ""
+        else:
+            entry["value"] = stored_value or ""
+        default_value = definition.get("default")
+        if default_value:
+            entry["default"] = default_value
+        payload.append(entry)
+    payload.sort(key=lambda item: (item.get("category", ""), item.get("label", "")))
+    return payload
+
+
+def list_service_settings_for_admin() -> List[dict]:
+    return _build_admin_setting_payload()
 
 
 def _import_pymysql():
@@ -415,6 +717,28 @@ def init_db():
                     "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)",
                 )
                 _seed_default_roles(cur)
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS service_settings (
+                        setting_key TEXT NOT NULL PRIMARY KEY,
+                        value TEXT,
+                        is_secret INTEGER NOT NULL DEFAULT 0,
+                        updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+                    )
+                    """
+                )
+                ensure_column("service_settings", "setting_key", "TEXT NOT NULL")
+                ensure_column("service_settings", "value", "TEXT")
+                ensure_column(
+                    "service_settings",
+                    "is_secret",
+                    "INTEGER NOT NULL DEFAULT 0",
+                )
+                ensure_column(
+                    "service_settings",
+                    "updated_at",
+                    "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)",
+                )
         return
 
     db_name = os.environ.get("DB_NAME")
@@ -704,6 +1028,38 @@ def init_db():
             )
             ensure_primary_key(cur, "roles", ["slug"])
             _seed_default_roles(cur)
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS service_settings (
+                    setting_key VARCHAR(150) NOT NULL,
+                    value LONGTEXT,
+                    is_secret TINYINT(1) NOT NULL DEFAULT 0,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (setting_key)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            ensure_table_options(cur, "service_settings")
+            ensure_column(
+                cur,
+                "service_settings",
+                "setting_key",
+                "VARCHAR(150) NOT NULL",
+            )
+            ensure_column(cur, "service_settings", "value", "LONGTEXT")
+            ensure_column(
+                cur,
+                "service_settings",
+                "is_secret",
+                "TINYINT(1) NOT NULL DEFAULT 0",
+            )
+            ensure_column(
+                cur,
+                "service_settings",
+                "updated_at",
+                "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            )
 
 
 def hash_password(raw_password):
@@ -1950,7 +2306,7 @@ def verify_llm(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, Lis
     feedback_default = _stringify_instruction(contract.get("feedback_fail"))
 
     try:
-        client = OpenAILLMClient.from_env()
+        client = OpenAILLMClient.from_settings()
     except LLMConfigurationError as exc:
         return False, [str(exc)]
 
@@ -2372,6 +2728,69 @@ def api_admin_delete_role(slug: str):
         print(f"Database error on DELETE /api/admin/roles/{slug}: {exc}", file=sys.stderr)
         return jsonify({"error": "Database connection error."}), 500
     return jsonify({"deleted": True})
+
+
+@app.route("/api/admin/integrations", methods=["GET"])
+def api_admin_list_integrations():
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    try:
+        settings = list_service_settings_for_admin()
+    except Exception as exc:
+        print(f"Failed to list service settings: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"settings": settings})
+
+
+@app.route("/api/admin/integrations", methods=["PUT"])
+def api_admin_update_integrations():
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    data = get_request_json()
+    updates_raw = data.get("updates")
+    if not isinstance(updates_raw, list):
+        return jsonify({"error": "El cuerpo debe incluir 'updates' como un arreglo."}), 400
+    normalized_updates: List[Tuple[str, Optional[str]]] = []
+    for item in updates_raw:
+        if not isinstance(item, Mapping):
+            return jsonify({"error": "Cada actualización debe ser un objeto con 'key' y 'value'."}), 400
+        raw_key = item.get("key")
+        key = _normalize_setting_key(raw_key if isinstance(raw_key, str) else str(raw_key or ""))
+        if not key:
+            return jsonify({"error": "Cada entrada debe indicar la clave a actualizar."}), 400
+        if not _get_setting_definition(key):
+            return jsonify({"error": f"La clave '{key}' no corresponde a una integración conocida."}), 400
+        if item.get("clear"):
+            normalized_updates.append((key, None))
+            continue
+        value = item.get("value")
+        if value is None:
+            normalized_updates.append((key, None))
+        elif isinstance(value, str):
+            normalized_updates.append((key, value))
+        else:
+            normalized_updates.append((key, str(value)))
+    if not normalized_updates:
+        settings = list_service_settings_for_admin()
+        return jsonify({"settings": settings, "updated_keys": []})
+    applied: List[str] = []
+    for key, value in normalized_updates:
+        try:
+            set_service_setting(key, value)
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "field": key}), 400
+        except RuntimeError as exc:
+            print(f"Failed to update service setting {key}: {exc}", file=sys.stderr)
+            return jsonify({"error": "Database connection error."}), 500
+        applied.append(key)
+    try:
+        settings = list_service_settings_for_admin()
+    except Exception as exc:
+        print(f"Failed to refresh service settings after update: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"settings": settings, "updated_keys": applied})
 
 
 @app.route("/api/admin/students", methods=["GET"])
@@ -2864,7 +3283,7 @@ def api_verify_mission():
             {"verified": False, "feedback": [f"No se encontró contrato para {mission_id}"]}
         )
     try:
-        github_client = GitHubClient.from_env()
+        github_client = GitHubClient.from_settings()
     except GitHubConfigurationError as exc:
         print(f"GitHub configuration error: {exc}", file=sys.stderr)
         return jsonify({"verified": False, "feedback": [str(exc)]})

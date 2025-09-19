@@ -73,7 +73,7 @@ def _patch_client_failure(monkeypatch, message: str) -> None:
     def _raise(cls):
         raise GitHubConfigurationError(message)
 
-    monkeypatch.setattr(backend_app.GitHubClient, "from_env", classmethod(_raise))
+    monkeypatch.setattr(backend_app.GitHubClient, "from_settings", classmethod(_raise))
 
 
 @pytest.mark.parametrize("verification_type", ["evidence", "script_output"])
