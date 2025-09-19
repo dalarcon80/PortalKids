@@ -36,6 +36,18 @@ El backend persiste las sesiones de autenticación en la tabla `sessions` de la 
 
 Cuando un estudiante inicia sesión, `create_session` inserta una fila nueva con un token firmado aleatorio y marca la hora de creación con `UTC_TIMESTAMP()`. Cada llamada a `validate_session` consulta la tabla y elimina automáticamente los registros cuya antigüedad supere las ocho horas (`SESSION_DURATION_SECONDS`). Cuando se implemente un endpoint de cierre de sesión bastará con borrar la fila correspondiente (`DELETE FROM sessions WHERE token = ?`) para invalidar el token también en el resto de instancias.
 
+### Endpoints administrativos para estudiantes
+
+Los administradores autenticados (token válido en el encabezado `Authorization: Bearer <token>`) pueden gestionar estudiantes mediante la API protegida bajo `/api/admin/students`:
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| `GET` | `/api/admin/students` | Lista todos los estudiantes con sus campos principales (`slug`, `name`, `email`, `role`, `is_admin`, `created_at`) y el arreglo `completed_missions` con las misiones aprobadas. |
+| `PUT` | `/api/admin/students/<slug>` | Actualiza los datos del estudiante indicado. Acepta `name`, `email`, `role`, `is_admin` y, opcionalmente, `password`. Si se envía `current_password` se verifica contra la contraseña almacenada antes de aplicar el nuevo hash. |
+| `DELETE` | `/api/admin/students/<slug>` | Elimina al estudiante y, gracias a las claves foráneas con `ON DELETE CASCADE`, borra también los registros de `completed_missions` asociados. |
+
+El backend reutiliza los helpers `hash_password` y `verify_password` para validar los cambios de contraseña y mantiene la compatibilidad tanto con SQLite como con MySQL. Todos los endpoints devuelven errores `401/403` cuando el token es inválido o pertenece a un usuario sin privilegios administrativos.
+
 ### Clave secreta de Flask (`SECRET_KEY`)
 
 La aplicación Flask utiliza `SECRET_KEY` para firmar las cookies de sesión y otros tokens. En producción debes fijar explícitamente una cadena aleatoria y mantenerla en secreto. Por ejemplo:
