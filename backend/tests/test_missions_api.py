@@ -162,6 +162,11 @@ def test_admin_mission_crud_flow(sqlite_backend):
     public_missions = public_response.get_json()["missions"]
     assert any(m["mission_id"] == create_payload["mission_id"] for m in public_missions)
 
+    mixed_case_response = client.get("/api/missions?role=Explorer")
+    assert mixed_case_response.status_code == 200
+    mixed_case_missions = mixed_case_response.get_json()["missions"]
+    assert any(m["mission_id"] == create_payload["mission_id"] for m in mixed_case_missions)
+
     excluded_response = client.get("/api/missions?role=learner")
     assert excluded_response.status_code == 200
     excluded = excluded_response.get_json()["missions"]
@@ -189,6 +194,35 @@ def test_admin_mission_requires_admin(sqlite_backend):
         headers=headers,
     )
     assert response.status_code == 403
+
+
+def test_admin_mission_rejects_unknown_role(sqlite_backend):
+    token = _prepare_admin()
+    client = backend_app.app.test_client()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.post(
+        "/api/admin/missions",
+        json={
+            "mission_id": "invalid-role",
+            "roles": ["ghost"],
+            "content": {"verification_type": "evidence", "deliverables": []},
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    assert "error" in payload
+
+
+def test_public_missions_filter_by_slug(sqlite_backend):
+    client = backend_app.app.test_client()
+    response = client.get("/api/missions?role=ventas")
+    assert response.status_code == 200
+    missions = response.get_json()["missions"]
+    assert any(mission.get("mission_id") == "m1" for mission in missions)
 
 
 def test_public_mission_detail_includes_display_html(sqlite_backend):

@@ -96,8 +96,12 @@ def test_admin_students_list_sqlite(sqlite_backend):
     assert len(students) == 3
     alice = next(student for student in students if student["slug"] == "alice")
     assert alice["completed_missions"] == ["m1"]
+    assert alice["role_name"] == "learner"
     admin_entry = next(student for student in students if student["slug"] == "admin")
     assert admin_entry["is_admin"] is True
+    assert admin_entry["role_name"] == "admin"
+    assert isinstance(admin_entry.get("role_metadata"), dict)
+    assert admin_entry["role_metadata"].get("is_admin") is True
 
 
 def test_admin_students_requires_admin(sqlite_backend):
@@ -154,6 +158,7 @@ def test_admin_update_student_sqlite(sqlite_backend):
     assert student["name"] == payload["name"]
     assert student["email"] == payload["email"]
     assert student["role"] == payload["role"]
+    assert student["role_name"] == "explorer"
     assert student["is_admin"] is True
     assert student["completed_missions"] == ["m1"]
 
@@ -230,6 +235,75 @@ def test_admin_delete_student_sqlite(sqlite_backend):
     assert int(missions_count or 0) == 0
 
 
+def test_admin_update_student_rejects_unknown_role(sqlite_backend):
+    _reset_database()
+    _add_student("admin", name="Admin", role="admin", password="admin-pass", is_admin=True)
+    _add_student("learner", name="Learner", role="learner", password="initial-pass")
+    token = backend_app.create_session("admin")
+
+    client = backend_app.app.test_client()
+    headers = {"Authorization": f"Bearer {token}"}
+    response = client.put(
+        "/api/admin/students/learner",
+        json={"role": "ghost"},
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert isinstance(payload, dict)
+    assert "error" in payload
+
+
+def test_enroll_requires_valid_role(sqlite_backend):
+    _reset_database()
+    client = backend_app.app.test_client()
+    payload = {
+        "slug": "new-student",
+        "name": "Nuevo Estudiante",
+        "role": "ghost",
+        "workdir": "/home/new-student",
+        "email": "new-student@example.com",
+        "password": "secret-pass",
+    }
+
+    response = client.post("/api/enroll", json=payload)
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert isinstance(data, dict)
+    assert "error" in data
+
+
+def test_enroll_accepts_known_role_and_stores_slug(sqlite_backend):
+    _reset_database()
+    client = backend_app.app.test_client()
+    payload = {
+        "slug": "learner-two",
+        "name": "Learner Two",
+        "role": "Learner",
+        "workdir": "/home/learner-two",
+        "email": "learner-two@example.com",
+        "password": "secret-pass",
+    }
+
+    response = client.post("/api/enroll", json=payload)
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": "ok"}
+
+    with backend_app.get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT slug, role FROM students WHERE slug = %s",
+                ("learner-two",),
+            )
+            row = cur.fetchone()
+    assert row is not None
+    stored_role = row.get("role") if isinstance(row, dict) else row["role"]
+    assert stored_role == "learner"
+
+
 def _build_mysql_state() -> dict[str, Any]:
     now = backend_app._format_timestamp(datetime.utcnow())
     return {
@@ -256,6 +330,29 @@ def _build_mysql_state() -> dict[str, Any]:
             },
         },
         "completed_missions": {"learner": ["m1", "m2"]},
+        "roles": {
+            "admin": {
+                "slug": "admin",
+                "name": "admin",
+                "metadata_json": '{"is_admin": true, "aliases": ["admin"]}',
+                "created_at": now,
+                "updated_at": now,
+            },
+            "learner": {
+                "slug": "learner",
+                "name": "learner",
+                "metadata_json": "{}",
+                "created_at": now,
+                "updated_at": now,
+            },
+            "explorer": {
+                "slug": "explorer",
+                "name": "explorer",
+                "metadata_json": "{}",
+                "created_at": now,
+                "updated_at": now,
+            },
+        },
     }
 
 
@@ -301,6 +398,27 @@ class FakeMySQLCursor:
             slug = self.last_params[0]
             student = self._state["students"].get(slug)
             self._results = [dict(student)] if student else []
+        elif normalized.startswith(
+            "SELECT slug, name, metadata_json, created_at, updated_at FROM roles ORDER BY name, slug"
+        ):
+            roles = [
+                {
+                    "slug": role.get("slug"),
+                    "name": role.get("name"),
+                    "metadata_json": role.get("metadata_json"),
+                    "created_at": role.get("created_at"),
+                    "updated_at": role.get("updated_at"),
+                }
+                for role in self._state["roles"].values()
+            ]
+            roles.sort(key=lambda item: ((item.get("name") or ""), item.get("slug") or ""))
+            self._results = roles
+        elif normalized.startswith(
+            "SELECT slug, name, metadata_json, created_at, updated_at FROM roles WHERE slug"
+        ):
+            slug = self.last_params[0]
+            role = self._state["roles"].get(slug)
+            self._results = [dict(role)] if role else []
         elif normalized.startswith("SELECT slug FROM students WHERE slug = %s"):
             slug = self.last_params[0]
             student = self._state["students"].get(slug)
@@ -400,6 +518,7 @@ def test_admin_students_list_mysql(monkeypatch):
     students = response.get_json()["students"]
     learner = next(student for student in students if student["slug"] == "learner")
     assert learner["completed_missions"] == ["m1", "m2"]
+    assert learner["role_name"] == "learner"
 
 
 def test_admin_update_student_mysql(monkeypatch):
@@ -443,6 +562,7 @@ def test_admin_update_student_mysql(monkeypatch):
     assert student["name"] == payload["name"]
     assert student["email"] == payload["email"]
     assert student["role"] == payload["role"]
+    assert student["role_name"] == "explorer"
     assert student["is_admin"] is True
     assert hash_calls == ["new-secret"]
     assert verify_calls == [("current-secret", "hashed-old")]

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import secrets
 import sqlite3
 import subprocess
@@ -78,6 +79,28 @@ logger = logging.getLogger(__name__)
 
 SESSION_DURATION_SECONDS = 60 * 60 * 8
 DEFAULT_ADMIN_SLUGS = {"dalarcon80"}
+
+ROLE_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9_-]{0,63})$")
+
+DEFAULT_ROLE_SEEDS = [
+    {
+        "slug": "admin",
+        "name": "admin",
+        "metadata": {
+            "is_admin": True,
+            "aliases": [
+                "administrador",
+                "administradora",
+                "administrator",
+                "admin",
+            ],
+        },
+    },
+    {"slug": "learner", "name": "learner", "metadata": {}},
+    {"slug": "explorer", "name": "explorer", "metadata": {}},
+    {"slug": "ventas", "name": "Ventas", "metadata": {}},
+    {"slug": "operaciones", "name": "Operaciones", "metadata": {}},
+]
 
 
 def _use_sqlite_backend() -> bool:
@@ -245,6 +268,34 @@ def _mark_default_admins(cursor) -> None:
             continue
 
 
+def _seed_default_roles(cursor) -> None:
+    for entry in DEFAULT_ROLE_SEEDS:
+        slug = (entry.get("slug") or "").strip()
+        name = (entry.get("name") or slug).strip() or slug
+        metadata = entry.get("metadata") or {}
+        if not slug:
+            continue
+        try:
+            cursor.execute("SELECT slug FROM roles WHERE slug = %s", (slug,))
+            row = cursor.fetchone()
+        except Exception:  # pragma: no cover - defensive fallback
+            continue
+        if row:
+            continue
+        metadata_json = "{}"
+        try:
+            metadata_json = json.dumps(metadata, ensure_ascii=False)
+        except (TypeError, ValueError):
+            metadata_json = "{}"
+        try:
+            cursor.execute(
+                "INSERT INTO roles (slug, name, metadata_json) VALUES (%s, %s, %s)",
+                (slug, name, metadata_json),
+            )
+        except Exception:  # pragma: no cover - best-effort seed
+            continue
+
+
 def init_db():
     if _use_sqlite_backend():
         with get_db_connection() as conn:
@@ -339,6 +390,31 @@ def init_db():
                     "updated_at",
                     "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)",
                 )
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS roles (
+                        slug TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        metadata_json TEXT,
+                        created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+                        updated_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+                    )
+                    """
+                )
+                ensure_column("roles", "slug", "TEXT NOT NULL")
+                ensure_column("roles", "name", "TEXT NOT NULL")
+                ensure_column("roles", "metadata_json", "TEXT")
+                ensure_column(
+                    "roles",
+                    "created_at",
+                    "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)",
+                )
+                ensure_column(
+                    "roles",
+                    "updated_at",
+                    "TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)",
+                )
+                _seed_default_roles(cur)
         return
 
     db_name = os.environ.get("DB_NAME")
@@ -597,6 +673,38 @@ def init_db():
             )
             ensure_primary_key(cur, "missions", ["mission_id"])
 
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS roles (
+                    slug VARCHAR(100) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    metadata_json LONGTEXT,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (slug)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+            )
+            ensure_table_options(cur, "roles")
+            ensure_column(cur, "roles", "slug", "VARCHAR(100) NOT NULL")
+            ensure_column(cur, "roles", "name", "VARCHAR(255) NOT NULL")
+            ensure_column(cur, "roles", "metadata_json", "LONGTEXT")
+            ensure_column(
+                cur,
+                "roles",
+                "created_at",
+                "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            )
+            ensure_column(
+                cur,
+                "roles",
+                "updated_at",
+                "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+            )
+            ensure_primary_key(cur, "roles", ["slug"])
+            _seed_default_roles(cur)
+
 
 def hash_password(raw_password):
     """Hash a password using bcrypt returning the hash as text."""
@@ -732,7 +840,137 @@ def _parse_roles_from_storage(raw_roles) -> List[str]:
     return []
 
 
-def _serialize_mission_row(row: Mapping[str, object]) -> dict:
+def _parse_role_metadata(raw_metadata) -> dict:
+    if raw_metadata is None:
+        return {}
+    if isinstance(raw_metadata, (bytes, bytearray)):
+        raw_metadata = raw_metadata.decode("utf-8", errors="ignore")
+    if isinstance(raw_metadata, str):
+        payload = raw_metadata.strip()
+        if not payload:
+            return {}
+        try:
+            decoded = json.loads(payload)
+        except json.JSONDecodeError:
+            return {}
+        if isinstance(decoded, dict):
+            return decoded
+        return {}
+    if isinstance(raw_metadata, Mapping):
+        return dict(raw_metadata)
+    return {}
+
+
+def _normalize_role_metadata_input(metadata) -> dict:
+    if metadata is None:
+        return {}
+    if isinstance(metadata, Mapping):
+        normalized: dict = {}
+        for key, value in metadata.items():
+            normalized[str(key)] = value
+        return normalized
+    raise ValueError("El campo 'metadata' debe ser un objeto JSON.")
+
+
+def _serialize_role_row(row: Mapping[str, object]) -> dict:
+    slug_value = _get_row_value(row, "slug") if row else None
+    name_value = _get_row_value(row, "name") if row else None
+    metadata_raw = _get_row_value(row, "metadata_json") if row else None
+    created_raw = _get_row_value(row, "created_at") if row else None
+    updated_raw = _get_row_value(row, "updated_at") if row else None
+    slug = str(slug_value or "").strip()
+    name = str(name_value or slug).strip() or slug
+    metadata = _parse_role_metadata(metadata_raw)
+    created_at = _parse_timestamp(created_raw)
+    updated_at = _parse_timestamp(updated_raw)
+    return {
+        "slug": slug,
+        "name": name,
+        "metadata": metadata,
+        "created_at": created_at.isoformat() if created_at else None,
+        "updated_at": updated_at.isoformat() if updated_at else None,
+    }
+
+
+def _list_roles(cursor, slug: str | None = None) -> List[dict]:
+    if slug:
+        cursor.execute(
+            """
+            SELECT slug, name, metadata_json, created_at, updated_at
+            FROM roles
+            WHERE slug = %s
+            """,
+            (slug,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT slug, name, metadata_json, created_at, updated_at
+            FROM roles
+            ORDER BY name, slug
+            """
+        )
+    rows = cursor.fetchall()
+    return [_serialize_role_row(row) for row in rows]
+
+
+def _fetch_roles_from_db(slug: str | None = None) -> List[dict]:
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                return _list_roles(cur, slug)
+    except Exception as exc:
+        logger.error("Failed to load roles from database: %s", exc)
+        return []
+
+
+def _extract_role_tokens(role_entry: Mapping[str, object]) -> set[str]:
+    tokens: set[str] = set()
+    slug_value = str(role_entry.get("slug") or "").strip().lower()
+    if slug_value:
+        tokens.add(slug_value)
+    name_value = str(role_entry.get("name") or "").strip().lower()
+    if name_value:
+        tokens.add(name_value)
+    metadata = role_entry.get("metadata")
+    if isinstance(metadata, Mapping):
+        aliases = metadata.get("aliases")
+        if isinstance(aliases, (list, tuple, set)):
+            for alias in aliases:
+                alias_str = str(alias or "").strip().lower()
+                if alias_str:
+                    tokens.add(alias_str)
+    return tokens
+
+
+def _find_role(identifier: str, *, roles: Optional[List[dict]] = None):
+    if identifier is None:
+        return None
+    candidate = str(identifier).strip()
+    if not candidate:
+        return None
+    lowered = candidate.lower()
+    catalog = roles if roles is not None else _fetch_roles_from_db()
+    for role_entry in catalog:
+        tokens = _extract_role_tokens(role_entry)
+        if lowered in tokens:
+            return role_entry
+    return None
+
+
+def _normalize_role_slug(raw_slug: str) -> str:
+    slug = str(raw_slug or "").strip().lower()
+    if not slug or not ROLE_SLUG_PATTERN.match(slug):
+        raise ValueError(
+            "El campo 'slug' debe usar letras minúsculas, números, guiones o guiones bajos."
+        )
+    return slug
+
+
+def _serialize_mission_row(
+    row: Mapping[str, object], roles_catalog: Optional[List[dict]] = None
+) -> dict:
     mission_id_raw = row.get("mission_id") if row else ""
     if isinstance(mission_id_raw, (bytes, bytearray)):
         mission_id_raw = mission_id_raw.decode("utf-8", errors="ignore")
@@ -741,7 +979,16 @@ def _serialize_mission_row(row: Mapping[str, object]) -> dict:
     if isinstance(title_raw, (bytes, bytearray)):
         title_raw = title_raw.decode("utf-8", errors="ignore")
     title = str(title_raw or "").strip() or mission_id
-    roles = _parse_roles_from_storage(row.get("roles") if row else None)
+    roles_raw = _parse_roles_from_storage(row.get("roles") if row else None)
+    catalog = roles_catalog if roles_catalog is not None else _fetch_roles_from_db()
+    roles: List[str] = []
+    for role_value in roles_raw:
+        role_entry = _find_role(role_value, roles=catalog)
+        if role_entry:
+            role_name = str(role_entry.get("name") or role_entry.get("slug") or "").strip()
+            roles.append(role_name or str(role_value))
+        else:
+            roles.append(str(role_value))
     content_raw = row.get("content_json") if row else None
     if isinstance(content_raw, (bytes, bytearray)):
         content_raw = content_raw.decode("utf-8", errors="ignore")
@@ -1094,9 +1341,10 @@ def _fetch_missions_from_db(mission_id: str | None = None) -> List[dict]:
         logger.error("Failed to load missions from database: %s", exc)
         return []
     missions: List[dict] = []
+    roles_catalog = _fetch_roles_from_db()
     for row in rows:
         try:
-            missions.append(_serialize_mission_row(row))
+            missions.append(_serialize_mission_row(row, roles_catalog))
         except Exception as exc:  # pragma: no cover - defensive serialization
             logger.error("Failed to serialize mission row: %s", exc)
     return missions
@@ -1122,7 +1370,33 @@ def _store_mission_record(
     if not normalized_id:
         raise ValueError("El campo 'mission_id' es obligatorio.")
     normalized_title = str(title or "").strip() or normalized_id
-    normalized_roles = _normalize_roles_input(roles)
+    normalized_roles_input = _normalize_roles_input(roles)
+    catalog = _fetch_roles_from_db()
+    validated_roles: List[str] = []
+    seen_tokens: set[str] = set()
+    universal_tokens = {"*", "all", "todos", "todas"}
+    for role_value in normalized_roles_input:
+        candidate = str(role_value or "").strip()
+        if not candidate:
+            continue
+        lowered = candidate.lower()
+        if lowered in universal_tokens:
+            if lowered not in seen_tokens:
+                seen_tokens.add(lowered)
+                validated_roles.append(candidate)
+            continue
+        role_entry = _find_role(candidate, roles=catalog)
+        if not role_entry:
+            raise ValueError(f"El rol '{candidate}' no existe en el catálogo.")
+        slug_value = str(role_entry.get("slug") or "").strip()
+        if not slug_value:
+            raise ValueError(f"El rol '{candidate}' no tiene un identificador válido.")
+        lowered_slug = slug_value.lower()
+        if lowered_slug in seen_tokens:
+            continue
+        seen_tokens.add(lowered_slug)
+        validated_roles.append(slug_value)
+    normalized_roles = validated_roles
     content_dict = dict(content)
     try:
         content_json = json.dumps(content_dict, ensure_ascii=False)
@@ -1236,6 +1510,11 @@ def _coerce_db_bool(value) -> bool:
 def _role_indicates_admin(role_value) -> bool:
     if not role_value:
         return False
+    role_entry = _find_role(role_value)
+    if role_entry:
+        metadata = role_entry.get("metadata")
+        if isinstance(metadata, Mapping) and metadata.get("is_admin"):
+            return True
     if isinstance(role_value, str):
         normalized = role_value.strip().lower()
         return normalized in {"admin", "administrator", "administrador", "administradora"}
@@ -1280,6 +1559,17 @@ def _serialize_student(row: Mapping[str, object]) -> dict:
         "created_at": created_at_iso,
         "is_admin": _coerce_db_bool(row.get("is_admin") if row else None),
     }
+
+
+def _enrich_student_role(student: Mapping[str, object], *, roles: Optional[List[dict]] = None) -> dict:
+    if not isinstance(student, Mapping):
+        return dict(student)
+    payload = dict(student)
+    role_entry = _find_role(payload.get("role"), roles=roles)
+    if role_entry:
+        payload["role_name"] = role_entry.get("name")
+        payload["role_metadata"] = role_entry.get("metadata")
+    return payload
 
 
 def _get_row_value(row, key):
@@ -1895,6 +2185,195 @@ def api_students():
     return jsonify({"students": students})
 
 
+@app.route("/api/admin/roles", methods=["GET"])
+def api_admin_list_roles():
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    roles: List[dict] = []
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                roles = _list_roles(cur)
+    except Exception as exc:
+        print(f"Database error on GET /api/admin/roles: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"roles": roles})
+
+
+@app.route("/api/admin/roles", methods=["POST"])
+def api_admin_create_role():
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    data = get_request_json()
+    try:
+        slug = _normalize_role_slug(data.get("slug"))
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    name_raw = data.get("name")
+    name = str(name_raw or "").strip()
+    if not name:
+        return jsonify({"error": "El campo 'name' es obligatorio."}), 400
+    try:
+        metadata_obj = _normalize_role_metadata_input(data.get("metadata"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    try:
+        metadata_json = json.dumps(metadata_obj, ensure_ascii=False)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": f"No se pudo serializar 'metadata': {exc}"}), 400
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(
+                        "INSERT INTO roles (slug, name, metadata_json) VALUES (%s, %s, %s)",
+                        (slug, name, metadata_json),
+                    )
+                except (sqlite3.IntegrityError, pymysql.err.IntegrityError):
+                    return jsonify({"error": "Ya existe un rol con ese identificador."}), 409
+                role_list = _list_roles(cur, slug)
+                role_payload = role_list[0] if role_list else None
+    except Exception as exc:
+        print(f"Database error on POST /api/admin/roles: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    if not role_payload:
+        return jsonify({"error": "No se pudo crear el rol."}), 500
+    return jsonify({"role": role_payload}), 201
+
+
+@app.route("/api/admin/roles/<slug>", methods=["GET"])
+def api_admin_get_role(slug: str):
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    try:
+        normalized_slug = _normalize_role_slug(slug)
+    except ValueError:
+        return jsonify({"error": "Role not found."}), 404
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                role_list = _list_roles(cur, normalized_slug)
+    except Exception as exc:
+        print(f"Database error on GET /api/admin/roles/{slug}: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    if not role_list:
+        return jsonify({"error": "Role not found."}), 404
+    return jsonify({"role": role_list[0]})
+
+
+@app.route("/api/admin/roles/<slug>", methods=["PUT"])
+def api_admin_update_role(slug: str):
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    try:
+        normalized_slug = _normalize_role_slug(slug)
+    except ValueError:
+        return jsonify({"error": "Role not found."}), 404
+    data = get_request_json()
+    updates: List[str] = []
+    params: List[object] = []
+    if "name" in data:
+        name_value = str(data.get("name") or "").strip()
+        if not name_value:
+            return jsonify({"error": "El campo 'name' es obligatorio."}), 400
+        updates.append("name = %s")
+        params.append(name_value)
+    metadata_provided = False
+    if "metadata" in data:
+        metadata_provided = True
+        try:
+            metadata_obj = _normalize_role_metadata_input(data.get("metadata"))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        try:
+            metadata_json = json.dumps(metadata_obj, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": f"No se pudo serializar 'metadata': {exc}"}), 400
+        updates.append("metadata_json = %s")
+        params.append(metadata_json)
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                if updates:
+                    updates.append("updated_at = CURRENT_TIMESTAMP")
+                    cur.execute(
+                        f"UPDATE roles SET {', '.join(updates)} WHERE slug = %s",
+                        tuple(params + [normalized_slug]),
+                    )
+                    if cur.rowcount == 0:
+                        return jsonify({"error": "Role not found."}), 404
+                elif not metadata_provided:
+                    # Nothing to update; ensure role exists.
+                    role_check = _list_roles(cur, normalized_slug)
+                    if not role_check:
+                        return jsonify({"error": "Role not found."}), 404
+                role_list = _list_roles(cur, normalized_slug)
+    except Exception as exc:
+        print(f"Database error on PUT /api/admin/roles/{slug}: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    if not role_list:
+        return jsonify({"error": "Role not found."}), 404
+    return jsonify({"role": role_list[0]})
+
+
+@app.route("/api/admin/roles/<slug>", methods=["DELETE"])
+def api_admin_delete_role(slug: str):
+    _, error = _resolve_admin_request()
+    if error:
+        return error
+    try:
+        normalized_slug = _normalize_role_slug(slug)
+    except ValueError:
+        return jsonify({"error": "Role not found."}), 404
+    try:
+        init_db()
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                existing = _list_roles(cur, normalized_slug)
+                if not existing:
+                    return jsonify({"error": "Role not found."}), 404
+                role_entry = existing[0]
+                tokens = _extract_role_tokens(role_entry)
+                cur.execute(
+                    "SELECT COUNT(*) AS count FROM students WHERE role = %s",
+                    (normalized_slug,),
+                )
+                row = cur.fetchone()
+                count_value = _get_row_value(row, "count") if row else None
+                if int(count_value or 0) > 0:
+                    return jsonify({"error": "No se puede eliminar un rol asignado a estudiantes."}), 409
+                cur.execute("SELECT mission_id, roles FROM missions")
+                mission_rows = cur.fetchall()
+                for mission_row in mission_rows:
+                    mission_roles = _parse_roles_from_storage(
+                        _get_row_value(mission_row, "roles")
+                    )
+                    for mission_role in mission_roles:
+                        mission_token = str(mission_role or "").strip().lower()
+                        if mission_token and mission_token in tokens:
+                            return jsonify(
+                                {
+                                    "error": "No se puede eliminar un rol que está asignado a misiones.",
+                                }
+                            ), 409
+                cur.execute("DELETE FROM roles WHERE slug = %s", (normalized_slug,))
+                deleted = getattr(cur, "rowcount", 0)
+                if not deleted:
+                    return jsonify({"error": "Role not found."}), 404
+    except Exception as exc:
+        print(f"Database error on DELETE /api/admin/roles/{slug}: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"deleted": True})
+
+
 @app.route("/api/admin/students", methods=["GET"])
 def api_admin_list_students():
     _, error = _resolve_admin_request()
@@ -1913,7 +2392,11 @@ def api_admin_list_students():
                     """
                 )
                 rows = list(cur.fetchall())
-                students = [_serialize_student(row) for row in rows]
+                roles_catalog = _list_roles(cur)
+                students = [
+                    _enrich_student_role(_serialize_student(row), roles=roles_catalog)
+                    for row in rows
+                ]
                 slugs = [student.get("slug") for student in students if student.get("slug")]
                 completed_map = _collect_completed_missions(cur, slugs)
                 for student in students:
@@ -1959,7 +2442,15 @@ def api_admin_update_student(slug: str):
                     assignments.append(("email", formatted_email))
                 if "role" in data:
                     role_value = data.get("role")
-                    formatted_role = None if role_value is None else str(role_value).strip()
+                    if role_value in (None, ""):
+                        formatted_role = None
+                    else:
+                        role_entry = _find_role(role_value)
+                        if not role_entry:
+                            return jsonify({"error": "El rol proporcionado no es válido."}), 400
+                        formatted_role = str(role_entry.get("slug") or "").strip()
+                        if not formatted_role:
+                            return jsonify({"error": "El rol proporcionado no es válido."}), 400
                     assignments.append(("role", formatted_role))
                 if "is_admin" in data:
                     is_admin_value = 1 if _coerce_db_bool(data.get("is_admin")) else 0
@@ -2012,7 +2503,10 @@ def api_admin_update_student(slug: str):
                     )
                     row = cur.fetchone()
                 slug_key = str(_get_row_value(row, "slug") or slug).strip()
-                student_payload = _serialize_student(row)
+                roles_catalog = _list_roles(cur)
+                student_payload = _enrich_student_role(
+                    _serialize_student(row), roles=roles_catalog
+                )
                 completed_map = _collect_completed_missions(cur, [slug_key])
                 student_payload["completed_missions"] = completed_map.get(slug_key, [])
     except Exception as exc:
@@ -2073,6 +2567,12 @@ def api_enroll():
         or not password_for_check.strip()
     ):
         return jsonify({"error": "Missing required fields."}), 400
+    role_entry = _find_role(role)
+    if not role_entry:
+        return jsonify({"error": "El rol seleccionado no es válido."}), 400
+    role_slug = str(role_entry.get("slug") or "").strip()
+    if not role_slug:
+        return jsonify({"error": "El rol seleccionado no es válido."}), 400
     try:
         password_hash = hash_password(password_raw)
     except PasswordValidationError as exc:
@@ -2084,7 +2584,7 @@ def api_enroll():
         init_db()
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                params = (slug, name, role, workdir, email, password_hash)
+                params = (slug, name, role_slug, workdir, email, password_hash)
                 if getattr(conn, "is_sqlite", False):
                     cur.execute(
                         """
@@ -2268,20 +2768,45 @@ def api_admin_update_mission(mission_id: str):
     return jsonify({"mission": mission})
 
 
+@app.route("/api/roles", methods=["GET"])
+def api_public_roles():
+    try:
+        roles = _fetch_roles_from_db()
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"Database error on /api/roles: {exc}", file=sys.stderr)
+        return jsonify({"error": "Database connection error."}), 500
+    return jsonify({"roles": roles})
+
+
 @app.route("/api/missions", methods=["GET"])
 def api_public_missions():
     role_filter = (request.args.get("role") or "").strip().lower()
     missions = _fetch_missions_from_db()
     if role_filter:
         universal_tokens = {"*", "all", "todos", "todas"}
+        catalog = _fetch_roles_from_db()
+        matched_role = _find_role(role_filter, roles=catalog)
+        if matched_role:
+            filter_tokens = _extract_role_tokens(matched_role)
+        else:
+            filter_tokens = {role_filter}
         filtered: List[dict] = []
         for mission in missions:
             mission_roles = _normalize_roles_input(mission.get("roles"))
             if not mission_roles:
                 filtered.append(mission)
                 continue
-            roles_lower = {role.lower() for role in mission_roles}
-            if role_filter in roles_lower or roles_lower.intersection(universal_tokens):
+            mission_tokens: set[str] = set()
+            for mission_role in mission_roles:
+                matched = _find_role(mission_role, roles=catalog)
+                if matched:
+                    mission_tokens.update(_extract_role_tokens(matched))
+                else:
+                    mission_tokens.add(str(mission_role or "").strip().lower())
+            if not mission_tokens:
+                filtered.append(mission)
+                continue
+            if mission_tokens.intersection(universal_tokens) or mission_tokens.intersection(filter_tokens):
                 filtered.append(mission)
         missions = filtered
     return jsonify({"missions": missions})
