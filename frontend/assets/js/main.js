@@ -1089,7 +1089,10 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
           <h3 class="admin-section__title">Misiones</h3>
           <p class="admin-section__description">Selecciona una misión para editar su título, roles y contenido.</p>
         </div>
-        <button type="button" class="admin-button admin-button--ghost" data-action="refresh-missions">Actualizar lista</button>
+        <div class="admin-section__actions">
+          <button type="button" class="admin-button admin-button--ghost" data-action="refresh-missions">Actualizar lista</button>
+          <button type="button" class="admin-button" data-action="new-mission">Nueva misión</button>
+        </div>
       </div>
       <div class="admin-section__grid admin-section__grid--two-columns">
         <div class="admin-card admin-card--selector">
@@ -1102,6 +1105,10 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
           </label>
         </div>
         <form id="missionAdminForm" class="admin-card admin-card--form">
+          <div class="admin-field" id="missionIdField" hidden>
+            <label class="admin-field__label" for="missionIdInput">Identificador</label>
+            <input type="text" id="missionIdInput" class="admin-field__control" name="mission_id">
+          </div>
           <div class="admin-field">
             <label class="admin-field__label" for="missionTitleInput">Título</label>
             <input type="text" id="missionTitleInput" class="admin-field__control" name="title">
@@ -1131,11 +1138,14 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     };
   }
   const missionSelect = sectionContainer.querySelector('#missionAdminSelect');
+  const missionIdField = sectionContainer.querySelector('#missionIdField');
+  const missionIdInput = sectionContainer.querySelector('#missionIdInput');
   const missionTitleInput = sectionContainer.querySelector('#missionTitleInput');
   const missionContentInput = sectionContainer.querySelector('#missionContentInput');
   const feedbackContainer = sectionContainer.querySelector('#missionAdminFeedback');
   const saveButton = sectionContainer.querySelector('#missionAdminSaveBtn');
   const roleInputs = Array.from(sectionContainer.querySelectorAll('.mission-role-option'));
+  let isCreatingNewMission = false;
   function showFeedback(message, type = 'info') {
     if (!feedbackContainer) {
       return;
@@ -1148,9 +1158,69 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info';
     feedbackContainer.innerHTML = `<div class="${typeClass}">${escapeHtml(message)}</div>`;
   }
+  function setCreationMode(enabled) {
+    isCreatingNewMission = Boolean(enabled);
+    if (missionIdField) {
+      if (enabled) {
+        missionIdField.removeAttribute('hidden');
+      } else {
+        missionIdField.setAttribute('hidden', 'hidden');
+      }
+    }
+    if (missionIdInput) {
+      missionIdInput.disabled = !enabled;
+      if (enabled) {
+        missionIdInput.value = '';
+        missionIdInput.focus();
+      } else {
+        missionIdInput.value = '';
+      }
+    }
+    if (enabled) {
+      if (missionSelect) {
+        missionSelect.value = '';
+      }
+      if (missionTitleInput) {
+        missionTitleInput.value = '';
+      }
+      if (missionContentInput) {
+        missionContentInput.value = '';
+      }
+      roleInputs.forEach((input) => {
+        input.checked = false;
+      });
+      if (saveButton) {
+        saveButton.disabled = false;
+      }
+      showFeedback('Completa los campos para crear una nueva misión.', 'info');
+    }
+  }
+
+  function repopulateMissionSelect(selectedMissionId) {
+    if (!missionSelect) {
+      return;
+    }
+    const missionOptionsHtml = missions
+      .map((mission) => {
+        const optionId = mission && mission.mission_id != null ? String(mission.mission_id) : '';
+        if (!optionId) {
+          return '';
+        }
+        return `<option value="${escapeHtml(optionId)}">${escapeHtml(optionId)}</option>`;
+      })
+      .join('');
+    missionSelect.innerHTML = `<option value="">Selecciona una misión</option>${missionOptionsHtml}`;
+    if (selectedMissionId) {
+      missionSelect.value = selectedMissionId;
+    }
+  }
+
   function fillMissionForm(missionId) {
     if (sectionContainer.dataset.activeSection !== sectionKey) {
       return;
+    }
+    if (isCreatingNewMission) {
+      setCreationMode(false);
     }
     const normalizedMissionId = missionId != null ? String(missionId) : '';
     const mission = missions.find((m) => {
@@ -1161,6 +1231,9 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       return candidateId === normalizedMissionId;
     });
     if (!mission) {
+      if (missionIdInput) {
+        missionIdInput.value = '';
+      }
       if (missionTitleInput) {
         missionTitleInput.value = '';
       }
@@ -1175,6 +1248,9 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         saveButton.disabled = true;
       }
       return;
+    }
+    if (missionIdInput) {
+      missionIdInput.value = normalizedMissionId;
     }
     if (missionTitleInput) {
       missionTitleInput.value = mission.title || '';
@@ -1194,6 +1270,9 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   }
   if (missionSelect) {
     missionSelect.onchange = () => {
+      if (isCreatingNewMission) {
+        setCreationMode(false);
+      }
       fillMissionForm(missionSelect.value);
     };
   }
@@ -1205,18 +1284,29 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     }
   } else if (saveButton) {
     saveButton.disabled = true;
-    showFeedback('No hay misiones disponibles para editar.', 'info');
+    showFeedback('No hay misiones disponibles para editar. Crea una nueva misión para comenzar.', 'info');
   }
   const missionForm = sectionContainer.querySelector('#missionAdminForm');
+  const newMissionButton = sectionContainer.querySelector('[data-action="new-mission"]');
+  if (newMissionButton) {
+    newMissionButton.onclick = () => {
+      setCreationMode(true);
+    };
+  }
   if (missionForm) {
     missionForm.onsubmit = async (event) => {
       event.preventDefault();
       if (sectionContainer.dataset.activeSection !== sectionKey) {
         return;
       }
-      const missionId = missionSelect ? missionSelect.value : '';
+      const creationMode = isCreatingNewMission;
+      const missionIdSource = creationMode ? missionIdInput : missionSelect;
+      const missionId = missionIdSource && missionIdSource.value != null ? missionIdSource.value.trim() : '';
       if (!missionId) {
-        showFeedback('Selecciona una misión antes de guardar.', 'error');
+        showFeedback(
+          creationMode ? 'Ingresa un identificador para la nueva misión.' : 'Selecciona una misión antes de guardar.',
+          'error'
+        );
         return;
       }
       const payload = {};
@@ -1241,14 +1331,18 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       payload.content = parsedContent;
       showFeedback('Guardando cambios...', 'info');
       try {
-        const res = await apiFetch(`/api/admin/missions/${encodeURIComponent(missionId)}`, {
-          method: 'PUT',
+        const requestUrl = creationMode
+          ? '/api/admin/missions'
+          : `/api/admin/missions/${encodeURIComponent(missionId)}`;
+        const requestPayload = creationMode ? { ...payload, mission_id: missionId } : payload;
+        const res = await apiFetch(requestUrl, {
+          method: creationMode ? 'POST' : 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
           credentials: 'include',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(requestPayload),
         });
         let data = {};
         try {
@@ -1258,9 +1352,47 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         }
         if (!res.ok) {
           const backendMessage = typeof data.error === 'string' ? data.error : '';
-          throw new Error(backendMessage || 'No pudimos guardar los cambios de la misión.');
+          throw new Error(
+            backendMessage ||
+              (creationMode
+                ? 'No pudimos crear la nueva misión.'
+                : 'No pudimos guardar los cambios de la misión.')
+          );
         }
         const updatedMission = data.mission;
+        if (creationMode) {
+          const normalizedMissionId = missionId != null ? String(missionId) : '';
+          const newMission = {
+            ...(updatedMission || {}),
+            mission_id: normalizedMissionId,
+          };
+          if (typeof newMission.title !== 'string') {
+            newMission.title = payload.title || '';
+          }
+          if (!Array.isArray(newMission.roles)) {
+            newMission.roles = Array.isArray(payload.roles) ? payload.roles : [];
+          }
+          if (
+            !newMission.content ||
+            typeof newMission.content !== 'object' ||
+            Array.isArray(newMission.content)
+          ) {
+            newMission.content = payload.content;
+          }
+          missions = missions.filter((missionItem) => {
+            if (!missionItem || !Object.prototype.hasOwnProperty.call(missionItem, 'mission_id')) {
+              return true;
+            }
+            const candidateId = missionItem.mission_id != null ? String(missionItem.mission_id) : '';
+            return candidateId !== normalizedMissionId;
+          });
+          missions.push(newMission);
+          repopulateMissionSelect(normalizedMissionId);
+          setCreationMode(false);
+          fillMissionForm(normalizedMissionId);
+          showFeedback('La misión se creó correctamente.', 'success');
+          return;
+        }
         if (updatedMission) {
           const normalizedMissionId = missionId != null ? String(missionId) : '';
           const index = missions.findIndex((m) => {
