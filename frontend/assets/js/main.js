@@ -1605,12 +1605,117 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
           </fieldset>
           <fieldset class="admin-field admin-field--fieldset">
             <legend>Campos extra</legend>
-            <p class="admin-field__hint">Edita el JSON que se fusionará con el contenido de la misión.</p>
+            <p class="admin-field__hint">Completa cada bloque para estructurar el contenido adicional de la misión.</p>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtrasEditor">Contenido adicional (JSON)</label>
-              <textarea id="missionExtrasEditor" class="admin-field__control admin-field__control--textarea" rows="8" spellcheck="false" placeholder="{}"></textarea>
+              <label class="admin-field__label" for="missionExtraPurpose">💡 ¿Para qué sirve?</label>
+              <textarea
+                id="missionExtraPurpose"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="purpose"
+                placeholder="Describe el propósito de la misión."
+              ></textarea>
             </div>
-            <div class="admin-feedback admin-feedback--field" id="missionExtrasFeedback"></div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraOutcome">🏆 Al final podrás…</label>
+              <textarea
+                id="missionExtraOutcome"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="outcome"
+                placeholder="Describe los resultados esperados."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraResources">📚 Material de aprendizaje sugerido…</label>
+              <textarea
+                id="missionExtraResources"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="resources"
+                placeholder="Enlista los recursos recomendados."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraResearch">📝 Investigación (Fichas)</label>
+              <textarea
+                id="missionExtraResearch"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="research"
+                placeholder="Resume la investigación necesaria."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraGuidance">🧭 Guía detallada antes de la práctica</label>
+              <textarea
+                id="missionExtraGuidance"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="guidance"
+                placeholder="Comparte la guía previa a la práctica."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraClone">📦 Clonar el repositorio…</label>
+              <textarea
+                id="missionExtraClone"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="clone"
+                placeholder="Indica cómo clonar el repositorio y preparar el entorno."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraPractice">🚀 Práctica…</label>
+              <textarea
+                id="missionExtraPractice"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="practice"
+                placeholder="Detalla la práctica principal."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraDeliverables">📋 Entregables obligatorios</label>
+              <textarea
+                id="missionExtraDeliverables"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="deliverables"
+                placeholder="Describe los entregables que deben presentarse."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraReview">👁 Revisión</label>
+              <textarea
+                id="missionExtraReview"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="review"
+                placeholder="Indica cómo se evaluará la misión."
+              ></textarea>
+            </div>
+            <div class="admin-field admin-field--details">
+              <details id="missionExtrasAdvancedDetails">
+                <summary>Editor avanzado</summary>
+                <p class="admin-field__hint">
+                  Edita el JSON que se fusionará con el contenido de la misión. Usa esta sección para conservar claves avanzadas como
+                  rutas de scripts o validaciones.
+                </p>
+                <div class="admin-field">
+                  <label class="admin-field__label" for="missionExtrasEditor">Contenido adicional (JSON)</label>
+                  <textarea
+                    id="missionExtrasEditor"
+                    class="admin-field__control admin-field__control--textarea"
+                    rows="8"
+                    spellcheck="false"
+                    placeholder="{}"
+                  ></textarea>
+                </div>
+                <div class="admin-feedback admin-feedback--field" id="missionExtrasFeedback"></div>
+              </details>
+            </div>
           </fieldset>
           <fieldset class="admin-field admin-field--fieldset">
             <legend>Deliverables</legend>
@@ -1647,6 +1752,34 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const missionSourceBasePathInput = sectionContainer.querySelector('#missionSourceBasePathInput');
   const missionExtrasEditor = sectionContainer.querySelector('#missionExtrasEditor');
   const missionExtrasFeedback = sectionContainer.querySelector('#missionExtrasFeedback');
+  const missionExtrasAdvancedDetails = sectionContainer.querySelector('#missionExtrasAdvancedDetails');
+  const missionExtraSectionDefinitions = [
+    { key: 'purpose', heading: '💡 ¿Para qué sirve?' },
+    { key: 'outcome', heading: '🏆 Al final podrás…' },
+    { key: 'resources', heading: '📚 Material de aprendizaje sugerido…' },
+    { key: 'research', heading: '📝 Investigación (Fichas)' },
+    { key: 'guidance', heading: '🧭 Guía detallada antes de la práctica' },
+    { key: 'clone', heading: '📦 Clonar el repositorio…' },
+    { key: 'practice', heading: '🚀 Práctica…' },
+    { key: 'deliverables', heading: '📋 Entregables obligatorios' },
+    { key: 'review', heading: '👁 Revisión' },
+  ];
+  const missionExtrasFieldNodes = {};
+  let missionDisplaySectionValues = {};
+  missionExtraSectionDefinitions.forEach((definition) => {
+    const field = sectionContainer.querySelector(`[data-mission-extra="${definition.key}"]`);
+    if (field) {
+      missionExtrasFieldNodes[definition.key] = field;
+      field.addEventListener('input', () => {
+        missionDisplaySectionValues[definition.key] = field.value;
+        if (field.value.trim()) {
+          field.removeAttribute('aria-invalid');
+        }
+      });
+    }
+  });
+  missionDisplaySectionValues = createEmptyMissionDisplaySections();
+  resetMissionSectionFieldValues();
   const deliverablesList = sectionContainer.querySelector('#missionDeliverablesList');
   const deliverablesSummary = sectionContainer.querySelector('#missionDeliverablesSummary');
   const addDeliverableButton = sectionContainer.querySelector('[data-action="add-deliverable"]');
@@ -1668,6 +1801,9 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       } else {
         missionExtrasEditor.removeAttribute('aria-invalid');
       }
+    }
+    if (missionExtrasAdvancedDetails && message) {
+      missionExtrasAdvancedDetails.setAttribute('open', 'open');
     }
   }
 
@@ -1699,6 +1835,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     if (!trimmed) {
       missionContentExtras = {};
       updateMissionExtrasFeedback('');
+      resetMissionSectionFieldValues();
       return true;
     }
     try {
@@ -1708,6 +1845,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       }
       missionContentExtras = parsed;
       updateMissionExtrasFeedback('');
+      syncMissionSectionFieldsFromExtras(missionContentExtras);
       return true;
     } catch (err) {
       const detail = err && err.message ? ` Detalle: ${err.message}` : '';
@@ -1717,6 +1855,123 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       updateMissionExtrasFeedback(feedbackMessage);
       return false;
     }
+  }
+
+  function createEmptyMissionDisplaySections() {
+    const initialValues = {};
+    missionExtraSectionDefinitions.forEach((definition) => {
+      initialValues[definition.key] = '';
+    });
+    return initialValues;
+  }
+
+  function setMissionSectionFieldValues(values) {
+    missionExtraSectionDefinitions.forEach((definition) => {
+      const field = missionExtrasFieldNodes[definition.key];
+      if (field) {
+        const fieldValue = values && typeof values[definition.key] === 'string' ? values[definition.key] : '';
+        field.value = fieldValue;
+      }
+    });
+  }
+
+  function setMissionSectionFieldError(fieldKey, hasError) {
+    const field = missionExtrasFieldNodes[fieldKey];
+    if (!field) {
+      return;
+    }
+    if (hasError) {
+      field.setAttribute('aria-invalid', 'true');
+    } else {
+      field.removeAttribute('aria-invalid');
+    }
+  }
+
+  function clearMissionSectionFieldErrors() {
+    missionExtraSectionDefinitions.forEach((definition) => {
+      setMissionSectionFieldError(definition.key, false);
+    });
+  }
+
+  function resetMissionSectionFieldValues() {
+    missionDisplaySectionValues = createEmptyMissionDisplaySections();
+    setMissionSectionFieldValues(missionDisplaySectionValues);
+    clearMissionSectionFieldErrors();
+  }
+
+  function collectMissionSectionFieldValues() {
+    const values = createEmptyMissionDisplaySections();
+    const missing = [];
+    missionExtraSectionDefinitions.forEach((definition) => {
+      const field = missionExtrasFieldNodes[definition.key];
+      const rawValue = field ? field.value : '';
+      values[definition.key] = rawValue;
+      const normalized = typeof rawValue === 'string' ? rawValue.trim() : '';
+      if (!normalized) {
+        missing.push(definition);
+        setMissionSectionFieldError(definition.key, true);
+      } else {
+        setMissionSectionFieldError(definition.key, false);
+      }
+    });
+    return { values, missing };
+  }
+
+  function normalizeMissionExtraHeading(text) {
+    return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+  }
+
+  function parseMissionExtrasDisplaySections(displayHtml) {
+    const parsedValues = createEmptyMissionDisplaySections();
+    if (!displayHtml || typeof displayHtml !== 'string') {
+      return parsedValues;
+    }
+    if (typeof document === 'undefined') {
+      return parsedValues;
+    }
+    const container = document.createElement('div');
+    container.innerHTML = displayHtml;
+    const missionSection = container.querySelector('section.mission');
+    const root = missionSection || container;
+    const headingElements = Array.from(root.querySelectorAll('h3'));
+    missionExtraSectionDefinitions.forEach((definition) => {
+      const targetHeading = normalizeMissionExtraHeading(definition.heading);
+      const headingElement = headingElements.find(
+        (element) => normalizeMissionExtraHeading(element.textContent) === targetHeading
+      );
+      if (!headingElement) {
+        parsedValues[definition.key] = '';
+        return;
+      }
+      const fragmentContainer = document.createElement('div');
+      let sibling = headingElement.nextSibling;
+      while (sibling) {
+        if (sibling.nodeType === 1 && sibling.tagName && sibling.tagName.toLowerCase() === 'h3') {
+          break;
+        }
+        fragmentContainer.appendChild(sibling.cloneNode(true));
+        sibling = sibling.nextSibling;
+      }
+      parsedValues[definition.key] = fragmentContainer.innerHTML.trim();
+    });
+    return parsedValues;
+  }
+
+  function syncMissionSectionFieldsFromExtras(extras) {
+    const html = extras && typeof extras.display_html === 'string' ? extras.display_html : '';
+    const parsedSections = parseMissionExtrasDisplaySections(html);
+    missionDisplaySectionValues = { ...createEmptyMissionDisplaySections(), ...parsedSections };
+    setMissionSectionFieldValues(missionDisplaySectionValues);
+    clearMissionSectionFieldErrors();
+  }
+
+  function buildMissionExtrasDisplayHtml(sectionValues) {
+    const values = sectionValues || {};
+    const sectionHtmlParts = missionExtraSectionDefinitions.map((definition) => {
+      const content = typeof values[definition.key] === 'string' ? values[definition.key].trim() : '';
+      return `<h3>${definition.heading}</h3>${content}`;
+    });
+    return `<section class="mission">\n${sectionHtmlParts.join('\n')}\n</section>`;
   }
 
   const handleDeliverablesChange = () => {
@@ -1732,6 +1987,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     });
   }
   setMissionExtrasEditorValue(missionContentExtras);
+  syncMissionSectionFieldsFromExtras(missionContentExtras);
   updateDeliverablesEmptyState(deliverablesList);
   handleDeliverablesChange();
   function showFeedback(message, type = 'info') {
@@ -1787,6 +2043,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       handleDeliverablesChange();
       missionContentExtras = {};
       setMissionExtrasEditorValue(missionContentExtras);
+      resetMissionSectionFieldValues();
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -1854,6 +2111,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       handleDeliverablesChange();
       missionContentExtras = {};
       setMissionExtrasEditorValue(missionContentExtras);
+      resetMissionSectionFieldValues();
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -1877,6 +2135,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     const { verificationType, source, deliverables, extras } = splitMissionContent(contentValue);
     missionContentExtras = cloneMissionContentExtras(extras);
     setMissionExtrasEditorValue(missionContentExtras);
+    syncMissionSectionFieldsFromExtras(missionContentExtras);
     if (missionVerificationSelect) {
       const targetValue = verificationType || '';
       missionVerificationSelect.value = targetValue;
@@ -2010,12 +2269,28 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         }
         return;
       }
-      payload.content = cloneMissionContentExtras(missionContentExtras);
+      const { values: sectionValues, missing: missingSections } = collectMissionSectionFieldValues();
+      if (missingSections.length > 0) {
+        const missingSection = missingSections[0];
+        showFeedback(`Completa el bloque "${missingSection.heading}" antes de guardar.`, 'error');
+        const missingField = missionExtrasFieldNodes[missingSection.key];
+        if (missingField) {
+          missingField.focus();
+        }
+        return;
+      }
+      missionDisplaySectionValues = { ...createEmptyMissionDisplaySections(), ...sectionValues };
+      const displayHtml = buildMissionExtrasDisplayHtml(missionDisplaySectionValues);
+      const extrasForPayload = cloneMissionContentExtras(missionContentExtras);
+      extrasForPayload.display_html = displayHtml;
+      missionContentExtras = extrasForPayload;
+      setMissionExtrasEditorValue(missionContentExtras);
+      syncMissionSectionFieldsFromExtras(missionContentExtras);
       payload.content = combineMissionContentParts({
         verificationType,
         source,
         deliverables,
-        extras: payload.content,
+        extras: extrasForPayload,
       });
       showFeedback('Guardando cambios...', 'info');
       try {
