@@ -1053,18 +1053,79 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   if (sectionContainer.dataset.activeSection !== sectionKey) {
     return;
   }
-  const roleOptionsSet = new Set(ADMIN_AVAILABLE_ROLES);
-  missions.forEach((mission) => {
-    const missionRoles = Array.isArray(mission && mission.roles) ? mission.roles : [];
-    missionRoles.forEach((role) => {
-      if (role && typeof role === 'string') {
-        roleOptionsSet.add(role);
+  let rolesLoadWarning = '';
+  let useFallbackRoles = false;
+  let roleOptions = [];
+  try {
+    const catalogRoles = await moduleState.loadRoles();
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    roleOptions = catalogRoles
+      .map((role) => {
+        const slug = role && role.slug ? String(role.slug) : '';
+        if (!slug) {
+          return null;
+        }
+        const name = role && role.name ? String(role.name) : slug;
+        return { slug, name };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (rolesError) {
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    const status = rolesError && rolesError.status;
+    if (status === 401) {
+      clearSession();
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
+          <button type="button" class="admin-button" data-action="admin-login">Iniciar sesión</button>
+        </div>
+      `;
+      const loginBtn = sectionContainer.querySelector('[data-action="admin-login"]');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
       }
+      return;
+    }
+    useFallbackRoles = true;
+    if (status === 403) {
+      rolesLoadWarning =
+        'No tienes permisos para consultar el catálogo de roles. Se mostrarán los roles detectados en las misiones disponibles.';
+    } else {
+      const backendMessage = rolesError && rolesError.message ? rolesError.message : '';
+      rolesLoadWarning =
+        (backendMessage || 'No fue posible obtener el catálogo de roles.') +
+        ' Se mostrarán los roles detectados en las misiones disponibles.';
+    }
+  }
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  if (useFallbackRoles) {
+    const roleOptionsSet = new Set(ADMIN_AVAILABLE_ROLES);
+    missions.forEach((mission) => {
+      const missionRoles = Array.isArray(mission && mission.roles) ? mission.roles : [];
+      missionRoles.forEach((role) => {
+        if (role && typeof role === 'string') {
+          roleOptionsSet.add(role);
+        }
+      });
     });
-  });
-  const roleOptions = Array.from(roleOptionsSet)
-    .filter((role) => typeof role === 'string' && role)
-    .sort((a, b) => a.localeCompare(b));
+    roleOptions = Array.from(roleOptionsSet)
+      .filter((role) => typeof role === 'string' && role)
+      .sort((a, b) => a.localeCompare(b))
+      .map((role) => ({ slug: role, name: role }));
+    if (!rolesLoadWarning) {
+      rolesLoadWarning =
+        'No fue posible obtener el catálogo de roles. Se mostrarán los roles detectados en las misiones disponibles.';
+    }
+  }
   const missionOptions = missions
     .map((mission) => {
       const missionId = mission && mission.mission_id != null ? String(mission.mission_id) : '';
@@ -1078,8 +1139,8 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     .map(
       (role) =>
         `<label class="admin-checkbox"><input type="checkbox" class="mission-role-option" value="${escapeHtml(
-          role
-        )}"> <span>${escapeHtml(role)}</span></label>`
+          role.slug
+        )}"> <span>${escapeHtml(role.name)}</span></label>`
     )
     .join('');
   sectionContainer.innerHTML = `
@@ -1094,6 +1155,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
           <button type="button" class="admin-button" data-action="new-mission">Nueva misión</button>
         </div>
       </div>
+      ${rolesLoadWarning ? `<div class="status-warning"><p>${escapeHtml(rolesLoadWarning)}</p></div>` : ''}
       <div class="admin-section__grid admin-section__grid--two-columns">
         <div class="admin-card admin-card--selector">
           <label class="admin-field" for="missionAdminSelect">
