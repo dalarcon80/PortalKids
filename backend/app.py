@@ -779,6 +779,40 @@ def _serialize_mission_row(row: Mapping[str, object]) -> dict:
     }
 
 
+def _build_mission_seed_values(
+    mission_id: str,
+    contract: Mapping | None,
+    frontend_presentations: Mapping[str, str] | None,
+) -> Optional[Tuple[str, str, str]]:
+    contract_dict: Mapping = contract if isinstance(contract, Mapping) else {}
+    content_payload = dict(contract_dict)
+    if "display_html" not in content_payload:
+        presentation_html = (
+            frontend_presentations.get(mission_id, "")
+            if isinstance(frontend_presentations, Mapping)
+            else ""
+        )
+        if isinstance(presentation_html, str) and presentation_html.strip():
+            content_payload["display_html"] = presentation_html
+    title_raw = contract_dict.get("title") if isinstance(contract_dict, Mapping) else None
+    if isinstance(title_raw, (bytes, bytearray)):
+        title_raw = title_raw.decode("utf-8", errors="ignore")
+    title = str(title_raw or "").strip() or mission_id
+    roles_value = contract_dict.get("roles") if isinstance(contract_dict, Mapping) else None
+    roles = _normalize_roles_input(roles_value)
+    try:
+        content_json = json.dumps(content_payload, ensure_ascii=False)
+    except TypeError as exc:
+        logger.error("Failed to serialize mission %s contract: %s", mission_id, exc)
+        return None
+    try:
+        roles_json = json.dumps(roles, ensure_ascii=False)
+    except TypeError as exc:
+        logger.error("Failed to serialize mission %s roles: %s", mission_id, exc)
+        return None
+    return title, roles_json, content_json
+
+
 def _seed_missions_from_file(cursor, is_sqlite: bool) -> None:
     if not os.path.exists(CONTRACTS_PATH):
         return
@@ -802,23 +836,14 @@ def _seed_missions_from_file(cursor, is_sqlite: bool) -> None:
         normalized_id = str(mission_id or "").strip()
         if not normalized_id:
             continue
-        contract_dict = contract if isinstance(contract, dict) else {}
-        content_payload = dict(contract_dict)
-        if "display_html" not in content_payload:
-            presentation_html = frontend_presentations.get(normalized_id, "")
-            if isinstance(presentation_html, str) and presentation_html.strip():
-                content_payload["display_html"] = presentation_html
-        title_raw = contract_dict.get("title") if isinstance(contract_dict, dict) else None
-        if isinstance(title_raw, (bytes, bytearray)):
-            title_raw = title_raw.decode("utf-8", errors="ignore")
-        title = str(title_raw or "").strip() or normalized_id
-        roles = _normalize_roles_input(contract_dict.get("roles") if isinstance(contract_dict, dict) else None)
-        try:
-            content_json = json.dumps(content_payload, ensure_ascii=False)
-        except TypeError as exc:
-            logger.error("Failed to serialize mission %s contract: %s", normalized_id, exc)
+        seed_values = _build_mission_seed_values(
+            normalized_id,
+            contract if isinstance(contract, Mapping) else None,
+            frontend_presentations,
+        )
+        if seed_values is None:
             continue
-        roles_json = json.dumps(roles, ensure_ascii=False)
+        title, roles_json, content_json = seed_values
         params = (normalized_id, title, roles_json, content_json, timestamp)
         if is_sqlite:
             cursor.execute(
@@ -981,6 +1006,7 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
 
     if blank_title_ids:
         contracts_payload = _load_contract_payload()
+        frontend_presentations = _load_frontend_presentations()
         timestamp = _format_timestamp(datetime.utcnow())
         for mission_id in blank_title_ids:
             contract_entry = (
@@ -988,6 +1014,32 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
                 if isinstance(contracts_payload, Mapping)
                 else None
             )
+            seed_values = _build_mission_seed_values(
+                mission_id,
+                contract_entry if isinstance(contract_entry, Mapping) else None,
+                frontend_presentations,
+            )
+            if seed_values is not None:
+                title, roles_json, content_json = seed_values
+                try:
+                    cursor.execute(
+                        """
+                        UPDATE missions
+                        SET title = %s,
+                            roles = %s,
+                            content_json = %s,
+                            updated_at = %s
+                        WHERE mission_id = %s
+                        """,
+                        (title, roles_json, content_json, timestamp, mission_id),
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "Failed to reseed mission %s contract: %s",
+                        mission_id,
+                        exc,
+                    )
+                continue
             contract_dict = contract_entry if isinstance(contract_entry, Mapping) else {}
             title_raw = contract_dict.get("title") if contract_dict else None
             if isinstance(title_raw, (bytes, bytearray)):
