@@ -48,6 +48,19 @@ Los administradores autenticados (token válido en el encabezado `Authorization:
 
 El backend reutiliza los helpers `hash_password` y `verify_password` para validar los cambios de contraseña y mantiene la compatibilidad tanto con SQLite como con MySQL. Todos los endpoints devuelven errores `401/403` cuando el token es inválido o pertenece a un usuario sin privilegios administrativos.
 
+## Validación manual del panel administrativo
+
+Sigue estos pasos para comprobar el flujo completo del nuevo módulo web cuando no haya pruebas automatizadas disponibles:
+
+1. Instala las dependencias del backend (`pip install -r backend/requirements.txt`) y arranca el servidor con `FLASK_APP=backend.app flask run` o el comando equivalente a tu entorno.
+2. Abre `frontend/index.html` desde un servidor estático (por ejemplo con `python -m http.server` en la carpeta `frontend/`).
+3. Inicia sesión en el portal con un usuario administrativo existente. Si necesitas uno nuevo, crea primero la cuenta desde la API (`/api/enroll`) y actualiza el flag `is_admin` mediante `PUT /api/admin/students/<slug>`.
+4. Haz clic en el botón **Panel administrativo** del encabezado y verifica que aparecen las tres secciones.
+   - **Misiones:** selecciona una misión, modifica título o roles y guarda los cambios. Confirma que la operación devuelve un mensaje de éxito y que, ante errores de validación, se muestran mensajes en rojo.
+   - **Usuarios:** crea un usuario de prueba, edítalo (incluyendo el cambio de contraseña) y comprueba que la tabla se actualiza sin recargar la página. Al eliminar un registro, acepta la confirmación del navegador y valida que desaparece del listado.
+   - **Roles:** añade un rol nuevo proporcionando metadata en JSON, edítalo y finalmente elimínalo. Verifica que la sección muestra advertencias si el backend rechaza la operación (por ejemplo, por dependencias con misiones o usuarios).
+5. Revisa la consola del navegador y las respuestas de la pestaña *Network* para asegurarte de que cada acción devuelve el código HTTP esperado (`2xx` para éxito, `4xx` cuando falten permisos o datos).
+
 ### Clave secreta de Flask (`SECRET_KEY`)
 
 La aplicación Flask utiliza `SECRET_KEY` para firmar las cookies de sesión y otros tokens. En producción debes fijar explícitamente una cadena aleatoria y mantenerla en secreto. Por ejemplo:
