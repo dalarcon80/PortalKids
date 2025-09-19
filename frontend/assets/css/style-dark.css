@@ -48,6 +48,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 .portal-header {
   background: linear-gradient(135deg, var(--header-gradient-start), var(--header-gradient-end));
   color: var(--text);
@@ -486,6 +490,154 @@ form button:hover {
   background-color: var(--error-bg);
   border-color: var(--error-border);
   color: var(--danger);
+}
+
+.admin-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.admin-callout {
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  margin-bottom: 2rem;
+  color: var(--accent-contrast);
+}
+
+.admin-callout p {
+  margin: 0.25rem 0;
+}
+
+.admin-config {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  box-shadow: var(--card-shadow);
+  margin-bottom: 1.75rem;
+}
+
+.admin-config__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-config__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.admin-config__updated {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.admin-config__fields {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.admin-config__field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.admin-config__field input,
+.admin-config__field textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--input-border);
+  background-color: var(--input-bg);
+  color: var(--text);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.45);
+}
+
+.admin-config__field input:focus-visible,
+.admin-config__field textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.admin-config__description {
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.admin-config__metadata {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+.admin-config__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1.25rem;
+}
+
+.admin-config__submit {
+  background-color: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--accent-contrast);
+  padding: 0.6rem 1.4rem;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--accent-shadow);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.admin-config__submit:hover:not([disabled]),
+.admin-config__submit:focus-visible:not([disabled]) {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.admin-config__submit[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-config__message {
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.admin-config__message--success {
+  color: var(--success);
+}
+
+.admin-config__message--error {
+  color: var(--danger);
+}
+
+.admin-warning {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  color: var(--danger);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+}
+
+.admin-empty {
+  font-size: 0.95rem;
+  color: var(--muted);
 }
 
 button#logoutBtn {

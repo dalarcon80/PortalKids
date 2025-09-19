@@ -24,3 +24,13 @@ Variables opcionales:
 | `DB_CONNECT_TIMEOUT` | Tiempo máximo de conexión en segundos. |
 
 Debes proporcionar `DB_HOST` o `DB_INSTANCE_CONNECTION_NAME`; si falta alguno el backend devolverá un error 500 al atender las peticiones.
+
+## Integraciones externas
+
+Las credenciales para GitHub y OpenAI se gestionan desde la interfaz administrativa (`frontend/admin/index.html`). El backend deja de depender de variables de entorno para estas integraciones y almacena la configuración en la tabla `service_integrations`. Cada actualización ejecuta una prueba mínima contra el servicio externo antes de persistir los cambios.
+
+Revisa la guía [docs/service-integrations.md](docs/service-integrations.md) para conocer:
+
+* Qué campos se esperan para cada servicio y el formato de los tokens.
+* Cómo usar el panel de administración y qué mensajes devuelve el backend cuando hay errores de validación.
+* Los comandos necesarios para ejecutar las pruebas automatizadas (`pytest backend/tests/test_service_integrations.py`) antes de aplicar cambios en producción.
