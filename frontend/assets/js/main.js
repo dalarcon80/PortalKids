@@ -1605,95 +1605,137 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
           </fieldset>
           <fieldset class="admin-field admin-field--fieldset">
             <legend>Campos extra</legend>
-            <p class="admin-field__hint">Completa cada bloque para estructurar el contenido adicional de la misión.</p>
+            <p class="admin-field__hint">
+              Completa cada bloque numerado para seguir el estándar de documentación de misiones.
+            </p>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraPurpose">💡 ¿Para qué sirve?</label>
+              <label class="admin-field__label" for="missionExtraPurpose">1. Nombre y narrativa</label>
               <textarea
                 id="missionExtraPurpose"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="purpose"
-                placeholder="Describe el propósito de la misión."
+                placeholder="Presenta la misión y el escenario principal."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraOutcome">🏆 Al final podrás…</label>
+              <label class="admin-field__label" for="missionExtraOutcome">2. Objetivos de la misión</label>
               <textarea
                 id="missionExtraOutcome"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="outcome"
-                placeholder="Describe los resultados esperados."
+                placeholder="Enumera los objetivos medibles que la persona deberá lograr."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraResources">📚 Material de aprendizaje sugerido…</label>
+              <label class="admin-field__label" for="missionExtraHistory">3. Historia / contexto breve</label>
+              <textarea
+                id="missionExtraHistory"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="history"
+                placeholder="Describe el contexto narrativo que introduce la misión."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraResources">4. Recursos de aprendizaje sugeridos</label>
               <textarea
                 id="missionExtraResources"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="resources"
-                placeholder="Enlista los recursos recomendados."
+                placeholder="Incluye enlaces y materiales recomendados para prepararse."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraResearch">📝 Investigación (Fichas)</label>
+              <label class="admin-field__label" for="missionExtraResearch">5. Investigación previa (fichas)</label>
               <textarea
                 id="missionExtraResearch"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="research"
-                placeholder="Resume la investigación necesaria."
+                placeholder="Resume la investigación previa que respalda la misión."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraGuidance">🧭 Guía detallada antes de la práctica</label>
+              <label class="admin-field__label" for="missionExtraGuidance">6. Guía previa a la práctica</label>
               <textarea
                 id="missionExtraGuidance"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="guidance"
-                placeholder="Comparte la guía previa a la práctica."
+                placeholder="Explica los pasos previos que preparan la práctica."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraClone">📦 Clonar el repositorio…</label>
+              <label class="admin-field__label" for="missionExtraClone">7. Setup del repositorio y entorno</label>
               <textarea
                 id="missionExtraClone"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="clone"
-                placeholder="Indica cómo clonar el repositorio y preparar el entorno."
+                placeholder="Detalla cómo clonar el repositorio y configurar el entorno local."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraPractice">🚀 Práctica…</label>
+              <label class="admin-field__label" for="missionExtraMicroQuiz">8. Micro-quiz</label>
+              <textarea
+                id="missionExtraMicroQuiz"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="micro_quiz"
+                placeholder="Redacta preguntas y respuestas. Entrega en reports/m#_quiz.txt."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraPractice">9. Práctica principal</label>
               <textarea
                 id="missionExtraPractice"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="practice"
-                placeholder="Detalla la práctica principal."
+                placeholder="Detalla la actividad práctica que desarrollará la misión."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraDeliverables">📋 Entregables obligatorios</label>
+              <label class="admin-field__label" for="missionExtraPrChecklist">10. Checklist para el Pull Request</label>
+              <textarea
+                id="missionExtraPrChecklist"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="pr_checklist"
+                placeholder="Define la lista de verificación. Entrega en reports/m#_pr_checklist.md."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraDeliverables">11. Entregables obligatorios</label>
               <textarea
                 id="missionExtraDeliverables"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="deliverables"
-                placeholder="Describe los entregables que deben presentarse."
+                placeholder="Describe los entregables que debe entregar la persona."
               ></textarea>
             </div>
             <div class="admin-field">
-              <label class="admin-field__label" for="missionExtraReview">👁 Revisión</label>
+              <label class="admin-field__label" for="missionExtraEvaluationRubric">12. Rúbrica de evaluación (10 puntos)</label>
+              <textarea
+                id="missionExtraEvaluationRubric"
+                class="admin-field__control admin-field__control--textarea"
+                rows="3"
+                data-mission-extra="evaluation_rubric"
+                placeholder="Explica los criterios de evaluación y asigna puntos (reports/m#_rubric.md)."
+              ></textarea>
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtraReview">13. Revisión final</label>
               <textarea
                 id="missionExtraReview"
                 class="admin-field__control admin-field__control--textarea"
                 rows="3"
                 data-mission-extra="review"
-                placeholder="Indica cómo se evaluará la misión."
+                placeholder="Detalla el proceso de revisión y los siguientes pasos."
               ></textarea>
             </div>
             <div class="admin-field admin-field--details">
@@ -1754,15 +1796,35 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const missionExtrasFeedback = sectionContainer.querySelector('#missionExtrasFeedback');
   const missionExtrasAdvancedDetails = sectionContainer.querySelector('#missionExtrasAdvancedDetails');
   const missionExtraSectionDefinitions = [
-    { key: 'purpose', heading: '💡 ¿Para qué sirve?' },
-    { key: 'outcome', heading: '🏆 Al final podrás…' },
-    { key: 'resources', heading: '📚 Material de aprendizaje sugerido…' },
-    { key: 'research', heading: '📝 Investigación (Fichas)' },
-    { key: 'guidance', heading: '🧭 Guía detallada antes de la práctica' },
-    { key: 'clone', heading: '📦 Clonar el repositorio…' },
-    { key: 'practice', heading: '🚀 Práctica…' },
-    { key: 'deliverables', heading: '📋 Entregables obligatorios' },
-    { key: 'review', heading: '👁 Revisión' },
+    { key: 'purpose', heading: '1. Nombre y narrativa', legacyHeadings: ['💡 ¿Para qué sirve?'] },
+    { key: 'outcome', heading: '2. Objetivos de la misión', legacyHeadings: ['🏆 Al final podrás…'] },
+    { key: 'history', heading: '3. Historia / contexto breve' },
+    {
+      key: 'resources',
+      heading: '4. Recursos de aprendizaje sugeridos',
+      legacyHeadings: ['📚 Material de aprendizaje sugerido…'],
+    },
+    {
+      key: 'research',
+      heading: '5. Investigación previa (fichas)',
+      legacyHeadings: ['📝 Investigación (Fichas)'],
+    },
+    {
+      key: 'guidance',
+      heading: '6. Guía previa a la práctica',
+      legacyHeadings: ['🧭 Guía detallada antes de la práctica'],
+    },
+    { key: 'clone', heading: '7. Setup del repositorio y entorno', legacyHeadings: ['📦 Clonar el repositorio…'] },
+    { key: 'micro_quiz', heading: '8. Micro-quiz' },
+    { key: 'practice', heading: '9. Práctica principal', legacyHeadings: ['🚀 Práctica…'] },
+    { key: 'pr_checklist', heading: '10. Checklist para el Pull Request' },
+    {
+      key: 'deliverables',
+      heading: '11. Entregables obligatorios',
+      legacyHeadings: ['📋 Entregables obligatorios'],
+    },
+    { key: 'evaluation_rubric', heading: '12. Rúbrica de evaluación (10 puntos)' },
+    { key: 'review', heading: '13. Revisión final', legacyHeadings: ['👁 Revisión'] },
   ];
   const missionExtrasFieldNodes = {};
   let missionDisplaySectionValues = {};
@@ -1935,10 +1997,14 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     const root = missionSection || container;
     const headingElements = Array.from(root.querySelectorAll('h3'));
     missionExtraSectionDefinitions.forEach((definition) => {
-      const targetHeading = normalizeMissionExtraHeading(definition.heading);
-      const headingElement = headingElements.find(
-        (element) => normalizeMissionExtraHeading(element.textContent) === targetHeading
-      );
+      const candidateHeadings = [definition.heading]
+        .concat(Array.isArray(definition.legacyHeadings) ? definition.legacyHeadings : [])
+        .map((text) => normalizeMissionExtraHeading(text))
+        .filter((text) => Boolean(text));
+      const headingElement = headingElements.find((element) => {
+        const normalizedHeading = normalizeMissionExtraHeading(element.textContent);
+        return candidateHeadings.includes(normalizedHeading);
+      });
       if (!headingElement) {
         parsedValues[definition.key] = '';
         return;
@@ -2263,7 +2329,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       }
       const extrasAreValid = syncExtrasFromEditor({ fromSubmit: true });
       if (!extrasAreValid) {
-        showFeedback('Corrige el JSON de los campos extra antes de guardar.', 'error');
+        showFeedback('Corrige el JSON del contenido adicional antes de guardar.', 'error');
         if (missionExtrasEditor) {
           missionExtrasEditor.focus();
         }
