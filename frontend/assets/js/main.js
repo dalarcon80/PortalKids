@@ -746,21 +746,36 @@ async function loadDashboard() {
 function renderDashboard(student, missions, completed) {
   const content = $('#content');
   const studentRole = student && typeof student.role === 'string' ? student.role : '';
+  const normalizeRoleValue = (value) => {
+    if (value == null) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return value.trim().toLowerCase();
+    }
+    return String(value).trim().toLowerCase();
+  };
+  const normalizedStudentRole = normalizeRoleValue(studentRole);
+  const universalTokens = new Set(['*', 'all', 'todos', 'todas']);
   const missionsArray = Array.isArray(missions) ? missions : [];
   const missionsForRole = missionsArray.filter((mission) => {
     if (!mission || mission.mission_id == null) {
       return false;
     }
-    const missionRoles = Array.isArray(mission.roles)
-      ? mission.roles.filter((role) => typeof role === 'string' && role)
-      : [];
+    const missionRolesRaw = Array.isArray(mission.roles) ? mission.roles : [];
+    const missionRoles = missionRolesRaw
+      .map((role) => normalizeRoleValue(role))
+      .filter((role) => role);
     if (missionRoles.length === 0) {
       return true;
     }
-    if (!studentRole) {
+    if (missionRoles.some((role) => universalTokens.has(role))) {
+      return true;
+    }
+    if (!normalizedStudentRole) {
       return false;
     }
-    return missionRoles.includes(studentRole);
+    return missionRoles.includes(normalizedStudentRole);
   });
   const unlocked = calculateUnlockedMissions(missionsForRole, completed);
   const completedSet = new Set(
