@@ -603,6 +603,14 @@ button#logoutBtn:hover {
   gap: 0.75rem;
 }
 
+.admin-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 .admin-section__title {
   margin: 0;
   font-size: clamp(1.15rem, 1.8vw, 1.4rem);
