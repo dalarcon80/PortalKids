@@ -1604,6 +1604,15 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
             </div>
           </fieldset>
           <fieldset class="admin-field admin-field--fieldset">
+            <legend>Campos extra</legend>
+            <p class="admin-field__hint">Edita el JSON que se fusionará con el contenido de la misión.</p>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionExtrasEditor">Contenido adicional (JSON)</label>
+              <textarea id="missionExtrasEditor" class="admin-field__control admin-field__control--textarea" rows="8" spellcheck="false" placeholder="{}"></textarea>
+            </div>
+            <div class="admin-feedback admin-feedback--field" id="missionExtrasFeedback"></div>
+          </fieldset>
+          <fieldset class="admin-field admin-field--fieldset">
             <legend>Deliverables</legend>
             <p class="admin-field__hint">Administra la lista de entregables requeridos.</p>
             <div id="missionDeliverablesList" class="admin-deliverables-list"></div>
@@ -1636,6 +1645,8 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const missionSourceRepositoryInput = sectionContainer.querySelector('#missionSourceRepositoryInput');
   const missionSourceBranchInput = sectionContainer.querySelector('#missionSourceBranchInput');
   const missionSourceBasePathInput = sectionContainer.querySelector('#missionSourceBasePathInput');
+  const missionExtrasEditor = sectionContainer.querySelector('#missionExtrasEditor');
+  const missionExtrasFeedback = sectionContainer.querySelector('#missionExtrasFeedback');
   const deliverablesList = sectionContainer.querySelector('#missionDeliverablesList');
   const deliverablesSummary = sectionContainer.querySelector('#missionDeliverablesSummary');
   const addDeliverableButton = sectionContainer.querySelector('[data-action="add-deliverable"]');
@@ -1645,10 +1656,82 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   let isCreatingNewMission = false;
   let missionContentExtras = {};
 
+  function updateMissionExtrasFeedback(message) {
+    if (missionExtrasFeedback) {
+      missionExtrasFeedback.innerHTML = message
+        ? `<div class="status-error"><p>${escapeHtml(message)}</p></div>`
+        : '';
+    }
+    if (missionExtrasEditor) {
+      if (message) {
+        missionExtrasEditor.setAttribute('aria-invalid', 'true');
+      } else {
+        missionExtrasEditor.removeAttribute('aria-invalid');
+      }
+    }
+  }
+
+  function serializeMissionExtras(extras) {
+    if (!extras || typeof extras !== 'object' || Array.isArray(extras)) {
+      return '';
+    }
+    try {
+      return JSON.stringify(extras, null, 2);
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function setMissionExtrasEditorValue(extras) {
+    if (missionExtrasEditor) {
+      const serialized = serializeMissionExtras(extras);
+      missionExtrasEditor.value = serialized || '{}';
+    }
+    updateMissionExtrasFeedback('');
+  }
+
+  function syncExtrasFromEditor({ fromSubmit = false } = {}) {
+    if (!missionExtrasEditor) {
+      return true;
+    }
+    const rawValue = missionExtrasEditor.value;
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      missionContentExtras = {};
+      updateMissionExtrasFeedback('');
+      return true;
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('El JSON debe representar un objeto con pares clave-valor.');
+      }
+      missionContentExtras = parsed;
+      updateMissionExtrasFeedback('');
+      return true;
+    } catch (err) {
+      const detail = err && err.message ? ` Detalle: ${err.message}` : '';
+      const feedbackMessage = fromSubmit
+        ? `El contenido extra no es un JSON válido.${detail}`
+        : `JSON inválido.${detail}`;
+      updateMissionExtrasFeedback(feedbackMessage);
+      return false;
+    }
+  }
+
   const handleDeliverablesChange = () => {
     const { deliverables, errors } = collectDeliverablesFromEditor(deliverablesList);
     renderAdminDeliverablesSummary(deliverablesSummary, deliverables, errors);
   };
+  if (missionExtrasEditor) {
+    missionExtrasEditor.addEventListener('input', () => {
+      syncExtrasFromEditor({ fromSubmit: false });
+    });
+    missionExtrasEditor.addEventListener('blur', () => {
+      syncExtrasFromEditor({ fromSubmit: true });
+    });
+  }
+  setMissionExtrasEditorValue(missionContentExtras);
   updateDeliverablesEmptyState(deliverablesList);
   handleDeliverablesChange();
   function showFeedback(message, type = 'info') {
@@ -1703,6 +1786,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       renderDeliverablesEditor(deliverablesList, [], { onChange: handleDeliverablesChange });
       handleDeliverablesChange();
       missionContentExtras = {};
+      setMissionExtrasEditorValue(missionContentExtras);
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -1769,6 +1853,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       renderDeliverablesEditor(deliverablesList, [], { onChange: handleDeliverablesChange });
       handleDeliverablesChange();
       missionContentExtras = {};
+      setMissionExtrasEditorValue(missionContentExtras);
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -1791,6 +1876,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     const contentValue = mission && mission.content && typeof mission.content === 'object' ? mission.content : {};
     const { verificationType, source, deliverables, extras } = splitMissionContent(contentValue);
     missionContentExtras = cloneMissionContentExtras(extras);
+    setMissionExtrasEditorValue(missionContentExtras);
     if (missionVerificationSelect) {
       const targetValue = verificationType || '';
       missionVerificationSelect.value = targetValue;
@@ -1916,11 +2002,20 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         showFeedback('Agrega al menos un deliverable para las misiones de evidencia.', 'error');
         return;
       }
+      const extrasAreValid = syncExtrasFromEditor({ fromSubmit: true });
+      if (!extrasAreValid) {
+        showFeedback('Corrige el JSON de los campos extra antes de guardar.', 'error');
+        if (missionExtrasEditor) {
+          missionExtrasEditor.focus();
+        }
+        return;
+      }
+      payload.content = cloneMissionContentExtras(missionContentExtras);
       payload.content = combineMissionContentParts({
         verificationType,
         source,
         deliverables,
-        extras: missionContentExtras,
+        extras: payload.content,
       });
       showFeedback('Guardando cambios...', 'info');
       try {
