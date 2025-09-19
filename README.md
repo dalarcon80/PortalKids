@@ -55,7 +55,8 @@ Sigue estos pasos para comprobar el flujo completo del nuevo módulo web cuando 
 1. Instala las dependencias del backend (`pip install -r backend/requirements.txt`) y arranca el servidor con `FLASK_APP=backend.app flask run` o el comando equivalente a tu entorno.
 2. Abre `frontend/index.html` desde un servidor estático (por ejemplo con `python -m http.server` en la carpeta `frontend/`).
 3. Inicia sesión en el portal con un usuario administrativo existente. Si necesitas uno nuevo, crea primero la cuenta desde la API (`/api/enroll`) y actualiza el flag `is_admin` mediante `PUT /api/admin/students/<slug>`.
-4. Haz clic en el botón **Panel administrativo** del encabezado y verifica que aparecen las tres secciones.
+4. Haz clic en el botón **Panel administrativo** del encabezado y verifica que aparecen las secciones.
+   - **Integraciones:** abre la ruta `/admin/integrations`, revisa los textos de ayuda y prueba a guardar un token ficticio. Confirma que los campos secretos muestran el aviso de valor almacenado y que, al pulsar “Quitar valor guardado”, el backend elimina la entrada de la base de datos.
    - **Misiones:** selecciona una misión, modifica título o roles y guarda los cambios. Confirma que la operación devuelve un mensaje de éxito y que, ante errores de validación, se muestran mensajes en rojo.
    - **Usuarios:** crea un usuario de prueba, edítalo (incluyendo el cambio de contraseña) y comprueba que la tabla se actualiza sin recargar la página. Al eliminar un registro, acepta la confirmación del navegador y valida que desaparece del listado.
    - **Roles:** añade un rol nuevo proporcionando metadata en JSON, edítalo y finalmente elimínalo. Verifica que la sección muestra advertencias si el backend rechaza la operación (por ejemplo, por dependencias con misiones o usuarios).
@@ -73,17 +74,21 @@ Si `SECRET_KEY` no está definida al iniciar el backend, este mostrará un aviso
 
 ## Integración con repositorios remotos en GitHub
 
-La verificación automática de misiones se realiza leyendo los archivos del estudiante directamente desde GitHub. Configura las siguientes variables de entorno antes de iniciar el backend:
+La verificación automática de misiones se realiza leyendo los archivos del estudiante directamente desde GitHub. Para registrar el token y la configuración general ingresa como administrador en el portal, accede a **Panel administrativo → Integraciones** y completa los campos de GitHub:
+
+- **Token personal de GitHub:** acepta valores con el formato `ghp_xxxxx` y se almacena cifrado en la tabla `service_settings`.
+- **API de GitHub y timeout:** permiten apuntar a GitHub Enterprise o ajustar el tiempo de espera por solicitud. Cada campo incluye ejemplos y descripción del formato esperado.
+
+Los repositorios asignados por rol continúan definiéndose mediante variables de entorno, que también se utilizan como valores de respaldo cuando la tabla de configuraciones todavía no tiene datos:
 
 | Variable | Descripción |
 | --- | --- |
-| `GITHUB_TOKEN` | Token personal con permiso de lectura sobre los repositorios. |
 | `GITHUB_VENTAS_REPO` | Repositorio (formato `owner/nombre`) donde trabajan los estudiantes del track de Ventas. |
 | `GITHUB_OPERACIONES_REPO` | Repositorio (formato `owner/nombre`) para el track de Operaciones. |
 | `GITHUB_VENTAS_BRANCH` | Rama por defecto a utilizar para Ventas (opcional, `main` si no se define). |
 | `GITHUB_OPERACIONES_BRANCH` | Rama por defecto para Operaciones (opcional, `main` si no se define). |
-| `GITHUB_API_URL` | URL base de la API de GitHub (opcional, útil para GitHub Enterprise). |
-| `GITHUB_TIMEOUT` | Tiempo máximo en segundos para cada descarga desde GitHub (opcional, por defecto `10`). |
+| `GITHUB_API_URL` | Valor opcional usado solo si no existe configuración persistente en el panel. |
+| `GITHUB_TIMEOUT` | Tiempo máximo en segundos por solicitud cuando la tabla de configuraciones está vacía. |
 
 El backend identifica qué repositorio debe revisar cada estudiante usando su `slug` o el `role` registrado (`ventas`, `operaciones`, sufijos `_v`/`_o`, etc.). En `backend/missions_contracts.json` cada misión incluye una sección `source` con la plantilla de ruta base (`students/{slug}`) y el repositorio objetivo (`default`, `ventas` u `operaciones`). Durante la verificación se descargan únicamente los archivos declarados en el contrato y, en el caso de scripts, se copian a un directorio temporal antes de ejecutarlos.
 
@@ -93,12 +98,17 @@ Si GitHub devuelve un error o el archivo solicitado no existe, la API responde c
 
 Algunas misiones (por ejemplo `m5`) utilizan un modelo de lenguaje para revisar las notas del estudiante. El backend envía el contenido del deliverable y el contexto del contrato a la API de OpenAI y espera una respuesta en formato JSON indicando si la entrega está `completado` o `incompleto`.
 
-Configura las siguientes variables de entorno para habilitar esta evaluación:
+Las credenciales de OpenAI también se gestionan desde **Panel administrativo → Integraciones**, donde cada campo muestra instrucciones y ejemplos de formato:
+
+- **API Key de OpenAI:** se almacena cifrada y se mantiene oculta en los listados si ya existe un valor.
+- **Modelo y timeout:** aceptan texto plano y números positivos, respectivamente. El formulario valida el formato antes de enviar los datos al backend.
+
+Si no hay valores persistentes, el backend lee las variables de entorno como mecanismo de respaldo:
 
 | Variable | Descripción |
 | --- | --- |
-| `OPENAI_API_KEY` | **Obligatoria.** Clave privada de OpenAI con acceso al modelo seleccionado. |
-| `OPENAI_MODEL` | Opcional. Modelo de chat a utilizar (por defecto `gpt-3.5-turbo`). |
-| `OPENAI_TIMEOUT` | Opcional. Tiempo máximo de espera en segundos antes de abortar la solicitud. |
+| `OPENAI_API_KEY` | Clave privada de OpenAI utilizada únicamente cuando no existe un valor guardado. |
+| `OPENAI_MODEL` | Modelo de chat por defecto (se sustituye al guardar una configuración desde el panel). |
+| `OPENAI_TIMEOUT` | Tiempo máximo de espera en segundos antes de abortar la solicitud. |
 
 El proyecto depende de la librería oficial `openai` incluida en `backend/requirements.txt`. Ejecuta `pip install -r backend/requirements.txt` para instalarla antes de iniciar el servidor.
