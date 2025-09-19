@@ -1940,6 +1940,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const roleInputs = Array.from(sectionContainer.querySelectorAll('.mission-role-option'));
   let isCreatingNewMission = false;
   let missionContentExtras = {};
+  let lastMissionExtrasEditorValue = null;
 
   function updateMissionExtrasFeedback(message) {
     if (missionExtrasFeedback) {
@@ -1973,7 +1974,9 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   function setMissionExtrasEditorValue(extras) {
     if (missionExtrasEditor) {
       const serialized = serializeMissionExtras(extras);
-      missionExtrasEditor.value = serialized || '{}';
+      const editorValue = serialized || '{}';
+      missionExtrasEditor.value = editorValue;
+      lastMissionExtrasEditorValue = editorValue;
     }
     updateMissionExtrasFeedback('');
   }
@@ -1984,10 +1987,16 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     }
     const rawValue = missionExtrasEditor.value;
     const trimmed = rawValue.trim();
+    const editorValueChanged = rawValue !== lastMissionExtrasEditorValue;
     if (!trimmed) {
       missionContentExtras = {};
       updateMissionExtrasFeedback('');
-      resetMissionSectionFieldValues();
+      if (!fromSubmit && editorValueChanged) {
+        resetMissionSectionFieldValues();
+      }
+      if (editorValueChanged) {
+        lastMissionExtrasEditorValue = rawValue;
+      }
       return true;
     }
     try {
@@ -1997,7 +2006,13 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       }
       missionContentExtras = parsed;
       updateMissionExtrasFeedback('');
-      syncMissionSectionFieldsFromExtras(missionContentExtras);
+      const hasDisplayHtml = Object.prototype.hasOwnProperty.call(parsed, 'display_html');
+      if (!fromSubmit && hasDisplayHtml && editorValueChanged) {
+        syncMissionSectionFieldsFromExtras(missionContentExtras);
+      }
+      if (editorValueChanged) {
+        lastMissionExtrasEditorValue = rawValue;
+      }
       return true;
     } catch (err) {
       const detail = err && err.message ? ` Detalle: ${err.message}` : '';
