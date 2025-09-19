@@ -162,6 +162,323 @@ function clearSession() {
 
 const ADMIN_AVAILABLE_ROLES = ['Ventas', 'Operaciones'];
 
+const ADMIN_VERIFICATION_TYPE_OPTIONS = [
+  { value: 'evidence', label: 'Evidencia (archivos)' },
+  { value: 'script_output', label: 'Salida de script' },
+  { value: 'llm_evaluation', label: 'Evaluación con LLM' },
+];
+
+function buildAdminVerificationTypeOptions(selectedValue = '') {
+  const normalizedSelected = typeof selectedValue === 'string' ? selectedValue : '';
+  const baseOption = '<option value="">Selecciona un tipo de verificación</option>';
+  const otherOptions = ADMIN_VERIFICATION_TYPE_OPTIONS.map((option) => {
+    const isSelected = option.value === normalizedSelected ? ' selected' : '';
+    return `<option value="${escapeHtml(option.value)}"${isSelected}>${escapeHtml(option.label)}</option>`;
+  }).join('');
+  return `${baseOption}${otherOptions}`;
+}
+
+function splitMissionContent(content) {
+  const rawContent =
+    content && typeof content === 'object' && !Array.isArray(content) ? { ...content } : {};
+  const verificationType =
+    typeof rawContent.verification_type === 'string' ? rawContent.verification_type : '';
+  const sourceData =
+    rawContent.source && typeof rawContent.source === 'object' && !Array.isArray(rawContent.source)
+      ? rawContent.source
+      : {};
+  const source = {
+    repository: typeof sourceData.repository === 'string' ? sourceData.repository : '',
+    default_branch:
+      typeof sourceData.default_branch === 'string' ? sourceData.default_branch : '',
+    base_path: typeof sourceData.base_path === 'string' ? sourceData.base_path : '',
+  };
+  const deliverables = Array.isArray(rawContent.deliverables)
+    ? rawContent.deliverables
+        .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+        .map((item) => ({
+          type: item.type != null ? String(item.type) : '',
+          path: item.path != null ? String(item.path) : '',
+          content: item.content != null ? String(item.content) : '',
+          feedback_fail: item.feedback_fail != null ? String(item.feedback_fail) : '',
+        }))
+    : [];
+  delete rawContent.verification_type;
+  delete rawContent.source;
+  delete rawContent.deliverables;
+  return { verificationType, source, deliverables, extras: rawContent };
+}
+
+function cloneMissionContentExtras(extras) {
+  if (!extras || typeof extras !== 'object' || Array.isArray(extras)) {
+    return {};
+  }
+  try {
+    return JSON.parse(JSON.stringify(extras));
+  } catch (err) {
+    return { ...extras };
+  }
+}
+
+function combineMissionContentParts({ verificationType, source, deliverables, extras }) {
+  const result = cloneMissionContentExtras(extras);
+  const normalizedVerification =
+    typeof verificationType === 'string' ? verificationType.trim() : '';
+  if (normalizedVerification) {
+    result.verification_type = normalizedVerification;
+  }
+  const sourceRepository = source && typeof source.repository === 'string' ? source.repository.trim() : '';
+  const sourceBranch =
+    source && typeof source.default_branch === 'string' ? source.default_branch.trim() : '';
+  const sourceBasePath =
+    source && typeof source.base_path === 'string' ? source.base_path.trim() : '';
+  if (sourceRepository || sourceBranch || sourceBasePath) {
+    result.source = {
+      ...(result.source && typeof result.source === 'object' && !Array.isArray(result.source)
+        ? result.source
+        : {}),
+      repository: sourceRepository,
+      default_branch: sourceBranch,
+      base_path: sourceBasePath,
+    };
+  } else {
+    delete result.source;
+  }
+  const normalizedDeliverables = Array.isArray(deliverables)
+    ? deliverables
+        .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+        .map((item) => {
+          const normalized = {};
+          if (typeof item.type === 'string' && item.type.trim()) {
+            normalized.type = item.type.trim();
+          }
+          if (typeof item.path === 'string' && item.path.trim()) {
+            normalized.path = item.path.trim();
+          }
+          if (typeof item.content === 'string' && item.content.trim()) {
+            normalized.content = item.content;
+          }
+          if (typeof item.feedback_fail === 'string' && item.feedback_fail.trim()) {
+            normalized.feedback_fail = item.feedback_fail.trim();
+          }
+          return normalized;
+        })
+        .filter((item) => Object.keys(item).length > 0)
+    : [];
+  if (normalizedDeliverables.length > 0) {
+    result.deliverables = normalizedDeliverables;
+  } else {
+    delete result.deliverables;
+  }
+  return result;
+}
+
+function updateDeliverablesEmptyState(listContainer) {
+  if (!listContainer) {
+    return;
+  }
+  const hasItems = listContainer.querySelector('[data-deliverable-item]');
+  let placeholder = listContainer.querySelector('[data-deliverables-empty]');
+  if (!hasItems) {
+    if (!placeholder) {
+      placeholder = document.createElement('p');
+      placeholder.dataset.deliverablesEmpty = '1';
+      placeholder.className = 'admin-field__hint';
+      placeholder.textContent = 'No hay entregables configurados.';
+      listContainer.appendChild(placeholder);
+    }
+  } else if (placeholder) {
+    placeholder.remove();
+  }
+}
+
+function createDeliverableEditorRow(initialData = {}, handlers = {}) {
+  const { onChange, onRemove, listContainer } = handlers;
+  const data = initialData && typeof initialData === 'object' ? initialData : {};
+  const row = document.createElement('div');
+  row.className = 'admin-deliverable';
+  row.dataset.deliverableItem = '1';
+  const initialType = data.type && typeof data.type === 'string' ? data.type : 'file_exists';
+  const initialPath = data.path && typeof data.path === 'string' ? data.path : '';
+  const initialContent = data.content && typeof data.content === 'string' ? data.content : '';
+  const initialFeedback =
+    data.feedback_fail && typeof data.feedback_fail === 'string' ? data.feedback_fail : '';
+  row.innerHTML = `
+    <div class="admin-deliverable__body">
+      <div class="admin-field">
+        <label class="admin-field__label">Tipo</label>
+        <input type="text" class="admin-field__control" data-field="type" list="missionDeliverableTypeOptions" placeholder="file_exists" value="${escapeHtml(initialType)}">
+      </div>
+      <div class="admin-field">
+        <label class="admin-field__label">Ruta</label>
+        <input type="text" class="admin-field__control" data-field="path" placeholder="docs/entrega.txt" value="${escapeHtml(initialPath)}">
+      </div>
+      <div class="admin-field">
+        <label class="admin-field__label">Contenido esperado</label>
+        <textarea class="admin-field__control admin-field__control--textarea" data-field="content" rows="3" placeholder="Texto requerido en el archivo">${escapeHtml(initialContent)}</textarea>
+      </div>
+      <div class="admin-field">
+        <label class="admin-field__label">Mensaje al fallar</label>
+        <input type="text" class="admin-field__control" data-field="feedback_fail" placeholder="Mensaje personalizado" value="${escapeHtml(initialFeedback)}">
+      </div>
+    </div>
+    <div class="admin-deliverable__actions">
+      <button type="button" class="admin-button admin-button--danger admin-button--small" data-action="remove-deliverable">Eliminar</button>
+    </div>
+  `;
+  const typeInput = row.querySelector('[data-field="type"]');
+  const pathInput = row.querySelector('[data-field="path"]');
+  const contentInput = row.querySelector('[data-field="content"]');
+  const feedbackInput = row.querySelector('[data-field="feedback_fail"]');
+  const removeButton = row.querySelector('[data-action="remove-deliverable"]');
+  const triggerChange = () => {
+    if (typeof onChange === 'function') {
+      onChange();
+    }
+  };
+  const updateContentRequirement = () => {
+    if (!typeInput || !contentInput) {
+      return;
+    }
+    const requiresContent = (typeInput.value || '').trim() === 'file_contains';
+    if (requiresContent) {
+      contentInput.setAttribute('required', 'required');
+    } else {
+      contentInput.removeAttribute('required');
+    }
+  };
+  [typeInput, pathInput, contentInput, feedbackInput].forEach((field) => {
+    if (!field) {
+      return;
+    }
+    field.addEventListener('input', triggerChange);
+    field.addEventListener('change', triggerChange);
+  });
+  if (typeInput) {
+    typeInput.addEventListener('change', updateContentRequirement);
+    updateContentRequirement();
+  }
+  if (removeButton) {
+    removeButton.onclick = () => {
+      row.remove();
+      if (listContainer) {
+        updateDeliverablesEmptyState(listContainer);
+      }
+      if (typeof onRemove === 'function') {
+        onRemove();
+      }
+    };
+  }
+  return row;
+}
+
+function renderDeliverablesEditor(listContainer, deliverables, handlers = {}) {
+  if (!listContainer) {
+    return;
+  }
+  listContainer.innerHTML = '';
+  const items = Array.isArray(deliverables) ? deliverables : [];
+  items.forEach((item) => {
+    const rowHandlers = { ...handlers, listContainer };
+    if (!rowHandlers.onRemove && typeof handlers.onChange === 'function') {
+      rowHandlers.onRemove = handlers.onChange;
+    }
+    const row = createDeliverableEditorRow(item, rowHandlers);
+    listContainer.appendChild(row);
+  });
+  updateDeliverablesEmptyState(listContainer);
+}
+
+function collectDeliverablesFromEditor(listContainer) {
+  const deliverables = [];
+  const errors = [];
+  if (!listContainer) {
+    return { deliverables, errors };
+  }
+  const rows = Array.from(listContainer.querySelectorAll('[data-deliverable-item]'));
+  rows.forEach((row, index) => {
+    const typeField = row.querySelector('[data-field="type"]');
+    const pathField = row.querySelector('[data-field="path"]');
+    const contentField = row.querySelector('[data-field="content"]');
+    const feedbackField = row.querySelector('[data-field="feedback_fail"]');
+    const typeValue = typeField && typeof typeField.value === 'string' ? typeField.value.trim() : '';
+    const pathValue = pathField && typeof pathField.value === 'string' ? pathField.value.trim() : '';
+    const contentValue = contentField && typeof contentField.value === 'string' ? contentField.value : '';
+    const feedbackValue =
+      feedbackField && typeof feedbackField.value === 'string' ? feedbackField.value.trim() : '';
+    const hasAnyValue = Boolean(typeValue || pathValue || contentValue.trim() || feedbackValue);
+    if (!typeValue && hasAnyValue) {
+      errors.push(`El deliverable #${index + 1} necesita un tipo.`);
+    }
+    if (!pathValue && hasAnyValue) {
+      errors.push(`El deliverable #${index + 1} necesita una ruta.`);
+    }
+    if (typeValue === 'file_contains' && !contentValue.trim()) {
+      errors.push(`El deliverable #${index + 1} requiere un contenido esperado.`);
+    }
+    if (typeValue && pathValue) {
+      const item = { type: typeValue, path: pathValue };
+      if (contentValue && contentValue.trim()) {
+        item.content = contentValue;
+      }
+      if (feedbackValue) {
+        item.feedback_fail = feedbackValue;
+      }
+      deliverables.push(item);
+    }
+  });
+  return { deliverables, errors };
+}
+
+function renderAdminDeliverablesSummary(summaryContainer, deliverables, errors = []) {
+  if (!summaryContainer) {
+    return;
+  }
+  summaryContainer.innerHTML = '';
+  const hasDeliverables = Array.isArray(deliverables) && deliverables.length > 0;
+  let summaryRendered = false;
+  if (hasDeliverables) {
+    const list = document.createElement('ul');
+    list.className = 'admin-deliverables-summary__list';
+    deliverables.forEach((item) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      const parts = [];
+      if (typeof item.type === 'string' && item.type.trim()) {
+        parts.push(item.type.trim());
+      }
+      if (typeof item.path === 'string' && item.path.trim()) {
+        parts.push(item.path.trim());
+      }
+      if (parts.length === 0) {
+        return;
+      }
+      const entry = document.createElement('li');
+      entry.textContent = parts.join(' — ');
+      list.appendChild(entry);
+    });
+    if (list.children.length > 0) {
+      summaryContainer.appendChild(list);
+      summaryRendered = true;
+    }
+  }
+  const hasErrors = Array.isArray(errors) && errors.length > 0;
+  if (hasErrors) {
+    const helper = document.createElement('p');
+    helper.className = 'admin-field__hint';
+    helper.textContent = errors[0];
+    summaryContainer.appendChild(helper);
+    return;
+  }
+  if (!summaryRendered) {
+    const helper = document.createElement('p');
+    helper.className = 'admin-field__hint';
+    helper.textContent = 'Agrega deliverables para generar un resumen automático.';
+    summaryContainer.appendChild(helper);
+  }
+}
+
 async function fetchMissionsForRole(role, token) {
   const params = new URLSearchParams();
   if (role) {
@@ -1197,9 +1514,37 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
             </div>
           </fieldset>
           <div class="admin-field">
-            <label class="admin-field__label" for="missionContentInput">Contenido (JSON)</label>
-            <textarea id="missionContentInput" class="admin-field__control admin-field__control--textarea" rows="12"></textarea>
+            <label class="admin-field__label" for="missionVerificationType">Tipo de verificación</label>
+            <select id="missionVerificationType" class="admin-field__control" name="verification_type">
+              ${buildAdminVerificationTypeOptions()}
+            </select>
           </div>
+          <fieldset class="admin-field admin-field--fieldset">
+            <legend>Repositorio de origen</legend>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionSourceRepositoryInput">Repositorio</label>
+              <input type="text" id="missionSourceRepositoryInput" class="admin-field__control" placeholder="default" name="source_repository">
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionSourceBranchInput">Rama predeterminada</label>
+              <input type="text" id="missionSourceBranchInput" class="admin-field__control" placeholder="main" name="source_branch">
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionSourceBasePathInput">Base path</label>
+              <input type="text" id="missionSourceBasePathInput" class="admin-field__control" placeholder="students/{slug}" name="source_base_path">
+            </div>
+          </fieldset>
+          <fieldset class="admin-field admin-field--fieldset">
+            <legend>Deliverables</legend>
+            <p class="admin-field__hint">Administra la lista de entregables requeridos.</p>
+            <div id="missionDeliverablesList" class="admin-deliverables-list"></div>
+            <button type="button" class="admin-button admin-button--ghost" data-action="add-deliverable">Agregar deliverable</button>
+            <datalist id="missionDeliverableTypeOptions">
+              <option value="file_exists">
+              <option value="file_contains">
+            </datalist>
+            <div id="missionDeliverablesSummary" class="admin-deliverables-summary"></div>
+          </fieldset>
           <div id="missionAdminFeedback" class="admin-feedback"></div>
           <div class="admin-form__actions">
             <button type="submit" class="admin-button" id="missionAdminSaveBtn">Guardar cambios</button>
@@ -1218,11 +1563,25 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const missionIdField = sectionContainer.querySelector('#missionIdField');
   const missionIdInput = sectionContainer.querySelector('#missionIdInput');
   const missionTitleInput = sectionContainer.querySelector('#missionTitleInput');
-  const missionContentInput = sectionContainer.querySelector('#missionContentInput');
+  const missionVerificationSelect = sectionContainer.querySelector('#missionVerificationType');
+  const missionSourceRepositoryInput = sectionContainer.querySelector('#missionSourceRepositoryInput');
+  const missionSourceBranchInput = sectionContainer.querySelector('#missionSourceBranchInput');
+  const missionSourceBasePathInput = sectionContainer.querySelector('#missionSourceBasePathInput');
+  const deliverablesList = sectionContainer.querySelector('#missionDeliverablesList');
+  const deliverablesSummary = sectionContainer.querySelector('#missionDeliverablesSummary');
+  const addDeliverableButton = sectionContainer.querySelector('[data-action="add-deliverable"]');
   const feedbackContainer = sectionContainer.querySelector('#missionAdminFeedback');
   const saveButton = sectionContainer.querySelector('#missionAdminSaveBtn');
   const roleInputs = Array.from(sectionContainer.querySelectorAll('.mission-role-option'));
   let isCreatingNewMission = false;
+  let missionContentExtras = {};
+
+  const handleDeliverablesChange = () => {
+    const { deliverables, errors } = collectDeliverablesFromEditor(deliverablesList);
+    renderAdminDeliverablesSummary(deliverablesSummary, deliverables, errors);
+  };
+  updateDeliverablesEmptyState(deliverablesList);
+  handleDeliverablesChange();
   function showFeedback(message, type = 'info') {
     if (!feedbackContainer) {
       return;
@@ -1260,9 +1619,21 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       if (missionTitleInput) {
         missionTitleInput.value = '';
       }
-      if (missionContentInput) {
-        missionContentInput.value = '';
+      if (missionVerificationSelect) {
+        missionVerificationSelect.value = '';
       }
+      if (missionSourceRepositoryInput) {
+        missionSourceRepositoryInput.value = '';
+      }
+      if (missionSourceBranchInput) {
+        missionSourceBranchInput.value = '';
+      }
+      if (missionSourceBasePathInput) {
+        missionSourceBasePathInput.value = '';
+      }
+      renderDeliverablesEditor(deliverablesList, [], { onChange: handleDeliverablesChange });
+      handleDeliverablesChange();
+      missionContentExtras = {};
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -1314,9 +1685,21 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       if (missionTitleInput) {
         missionTitleInput.value = '';
       }
-      if (missionContentInput) {
-        missionContentInput.value = '';
+      if (missionVerificationSelect) {
+        missionVerificationSelect.value = '';
       }
+      if (missionSourceRepositoryInput) {
+        missionSourceRepositoryInput.value = '';
+      }
+      if (missionSourceBranchInput) {
+        missionSourceBranchInput.value = '';
+      }
+      if (missionSourceBasePathInput) {
+        missionSourceBasePathInput.value = '';
+      }
+      renderDeliverablesEditor(deliverablesList, [], { onChange: handleDeliverablesChange });
+      handleDeliverablesChange();
+      missionContentExtras = {};
       roleInputs.forEach((input) => {
         input.checked = false;
       });
@@ -1336,10 +1719,31 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     roleInputs.forEach((input) => {
       input.checked = normalizedRoles.includes(input.value);
     });
-    if (missionContentInput) {
-      const contentValue = mission && mission.content && typeof mission.content === 'object' ? mission.content : {};
-      missionContentInput.value = JSON.stringify(contentValue, null, 2);
+    const contentValue = mission && mission.content && typeof mission.content === 'object' ? mission.content : {};
+    const { verificationType, source, deliverables, extras } = splitMissionContent(contentValue);
+    missionContentExtras = cloneMissionContentExtras(extras);
+    if (missionVerificationSelect) {
+      const targetValue = verificationType || '';
+      missionVerificationSelect.value = targetValue;
+      if (targetValue && missionVerificationSelect.value !== targetValue) {
+        const customOption = document.createElement('option');
+        customOption.value = targetValue;
+        customOption.textContent = targetValue;
+        missionVerificationSelect.appendChild(customOption);
+        missionVerificationSelect.value = targetValue;
+      }
     }
+    if (missionSourceRepositoryInput) {
+      missionSourceRepositoryInput.value = source.repository || '';
+    }
+    if (missionSourceBranchInput) {
+      missionSourceBranchInput.value = source.default_branch || '';
+    }
+    if (missionSourceBasePathInput) {
+      missionSourceBasePathInput.value = source.base_path || '';
+    }
+    renderDeliverablesEditor(deliverablesList, deliverables, { onChange: handleDeliverablesChange });
+    handleDeliverablesChange();
     if (saveButton) {
       saveButton.disabled = false;
     }
@@ -1370,6 +1774,23 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       setCreationMode(true);
     };
   }
+  if (addDeliverableButton) {
+    addDeliverableButton.onclick = () => {
+      if (deliverablesList) {
+        const row = createDeliverableEditorRow(
+          {},
+          {
+            listContainer: deliverablesList,
+            onChange: handleDeliverablesChange,
+            onRemove: handleDeliverablesChange,
+          }
+        );
+        deliverablesList.appendChild(row);
+        updateDeliverablesEmptyState(deliverablesList);
+      }
+      handleDeliverablesChange();
+    };
+  }
   if (missionForm) {
     missionForm.onsubmit = async (event) => {
       event.preventDefault();
@@ -1394,18 +1815,44 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         .filter((input) => input.checked)
         .map((input) => input.value);
       payload.roles = selectedRoles;
-      let parsedContent = null;
-      try {
-        parsedContent = missionContentInput ? JSON.parse(missionContentInput.value || '{}') : {};
-      } catch (parseError) {
-        showFeedback('El contenido debe ser un JSON válido.', 'error');
+      const verificationType = missionVerificationSelect
+        ? missionVerificationSelect.value.trim()
+        : '';
+      if (!verificationType) {
+        showFeedback('Selecciona un tipo de verificación para la misión.', 'error');
         return;
       }
-      if (parsedContent === null || typeof parsedContent !== 'object' || Array.isArray(parsedContent)) {
-        showFeedback('El contenido debe ser un objeto JSON.', 'error');
+      const source = {
+        repository: missionSourceRepositoryInput
+          ? missionSourceRepositoryInput.value.trim()
+          : '',
+        default_branch: missionSourceBranchInput ? missionSourceBranchInput.value.trim() : '',
+        base_path: missionSourceBasePathInput ? missionSourceBasePathInput.value.trim() : '',
+      };
+      if (!source.repository || !source.default_branch || !source.base_path) {
+        showFeedback(
+          'Completa la información del repositorio (nombre, rama y base path) para continuar.',
+          'error'
+        );
         return;
       }
-      payload.content = parsedContent;
+      const { deliverables, errors: deliverableErrors } = collectDeliverablesFromEditor(
+        deliverablesList
+      );
+      if (deliverableErrors.length > 0) {
+        showFeedback(deliverableErrors[0], 'error');
+        return;
+      }
+      if (verificationType === 'evidence' && deliverables.length === 0) {
+        showFeedback('Agrega al menos un deliverable para las misiones de evidencia.', 'error');
+        return;
+      }
+      payload.content = combineMissionContentParts({
+        verificationType,
+        source,
+        deliverables,
+        extras: missionContentExtras,
+      });
       showFeedback('Guardando cambios...', 'info');
       try {
         const requestUrl = creationMode
@@ -1480,7 +1927,18 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
             return candidateId === normalizedMissionId;
           });
           if (index !== -1) {
-            missions[index] = { ...missions[index], ...updatedMission, mission_id: normalizedMissionId };
+            const mergedMission = {
+              ...missions[index],
+              ...updatedMission,
+              mission_id: normalizedMissionId,
+            };
+            if (
+              (!updatedMission.content || typeof updatedMission.content !== 'object') &&
+              payload.content
+            ) {
+              mergedMission.content = payload.content;
+            }
+            missions[index] = mergedMission;
           }
           fillMissionForm(missionId);
         }
