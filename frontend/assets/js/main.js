@@ -113,8 +113,10 @@ function updateMissionAdminLink(isAdmin) {
   }
   if (existingLink) {
     existingLink.textContent = 'Panel administrativo';
-    existingLink.onclick = () => {
-      renderAdminModule('missions');
+    existingLink.onclick = (event) => {
+      const target = event && event.currentTarget ? event.currentTarget : existingLink;
+      const requestedSection = target && target.dataset ? target.dataset.defaultSection : undefined;
+      renderAdminModule(resolvePreferredAdminSection(requestedSection));
     };
     return;
   }
@@ -123,8 +125,10 @@ function updateMissionAdminLink(isAdmin) {
   adminButton.className = 'portal-header__link portal-header__link--admin';
   adminButton.dataset.action = 'mission-admin';
   adminButton.textContent = 'Panel administrativo';
-  adminButton.onclick = () => {
-    renderAdminModule('missions');
+  adminButton.onclick = (event) => {
+    const target = event && event.currentTarget ? event.currentTarget : adminButton;
+    const requestedSection = target && target.dataset ? target.dataset.defaultSection : undefined;
+    renderAdminModule(resolvePreferredAdminSection(requestedSection));
   };
   const loginLink = navigation.querySelector('[data-action="login"]');
   if (loginLink) {
@@ -161,6 +165,58 @@ function clearSession() {
 }
 
 const ADMIN_AVAILABLE_ROLES = ['Ventas', 'Operaciones'];
+const ADMIN_SECTION_KEYS = ['missions', 'users', 'roles', 'integrations'];
+
+function normalizeAdminSection(sectionName) {
+  if (!sectionName) {
+    return '';
+  }
+  const normalized = String(sectionName).trim().toLowerCase();
+  return ADMIN_SECTION_KEYS.includes(normalized) ? normalized : '';
+}
+
+function resolvePreferredAdminSection(requestedSection) {
+  const normalizedRequested = normalizeAdminSection(requestedSection);
+  if (normalizedRequested) {
+    return normalizedRequested;
+  }
+  if (typeof window !== 'undefined') {
+    const globalSection =
+      normalizeAdminSection(window.defaultAdminSection) ||
+      normalizeAdminSection(window.preferredAdminSection);
+    if (globalSection) {
+      return globalSection;
+    }
+    try {
+      const search = window.location && typeof window.location.search === 'string' ? window.location.search : '';
+      if (search) {
+        const params = new URLSearchParams(search);
+        const querySection =
+          normalizeAdminSection(params.get('admin')) || normalizeAdminSection(params.get('adminSection'));
+        if (querySection) {
+          return querySection;
+        }
+      }
+    } catch (err) {
+      /* no-op */
+    }
+    if (window.location && typeof window.location.hash === 'string') {
+      const hash = window.location.hash.trim();
+      const hashMatch = hash.match(/admin(?:[:=])([a-z]+)/i);
+      if (hashMatch) {
+        const hashSection = normalizeAdminSection(hashMatch[1]);
+        if (hashSection) {
+          return hashSection;
+        }
+      }
+      const normalizedHash = normalizeAdminSection(hash.replace(/^#/, ''));
+      if (normalizedHash) {
+        return normalizedHash;
+      }
+    }
+  }
+  return 'missions';
+}
 
 const ADMIN_VERIFICATION_TYPE_OPTIONS = [
   { value: 'evidence', label: 'Evidencia (archivos)' },
@@ -1190,6 +1246,7 @@ function renderAdminModule(defaultSection = 'missions') {
           <button type="button" class="admin-module__nav-btn" data-section="missions">Misiones</button>
           <button type="button" class="admin-module__nav-btn" data-section="users">Usuarios</button>
           <button type="button" class="admin-module__nav-btn" data-section="roles">Roles</button>
+          <button type="button" class="admin-module__nav-btn" data-section="integrations">Integraciones</button>
         </nav>
         <div class="admin-module__content">
           <div class="admin-module__section" data-active-section=""></div>
@@ -1213,6 +1270,7 @@ function renderAdminModule(defaultSection = 'missions') {
   const sectionContainer = content.querySelector('.admin-module__section');
   let currentSection = '';
   let rolesCache = null;
+  let integrationsFeedback = null;
   const moduleState = {
     session,
     async loadRoles(force = false) {
@@ -1250,6 +1308,14 @@ function renderAdminModule(defaultSection = 'missions') {
         showSection(currentSection, { force: true });
       }
     },
+    setIntegrationsFeedback(feedback) {
+      integrationsFeedback = feedback || null;
+    },
+    consumeIntegrationsFeedback() {
+      const feedback = integrationsFeedback;
+      integrationsFeedback = null;
+      return feedback;
+    },
   };
   async function showSection(sectionName, { force = false } = {}) {
     if (!sectionContainer) {
@@ -1278,6 +1344,8 @@ function renderAdminModule(defaultSection = 'missions') {
         await renderAdminUsersSection(sectionContainer, moduleState);
       } else if (sectionName === 'roles') {
         await renderAdminRolesSection(sectionContainer, moduleState);
+      } else if (sectionName === 'integrations') {
+        await renderAdminIntegrationsSection(sectionContainer, moduleState);
       } else if (sectionContainer.dataset.activeSection === sectionName) {
         sectionContainer.innerHTML =
           '<div class="status-error"><p>Sección desconocida.</p></div>';
@@ -1296,7 +1364,8 @@ function renderAdminModule(defaultSection = 'missions') {
       showSection(target);
     };
   });
-  showSection(defaultSection || 'missions');
+  const initialSection = resolvePreferredAdminSection(defaultSection);
+  showSection(initialSection);
 }
 
 async function renderAdminMissionsSection(sectionContainer, moduleState) {
@@ -1946,6 +2015,452 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       } catch (saveError) {
         const message =
           saveError && saveError.message ? saveError.message : 'Ocurrió un error al guardar los cambios.';
+        showFeedback(message, 'error');
+      }
+    };
+  }
+}
+
+async function renderAdminIntegrationsSection(sectionContainer, moduleState) {
+  if (!sectionContainer) {
+    return;
+  }
+  const sectionKey = 'integrations';
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  sectionContainer.innerHTML =
+    '<div class="admin-module__status admin-module__status--loading"><p>Cargando integraciones...</p></div>';
+  const { token } = moduleState.session;
+  let settings = [];
+  try {
+    const res = await apiFetch('/api/admin/integrations', {
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (parseError) {
+      data = {};
+    }
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    if (res.status === 401) {
+      clearSession();
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
+          <button type="button" class="admin-button" data-action="admin-login">Iniciar sesión</button>
+        </div>
+      `;
+      const loginBtn = sectionContainer.querySelector('[data-action="admin-login"]');
+      if (loginBtn) {
+        loginBtn.onclick = () => {
+          renderLoginForm();
+        };
+      }
+      return;
+    }
+    if (res.status === 403) {
+      sectionContainer.innerHTML = `
+        <div class="status-error">
+          <p>No tienes permisos para administrar integraciones.</p>
+          <button type="button" class="admin-button" data-action="admin-back">Volver</button>
+        </div>
+      `;
+      const backBtn = sectionContainer.querySelector('[data-action="admin-back"]');
+      if (backBtn) {
+        backBtn.onclick = () => {
+          loadDashboard();
+        };
+      }
+      return;
+    }
+    if (!res.ok) {
+      const backendMessage = typeof data.error === 'string' ? data.error : '';
+      throw new Error(backendMessage || 'No fue posible obtener la configuración de integraciones.');
+    }
+    settings = Array.isArray(data.settings) ? data.settings : [];
+  } catch (err) {
+    if (sectionContainer.dataset.activeSection !== sectionKey) {
+      return;
+    }
+    const message =
+      err && err.message
+        ? err.message
+        : 'Ocurrió un error al cargar la configuración de integraciones.';
+    sectionContainer.innerHTML = `
+      <div class="status-error">
+        <p>${escapeHtml(message)}</p>
+        <button type="button" class="admin-button admin-button--ghost" data-action="retry-integrations">Reintentar</button>
+      </div>
+    `;
+    const retryBtn = sectionContainer.querySelector('[data-action="retry-integrations"]');
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        renderAdminIntegrationsSection(sectionContainer, moduleState);
+      };
+    }
+    return;
+  }
+  if (sectionContainer.dataset.activeSection !== sectionKey) {
+    return;
+  }
+  const categoryGroups = new Map();
+  settings.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+    const rawCategory = entry.category != null ? String(entry.category) : 'general';
+    const normalizedCategory = rawCategory.trim() ? rawCategory.trim() : 'general';
+    if (!categoryGroups.has(normalizedCategory)) {
+      categoryGroups.set(normalizedCategory, []);
+    }
+    categoryGroups.get(normalizedCategory).push(entry);
+  });
+  const sortedCategories = Array.from(categoryGroups.keys()).sort((a, b) => a.localeCompare(b));
+  function formatCategoryLabel(category) {
+    const normalized = typeof category === 'string' ? category.trim().toLowerCase() : '';
+    if (!normalized) {
+      return 'General';
+    }
+    if (normalized === 'github') {
+      return 'GitHub';
+    }
+    if (normalized === 'openai') {
+      return 'OpenAI';
+    }
+    return category.charAt(0).toUpperCase() + category.slice(1);
+  }
+  function buildSettingField(setting) {
+    const key = setting && setting.key != null ? String(setting.key) : '';
+    if (!key) {
+      return '';
+    }
+    const label = setting.label != null ? String(setting.label) : key;
+    const helpText = setting.help_text != null ? String(setting.help_text) : '';
+    const placeholder = setting.placeholder != null ? String(setting.placeholder) : '';
+    const defaultValue = setting.default != null ? String(setting.default) : '';
+    const isSecret = Boolean(setting.is_secret);
+    const configured = Boolean(setting.configured);
+    const storedValue = !isSecret && setting.value != null ? String(setting.value) : '';
+    const fieldId = `adminIntegration_${key}`;
+    const initialValueAttr = escapeHtml(storedValue);
+    const defaultAttr = defaultValue ? ` data-default-value="${escapeHtml(defaultValue)}"` : '';
+    const placeholderAttr = placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : '';
+    const valueAttr = !isSecret && storedValue ? ` value="${escapeHtml(storedValue)}"` : '';
+    const secretNotice = isSecret
+      ? `<p class="admin-card__hint">${
+          configured
+            ? 'Hay un valor almacenado. Deja el campo vacío si no deseas reemplazarlo.'
+            : 'Ingresa el valor proporcionado por el servicio.'
+        }</p>`
+      : '';
+    const helpBlock = helpText ? `<p class="admin-card__hint">${escapeHtml(helpText)}</p>` : '';
+    const defaultBlock = defaultValue
+      ? `<p class="admin-card__hint">Valor predeterminado: ${escapeHtml(defaultValue)}</p>`
+      : '';
+    const clearControl = isSecret
+      ? `
+        <div class="admin-field admin-field--checkbox admin-integration-clear">
+          <label class="admin-checkbox">
+            <input type="checkbox" data-role="clear-secret" data-setting-key="${escapeHtml(key)}">
+            <span>Eliminar el valor almacenado</span>
+          </label>
+        </div>
+      `
+      : '';
+    const defaultButton = defaultValue
+      ? `
+        <div class="admin-integration-field__actions">
+          <button type="button" class="admin-button admin-button--ghost admin-integration-default" data-action="fill-default" data-setting-key="${escapeHtml(key)}">Usar valor predeterminado</button>
+        </div>
+      `
+      : '';
+    return `
+      <div class="admin-integration-field" data-setting-key="${escapeHtml(key)}" data-secret="${
+      isSecret ? 'true' : 'false'
+    }" data-configured="${configured ? 'true' : 'false'}" data-initial-value="${initialValueAttr}"${defaultAttr}>
+        <div class="admin-field">
+          <label class="admin-field__label" for="${escapeHtml(fieldId)}">${escapeHtml(label)}</label>
+          <input type="${isSecret ? 'password' : 'text'}" id="${escapeHtml(
+            fieldId
+          )}" class="admin-field__control admin-integration-input" autocomplete="off"${placeholderAttr}${valueAttr}>
+          ${helpBlock}
+          ${secretNotice}
+          ${defaultBlock}
+        </div>
+        ${clearControl}
+        ${defaultButton}
+        <div class="admin-feedback admin-feedback--field" data-role="field-feedback"></div>
+      </div>
+    `;
+  }
+  const categoriesMarkup = sortedCategories
+    .map((category) => {
+      const label = formatCategoryLabel(category);
+      const fields = categoryGroups
+        .get(category)
+        .map((entry) => buildSettingField(entry))
+        .filter(Boolean)
+        .join('');
+      if (!fields) {
+        return '';
+      }
+      return `
+        <section class="admin-card admin-card--form admin-integration-category" data-category="${escapeHtml(
+        category
+      )}">
+          <h4 class="admin-card__title">${escapeHtml(label)}</h4>
+          ${fields}
+        </section>
+      `;
+    })
+    .filter(Boolean)
+    .join('');
+  const hasSettings = Boolean(categoriesMarkup);
+  sectionContainer.innerHTML = `
+    <div class="admin-section admin-section--integrations">
+      <div class="admin-section__header">
+        <div>
+          <h3 class="admin-section__title">Integraciones</h3>
+          <p class="admin-section__description">Configura las credenciales y parámetros de los servicios externos.</p>
+        </div>
+        <div class="admin-section__actions">
+          <button type="button" class="admin-button admin-button--ghost" data-action="refresh-integrations">Actualizar</button>
+        </div>
+      </div>
+      <div class="admin-section__body">
+        ${
+          hasSettings
+            ? `
+          <form id="adminIntegrationsForm" class="admin-form admin-form--integrations">
+            <div class="admin-integration-groups">${categoriesMarkup}</div>
+            <div id="adminIntegrationsFeedback" class="admin-feedback"></div>
+            <div class="admin-form__actions">
+              <button type="submit" class="admin-button">Guardar cambios</button>
+            </div>
+          </form>
+        `
+            : '<div class="status-info"><p>No hay integraciones configurables disponibles.</p></div>'
+        }
+      </div>
+    </div>
+  `;
+  const refreshBtn = sectionContainer.querySelector('[data-action="refresh-integrations"]');
+  if (refreshBtn) {
+    refreshBtn.onclick = () => {
+      renderAdminIntegrationsSection(sectionContainer, moduleState);
+    };
+  }
+  if (!hasSettings) {
+    return;
+  }
+  const form = sectionContainer.querySelector('#adminIntegrationsForm');
+  const feedbackContainer = sectionContainer.querySelector('#adminIntegrationsFeedback');
+  const fieldContainers = Array.from(sectionContainer.querySelectorAll('.admin-integration-field'));
+  const clearToggles = Array.from(sectionContainer.querySelectorAll('[data-role="clear-secret"]'));
+  const defaultButtons = Array.from(sectionContainer.querySelectorAll('[data-action="fill-default"]'));
+  const pendingFeedback =
+    typeof moduleState.consumeIntegrationsFeedback === 'function'
+      ? moduleState.consumeIntegrationsFeedback()
+      : null;
+  function showFeedback(message, type = 'info') {
+    if (!feedbackContainer) {
+      return;
+    }
+    if (!message) {
+      feedbackContainer.innerHTML = '';
+      return;
+    }
+    const typeClass =
+      type === 'success' ? 'status-success' : type === 'error' ? 'status-error' : 'status-info';
+    feedbackContainer.innerHTML = `<div class="${typeClass}">${escapeHtml(message)}</div>`;
+  }
+  function clearFieldErrors() {
+    fieldContainers.forEach((field) => {
+      field.classList.remove('has-error');
+      const fieldFeedback = field.querySelector('[data-role="field-feedback"]');
+      if (fieldFeedback) {
+        fieldFeedback.innerHTML = '';
+      }
+    });
+  }
+  function showFieldError(fieldKey, message) {
+    const field = fieldContainers.find((item) => item.dataset.settingKey === fieldKey);
+    const safeMessage = message || 'Revisa el valor ingresado.';
+    if (!field) {
+      showFeedback(safeMessage, 'error');
+      return;
+    }
+    const fieldFeedback = field.querySelector('[data-role="field-feedback"]');
+    if (fieldFeedback) {
+      fieldFeedback.innerHTML = `<div class="status-error">${escapeHtml(safeMessage)}</div>`;
+    }
+    field.classList.add('has-error');
+    const input = field.querySelector('.admin-integration-input');
+    if (input && typeof input.focus === 'function') {
+      input.focus();
+    }
+  }
+  if (pendingFeedback && pendingFeedback.message) {
+    showFeedback(pendingFeedback.message, pendingFeedback.type || 'info');
+  }
+  clearToggles.forEach((toggle) => {
+    toggle.addEventListener('change', () => {
+      const field = toggle.closest('.admin-integration-field');
+      const input = field ? field.querySelector('.admin-integration-input') : null;
+      if (!input) {
+        return;
+      }
+      if (toggle.checked) {
+        input.value = '';
+        input.disabled = true;
+      } else {
+        input.disabled = false;
+        input.focus();
+      }
+    });
+  });
+  defaultButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.settingKey;
+      const field = fieldContainers.find((item) => item.dataset.settingKey === key);
+      if (!field) {
+        return;
+      }
+      const defaultValue = field.dataset.defaultValue || '';
+      const input = field.querySelector('.admin-integration-input');
+      if (input) {
+        input.disabled = false;
+        input.value = defaultValue;
+        if (typeof input.focus === 'function') {
+          input.focus();
+        }
+      }
+      const clearToggle = field.querySelector('[data-role="clear-secret"]');
+      if (clearToggle) {
+        clearToggle.checked = false;
+      }
+    });
+  });
+  if (form) {
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      if (sectionContainer.dataset.activeSection !== sectionKey) {
+        return;
+      }
+      clearFieldErrors();
+      const updates = [];
+      fieldContainers.forEach((field) => {
+        const key = field.dataset.settingKey;
+        if (!key) {
+          return;
+        }
+        const isSecret = field.dataset.secret === 'true';
+        const configured = field.dataset.configured === 'true';
+        const initialValue = field.dataset.initialValue != null ? field.dataset.initialValue : '';
+        const input = field.querySelector('.admin-integration-input');
+        const clearToggle = field.querySelector('[data-role="clear-secret"]');
+        const wantsClear = clearToggle ? clearToggle.checked : false;
+        if (wantsClear) {
+          if (configured || (!isSecret && initialValue)) {
+            updates.push({ key, clear: true });
+          }
+          return;
+        }
+        const currentValue = input && !input.disabled ? input.value : '';
+        if (isSecret) {
+          if (currentValue) {
+            updates.push({ key, value: currentValue });
+          }
+          return;
+        }
+        if (currentValue !== initialValue) {
+          updates.push({ key, value: currentValue });
+        }
+      });
+      if (!updates.length) {
+        showFeedback('No hay cambios por guardar.', 'info');
+        return;
+      }
+      showFeedback('Guardando configuraciones...', 'info');
+      try {
+        const res = await apiFetch('/api/admin/integrations', {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ updates }),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch (parseError) {
+          data = {};
+        }
+        if (sectionContainer.dataset.activeSection !== sectionKey) {
+          return;
+        }
+        if (res.status === 401) {
+          clearSession();
+          sectionContainer.innerHTML = `
+            <div class="status-error">
+              <p>Tu sesión expiró. Vuelve a iniciar sesión para continuar.</p>
+              <button type="button" class="admin-button" data-action="admin-login">Iniciar sesión</button>
+            </div>
+          `;
+          const loginBtn = sectionContainer.querySelector('[data-action="admin-login"]');
+          if (loginBtn) {
+            loginBtn.onclick = () => {
+              renderLoginForm();
+            };
+          }
+          return;
+        }
+        if (res.status === 403) {
+          sectionContainer.innerHTML = `
+            <div class="status-error">
+              <p>No tienes permisos para administrar integraciones.</p>
+              <button type="button" class="admin-button" data-action="admin-back">Volver</button>
+            </div>
+          `;
+          const backBtn = sectionContainer.querySelector('[data-action="admin-back"]');
+          if (backBtn) {
+            backBtn.onclick = () => {
+              loadDashboard();
+            };
+          }
+          return;
+        }
+        if (!res.ok) {
+          const backendMessage = typeof data.error === 'string' ? data.error : '';
+          const fieldKey = typeof data.field === 'string' ? data.field : '';
+          if (fieldKey) {
+            showFieldError(fieldKey, backendMessage);
+          } else {
+            showFeedback(backendMessage || 'No se pudieron guardar los cambios.', 'error');
+          }
+          return;
+        }
+        if (typeof moduleState.setIntegrationsFeedback === 'function') {
+          moduleState.setIntegrationsFeedback({
+            type: 'success',
+            message: 'Integraciones actualizadas correctamente.',
+          });
+        }
+        moduleState.refreshCurrentSection();
+      } catch (updateError) {
+        const message =
+          updateError && updateError.message
+            ? updateError.message
+            : 'No se pudieron guardar los cambios.';
         showFeedback(message, 'error');
       }
     };
@@ -3048,8 +3563,8 @@ async function renderAdminRolesSection(sectionContainer, moduleState) {
   }
 }
 
-function renderMissionAdminPanel() {
-  renderAdminModule('missions');
+function renderMissionAdminPanel(defaultSection) {
+  renderAdminModule(resolvePreferredAdminSection(defaultSection));
 }
 
 
