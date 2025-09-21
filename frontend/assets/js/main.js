@@ -659,10 +659,22 @@ function splitMissionContent(content) {
           feedback_fail: item.feedback_fail != null ? String(item.feedback_fail) : '',
         }))
     : [];
+  const scriptPath = typeof rawContent.script_path === 'string' ? rawContent.script_path : '';
+  const validations = Array.isArray(rawContent.validations)
+    ? rawContent.validations
+        .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+        .map((item) => ({
+          type: item.type != null ? String(item.type) : '',
+          text: item.text != null ? String(item.text) : '',
+          feedback_fail: item.feedback_fail != null ? String(item.feedback_fail) : '',
+        }))
+    : [];
   delete rawContent.verification_type;
   delete rawContent.source;
   delete rawContent.deliverables;
-  return { verificationType, source, deliverables, extras: rawContent };
+  delete rawContent.script_path;
+  delete rawContent.validations;
+  return { verificationType, source, deliverables, scriptPath, validations, extras: rawContent };
 }
 
 function cloneMissionContentExtras(extras) {
@@ -676,7 +688,14 @@ function cloneMissionContentExtras(extras) {
   }
 }
 
-function combineMissionContentParts({ verificationType, source, deliverables, extras }) {
+function combineMissionContentParts({
+  verificationType,
+  source,
+  deliverables,
+  scriptPath,
+  validations,
+  extras,
+}) {
   const result = cloneMissionContentExtras(extras);
   const normalizedVerification =
     typeof verificationType === 'string' ? verificationType.trim() : '';
@@ -725,6 +744,36 @@ function combineMissionContentParts({ verificationType, source, deliverables, ex
     result.deliverables = normalizedDeliverables;
   } else {
     delete result.deliverables;
+  }
+  const normalizedScriptPath = typeof scriptPath === 'string' ? scriptPath.trim() : '';
+  if (normalizedScriptPath) {
+    result.script_path = normalizedScriptPath;
+  } else {
+    delete result.script_path;
+  }
+  const normalizedValidations = Array.isArray(validations)
+    ? validations
+        .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+        .map((item) => {
+          const normalized = {};
+          const typeValue = typeof item.type === 'string' ? item.type.trim() : '';
+          const textValueRaw = typeof item.text === 'string' ? item.text : '';
+          const textValueTrimmed = textValueRaw.trim();
+          if (typeValue && textValueTrimmed) {
+            normalized.type = typeValue;
+            normalized.text = textValueRaw;
+            if (typeof item.feedback_fail === 'string' && item.feedback_fail.trim()) {
+              normalized.feedback_fail = item.feedback_fail.trim();
+            }
+          }
+          return normalized;
+        })
+        .filter((item) => item.type && item.text)
+    : [];
+  if (normalizedValidations.length > 0) {
+    result.validations = normalizedValidations;
+  } else {
+    delete result.validations;
   }
   return result;
 }
@@ -932,6 +981,188 @@ function renderAdminDeliverablesSummary(summaryContainer, deliverables, errors =
     helper.className = 'admin-field__hint';
     helper.textContent = 'Agrega deliverables para generar un resumen automático.';
     summaryContainer.appendChild(helper);
+  }
+}
+
+function updateValidationsEmptyState(listContainer) {
+  if (!listContainer) {
+    return;
+  }
+  const hasItems = listContainer.querySelector('[data-validation-item]');
+  let placeholder = listContainer.querySelector('[data-validations-empty]');
+  if (!hasItems) {
+    if (!placeholder) {
+      placeholder = document.createElement('p');
+      placeholder.dataset.validationsEmpty = '1';
+      placeholder.className = 'admin-field__hint';
+      placeholder.textContent = 'No hay validaciones configuradas.';
+      listContainer.appendChild(placeholder);
+    }
+  } else if (placeholder) {
+    placeholder.remove();
+  }
+}
+
+function createValidationEditorRow(initialData = {}, handlers = {}) {
+  const { onChange, onRemove, listContainer } = handlers;
+  const data = initialData && typeof initialData === 'object' ? initialData : {};
+  const row = document.createElement('div');
+  row.className = 'admin-deliverable';
+  row.dataset.validationItem = '1';
+  const initialType = data.type && typeof data.type === 'string' ? data.type : 'output_contains';
+  const initialText = data.text && typeof data.text === 'string' ? data.text : '';
+  const initialFeedback =
+    data.feedback_fail && typeof data.feedback_fail === 'string' ? data.feedback_fail : '';
+  row.innerHTML = `
+    <div class="admin-deliverable__body">
+      <div class="admin-field">
+        <label class="admin-field__label">Tipo</label>
+        <input type="text" class="admin-field__control" data-field="type" list="missionValidationTypeOptions" placeholder="output_contains" value="${escapeHtml(initialType)}">
+      </div>
+      <div class="admin-field">
+        <label class="admin-field__label">Texto a buscar</label>
+        <textarea class="admin-field__control admin-field__control--textarea" data-field="text" rows="2" placeholder="Texto esperado en la salida">${escapeHtml(initialText)}</textarea>
+      </div>
+      <div class="admin-field">
+        <label class="admin-field__label">Mensaje al fallar</label>
+        <input type="text" class="admin-field__control" data-field="feedback_fail" placeholder="Mensaje personalizado" value="${escapeHtml(initialFeedback)}">
+      </div>
+    </div>
+    <div class="admin-deliverable__actions">
+      <button type="button" class="admin-button admin-button--danger admin-button--small" data-action="remove-validation">Eliminar</button>
+    </div>
+  `;
+  const typeInput = row.querySelector('[data-field="type"]');
+  const textInput = row.querySelector('[data-field="text"]');
+  const feedbackInput = row.querySelector('[data-field="feedback_fail"]');
+  const removeButton = row.querySelector('[data-action="remove-validation"]');
+  const triggerChange = () => {
+    if (typeof onChange === 'function') {
+      onChange();
+    }
+  };
+  [typeInput, textInput, feedbackInput].forEach((field) => {
+    if (!field) {
+      return;
+    }
+    field.addEventListener('input', triggerChange);
+    field.addEventListener('change', triggerChange);
+  });
+  if (removeButton) {
+    removeButton.onclick = () => {
+      row.remove();
+      if (listContainer) {
+        updateValidationsEmptyState(listContainer);
+      }
+      if (typeof onRemove === 'function') {
+        onRemove();
+      }
+    };
+  }
+  return row;
+}
+
+function renderValidationsEditor(listContainer, validations, handlers = {}) {
+  if (!listContainer) {
+    return;
+  }
+  listContainer.innerHTML = '';
+  const items = Array.isArray(validations) ? validations : [];
+  items.forEach((item) => {
+    const rowHandlers = { ...handlers, listContainer };
+    if (!rowHandlers.onRemove && typeof handlers.onChange === 'function') {
+      rowHandlers.onRemove = handlers.onChange;
+    }
+    const row = createValidationEditorRow(item, rowHandlers);
+    listContainer.appendChild(row);
+  });
+  updateValidationsEmptyState(listContainer);
+}
+
+function collectValidationsFromEditor(listContainer) {
+  const validations = [];
+  const errors = [];
+  if (!listContainer) {
+    return { validations, errors };
+  }
+  const rows = Array.from(listContainer.querySelectorAll('[data-validation-item]'));
+  rows.forEach((row, index) => {
+    const typeField = row.querySelector('[data-field="type"]');
+    const textField = row.querySelector('[data-field="text"]');
+    const feedbackField = row.querySelector('[data-field="feedback_fail"]');
+    const typeValue = typeField && typeof typeField.value === 'string' ? typeField.value.trim() : '';
+    const textValueRaw = textField && typeof textField.value === 'string' ? textField.value : '';
+    const textValue = textValueRaw.trim();
+    const feedbackValue =
+      feedbackField && typeof feedbackField.value === 'string' ? feedbackField.value.trim() : '';
+    const hasAnyValue = Boolean(typeValue || textValue || feedbackValue);
+    if (hasAnyValue) {
+      if (!typeValue) {
+        errors.push(`La validación #${index + 1} necesita un tipo.`);
+      }
+      if (!textValue) {
+        errors.push(`La validación #${index + 1} necesita un texto a buscar.`);
+      }
+    }
+    if (typeValue && textValue) {
+      const item = { type: typeValue, text: textValueRaw };
+      if (feedbackValue) {
+        item.feedback_fail = feedbackValue;
+      }
+      validations.push(item);
+    }
+  });
+  return { validations, errors };
+}
+
+function renderAdminValidationsSummary(summaryContainer, validations, errors = []) {
+  if (!summaryContainer) {
+    return;
+  }
+  summaryContainer.innerHTML = '';
+  const hasValidations = Array.isArray(validations) && validations.length > 0;
+  let summaryRendered = false;
+  if (hasValidations) {
+    const list = document.createElement('ul');
+    list.className = 'admin-deliverables-summary__list';
+    validations.forEach((item) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      const parts = [];
+      if (typeof item.type === 'string' && item.type.trim()) {
+        parts.push(item.type.trim());
+      }
+      if (typeof item.text === 'string' && item.text.trim()) {
+        parts.push(item.text.trim());
+      }
+      if (parts.length === 0) {
+        return;
+      }
+      const entry = document.createElement('li');
+      entry.textContent = parts.join(' — ');
+      list.appendChild(entry);
+    });
+    if (list.children.length > 0) {
+      summaryContainer.appendChild(list);
+      summaryRendered = true;
+    }
+  }
+  if (!summaryRendered) {
+    const placeholder = document.createElement('p');
+    placeholder.className = 'admin-field__hint';
+    placeholder.textContent = 'No se ha configurado ninguna validación.';
+    summaryContainer.appendChild(placeholder);
+  }
+  if (Array.isArray(errors) && errors.length > 0) {
+    const errorList = document.createElement('ul');
+    errorList.className = 'admin-feedback admin-feedback--field admin-feedback--inline';
+    errors.forEach((error) => {
+      const li = document.createElement('li');
+      li.textContent = error;
+      errorList.appendChild(li);
+    });
+    summaryContainer.appendChild(errorList);
   }
 }
 
@@ -2003,6 +2234,23 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
               <input type="text" id="missionSourceBasePathInput" class="admin-field__control" placeholder="students/{slug}" name="source_base_path">
             </div>
           </fieldset>
+          <fieldset class="admin-field admin-field--fieldset" id="missionScriptValidationFieldset" hidden>
+            <legend>Validaciones de script</legend>
+            <p class="admin-field__hint">Configura la ruta del script y las validaciones que se aplicarán sobre la salida.</p>
+            <div class="admin-field">
+              <label class="admin-field__label" for="missionScriptPathInput">Ruta del script</label>
+              <input type="text" id="missionScriptPathInput" class="admin-field__control" placeholder="scripts/mision.py">
+            </div>
+            <div class="admin-field">
+              <label class="admin-field__label">Validaciones de salida</label>
+              <div id="missionValidationsList" class="admin-deliverables-list"></div>
+              <button type="button" class="admin-button admin-button--ghost" data-action="add-validation">Agregar validación</button>
+              <datalist id="missionValidationTypeOptions">
+                <option value="output_contains">
+              </datalist>
+              <div id="missionValidationsSummary" class="admin-deliverables-summary"></div>
+            </div>
+          </fieldset>
           <fieldset class="admin-field admin-field--fieldset">
             <legend>Campos extra</legend>
             <p class="admin-field__hint">
@@ -2205,6 +2453,8 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const missionSourceRepositoryInput = sectionContainer.querySelector('#missionSourceRepositoryInput');
   const missionSourceBranchInput = sectionContainer.querySelector('#missionSourceBranchInput');
   const missionSourceBasePathInput = sectionContainer.querySelector('#missionSourceBasePathInput');
+  const missionScriptFieldset = sectionContainer.querySelector('#missionScriptValidationFieldset');
+  const missionScriptPathInput = sectionContainer.querySelector('#missionScriptPathInput');
   const missionExtrasEditor = sectionContainer.querySelector('#missionExtrasEditor');
   const missionExtrasFeedback = sectionContainer.querySelector('#missionExtrasFeedback');
   const missionExtrasAdvancedDetails = sectionContainer.querySelector('#missionExtrasAdvancedDetails');
@@ -2230,7 +2480,10 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   resetMissionSectionFieldValues();
   const deliverablesList = sectionContainer.querySelector('#missionDeliverablesList');
   const deliverablesSummary = sectionContainer.querySelector('#missionDeliverablesSummary');
+  const validationsList = sectionContainer.querySelector('#missionValidationsList');
+  const validationsSummary = sectionContainer.querySelector('#missionValidationsSummary');
   const addDeliverableButton = sectionContainer.querySelector('[data-action="add-deliverable"]');
+  const addValidationButton = sectionContainer.querySelector('[data-action="add-validation"]');
   const feedbackContainer = sectionContainer.querySelector('#missionAdminFeedback');
   const saveButton = sectionContainer.querySelector('#missionAdminSaveBtn');
   const roleInputs = Array.from(sectionContainer.querySelectorAll('.mission-role-option'));
@@ -2435,6 +2688,30 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     const { deliverables, errors } = collectDeliverablesFromEditor(deliverablesList);
     renderAdminDeliverablesSummary(deliverablesSummary, deliverables, errors);
   };
+  const handleValidationsChange = () => {
+    const { validations, errors } = collectValidationsFromEditor(validationsList);
+    renderAdminValidationsSummary(validationsSummary, validations, errors);
+  };
+  const updateVerificationDependentFields = () => {
+    const verificationValue = missionVerificationSelect
+      ? missionVerificationSelect.value.trim()
+      : '';
+    const isScriptOutput = verificationValue === 'script_output';
+    if (missionScriptFieldset) {
+      if (isScriptOutput) {
+        missionScriptFieldset.removeAttribute('hidden');
+      } else {
+        missionScriptFieldset.setAttribute('hidden', 'hidden');
+      }
+    }
+    if (missionScriptPathInput) {
+      if (isScriptOutput) {
+        missionScriptPathInput.setAttribute('required', 'required');
+      } else {
+        missionScriptPathInput.removeAttribute('required');
+      }
+    }
+  };
   if (missionExtrasEditor) {
     missionExtrasEditor.addEventListener('input', () => {
       syncExtrasFromEditor({ fromSubmit: false });
@@ -2447,6 +2724,9 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   syncMissionSectionFieldsFromExtras(missionContentExtras);
   updateDeliverablesEmptyState(deliverablesList);
   handleDeliverablesChange();
+  updateValidationsEmptyState(validationsList);
+  handleValidationsChange();
+  updateVerificationDependentFields();
   function showFeedback(message, type = 'info') {
     if (!feedbackContainer) {
       return;
@@ -2496,8 +2776,13 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       if (missionSourceBasePathInput) {
         missionSourceBasePathInput.value = '';
       }
+      if (missionScriptPathInput) {
+        missionScriptPathInput.value = '';
+      }
       renderDeliverablesEditor(deliverablesList, [], { onChange: handleDeliverablesChange });
       handleDeliverablesChange();
+      renderValidationsEditor(validationsList, [], { onChange: handleValidationsChange });
+      handleValidationsChange();
       missionContentExtras = {};
       setMissionExtrasEditorValue(missionContentExtras);
       resetMissionSectionFieldValues();
@@ -2509,6 +2794,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       }
       showFeedback('Completa los campos para crear una nueva misión.', 'info');
     }
+    updateVerificationDependentFields();
   }
 
   function repopulateMissionSelect(selectedMissionId) {
@@ -2564,8 +2850,14 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       if (missionSourceBasePathInput) {
         missionSourceBasePathInput.value = '';
       }
+      if (missionScriptPathInput) {
+        missionScriptPathInput.value = '';
+      }
       renderDeliverablesEditor(deliverablesList, [], { onChange: handleDeliverablesChange });
       handleDeliverablesChange();
+      renderValidationsEditor(validationsList, [], { onChange: handleValidationsChange });
+      handleValidationsChange();
+      updateVerificationDependentFields();
       missionContentExtras = {};
       setMissionExtrasEditorValue(missionContentExtras);
       resetMissionSectionFieldValues();
@@ -2589,7 +2881,8 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       input.checked = normalizedRoles.includes(input.value);
     });
     const contentValue = mission && mission.content && typeof mission.content === 'object' ? mission.content : {};
-    const { verificationType, source, deliverables, extras } = splitMissionContent(contentValue);
+    const { verificationType, source, deliverables, scriptPath, validations, extras } =
+      splitMissionContent(contentValue);
     missionContentExtras = cloneMissionContentExtras(extras);
     setMissionExtrasEditorValue(missionContentExtras);
     syncMissionSectionFieldsFromExtras(missionContentExtras);
@@ -2604,6 +2897,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         missionVerificationSelect.value = targetValue;
       }
     }
+    updateVerificationDependentFields();
     if (missionSourceRepositoryInput) {
       missionSourceRepositoryInput.value = source.repository || '';
     }
@@ -2613,8 +2907,13 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     if (missionSourceBasePathInput) {
       missionSourceBasePathInput.value = source.base_path || '';
     }
+    if (missionScriptPathInput) {
+      missionScriptPathInput.value = scriptPath || '';
+    }
     renderDeliverablesEditor(deliverablesList, deliverables, { onChange: handleDeliverablesChange });
     handleDeliverablesChange();
+    renderValidationsEditor(validationsList, validations, { onChange: handleValidationsChange });
+    handleValidationsChange();
     if (saveButton) {
       saveButton.disabled = false;
     }
@@ -2627,6 +2926,12 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       }
       fillMissionForm(missionSelect.value);
     };
+  }
+  if (missionVerificationSelect) {
+    missionVerificationSelect.addEventListener('change', () => {
+      updateVerificationDependentFields();
+      handleValidationsChange();
+    });
   }
   if (missions.length > 0 && missionSelect) {
     const firstMissionId = missions[0] && missions[0].mission_id != null ? String(missions[0].mission_id) : '';
@@ -2660,6 +2965,23 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         updateDeliverablesEmptyState(deliverablesList);
       }
       handleDeliverablesChange();
+    };
+  }
+  if (addValidationButton) {
+    addValidationButton.onclick = () => {
+      if (validationsList) {
+        const row = createValidationEditorRow(
+          {},
+          {
+            listContainer: validationsList,
+            onChange: handleValidationsChange,
+            onRemove: handleValidationsChange,
+          }
+        );
+        validationsList.appendChild(row);
+        updateValidationsEmptyState(validationsList);
+      }
+      handleValidationsChange();
     };
   }
   if (missionForm) {
@@ -2718,6 +3040,27 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         showFeedback('Agrega al menos un deliverable para las misiones de evidencia.', 'error');
         return;
       }
+      const scriptPathValue = missionScriptPathInput
+        ? missionScriptPathInput.value.trim()
+        : '';
+      const { validations, errors: validationErrors } = collectValidationsFromEditor(validationsList);
+      if (validationErrors.length > 0) {
+        showFeedback(validationErrors[0], 'error');
+        return;
+      }
+      if (verificationType === 'script_output') {
+        if (!scriptPathValue) {
+          showFeedback('Ingresa la ruta del script para continuar.', 'error');
+          if (missionScriptPathInput) {
+            missionScriptPathInput.focus();
+          }
+          return;
+        }
+        if (validations.length === 0) {
+          showFeedback('Agrega al menos una validación para las misiones de script.', 'error');
+          return;
+        }
+      }
       const extrasAreValid = syncExtrasFromEditor({ fromSubmit: true });
       if (!extrasAreValid) {
         showFeedback('Corrige el JSON del contenido adicional antes de guardar.', 'error');
@@ -2750,6 +3093,8 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         verificationType,
         source,
         deliverables,
+        scriptPath: scriptPathValue,
+        validations,
         extras: extrasForPayload,
       });
       showFeedback('Guardando cambios...', 'info');
