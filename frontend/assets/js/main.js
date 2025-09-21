@@ -167,6 +167,406 @@ function clearSession() {
 const ADMIN_AVAILABLE_ROLES = ['Ventas', 'Operaciones'];
 const ADMIN_SECTION_KEYS = ['missions', 'users', 'roles', 'integrations'];
 
+const MISSION_EXTRA_SECTION_DEFINITIONS = [
+  {
+    key: 'purpose',
+    heading: '1. Nombre y narrativa',
+    aliases: ['1. Nombre y narrativa', '💡 ¿Para qué sirve?', '¿Para qué sirve?'],
+    legacyHeadings: ['💡 ¿Para qué sirve?'],
+  },
+  {
+    key: 'outcome',
+    heading: '2. Objetivos de la misión',
+    aliases: ['2. Objetivos de la misión', '🏆 Al final podrás…'],
+    legacyHeadings: ['🏆 Al final podrás…'],
+  },
+  {
+    key: 'history',
+    heading: '3. Historia / contexto breve',
+    aliases: ['3. Historia / contexto breve', 'Historia'],
+  },
+  {
+    key: 'resources',
+    heading: '4. Recursos de aprendizaje sugeridos',
+    aliases: ['4. Recursos de aprendizaje sugeridos', '📚 Material de aprendizaje sugerido…', 'Videos'],
+    legacyHeadings: ['📚 Material de aprendizaje sugerido…'],
+  },
+  {
+    key: 'practice_contract',
+    heading: '5. Práctica — Contrato',
+    aliases: ['5. Práctica — Contrato', 'Práctica — Contrato'],
+    type: 'group',
+    subheadingTag: 'h4',
+    subfields: [
+      {
+        key: 'practice_contract_entry',
+        heading: 'Entrada',
+        aliases: ['Entrada', '6. Guía previa a la práctica', '🧭 Guía detallada antes de la práctica'],
+        legacyHeadings: ['6. Guía previa a la práctica', '🧭 Guía detallada antes de la práctica'],
+      },
+      {
+        key: 'practice_contract_steps',
+        heading: 'Pasos a realizar',
+        aliases: [
+          'Pasos a realizar',
+          '7. Setup del repositorio y entorno',
+          '📦 Clonar el repositorio…',
+          'Qué debes hacer hoy',
+          'Parte aplicada (detallada)',
+        ],
+        legacyHeadings: ['7. Setup del repositorio y entorno', '📦 Clonar el repositorio…'],
+      },
+      {
+        key: 'practice_contract_expected',
+        heading: 'Logro esperado',
+        aliases: ['Logro esperado', '9. Práctica principal', '🚀 Práctica…', 'Logro', 'Meta de calidad'],
+        legacyHeadings: ['9. Práctica principal', '🚀 Práctica…'],
+      },
+      {
+        key: 'practice_contract_outputs',
+        heading: 'Archivos de salida',
+        aliases: ['Archivos de salida', 'Salidas'],
+      },
+    ],
+  },
+  {
+    key: 'research',
+    heading: '6. Investigación previa (fichas)',
+    aliases: ['6. Investigación previa (fichas)', '📝 Investigación (Fichas)', 'Investigación — Fichas'],
+    legacyHeadings: ['📝 Investigación (Fichas)'],
+  },
+  {
+    key: 'micro_quiz',
+    heading: '7. Micro-quiz',
+    aliases: ['7. Micro-quiz', 'Micro-quiz (5)', 'Micro‑quiz (5)'],
+  },
+  {
+    key: 'pr_checklist',
+    heading: '8. Checklist para el Pull Request',
+    aliases: ['8. Checklist para el Pull Request', 'Checklist'],
+  },
+  {
+    key: 'deliverables',
+    heading: '9. Entregables obligatorios',
+    aliases: ['9. Entregables obligatorios', '📋 Entregables obligatorios', 'Entregables'],
+    legacyHeadings: ['📋 Entregables obligatorios'],
+  },
+  {
+    key: 'evaluation_rubric',
+    heading: '10. Rúbrica de evaluación (10 puntos)',
+    aliases: ['10. Rúbrica de evaluación (10 puntos)', 'Rúbrica (10)'],
+  },
+  {
+    key: 'review',
+    heading: '11. Revisión final',
+    aliases: ['11. Revisión final', '👁 Revisión', 'Verificación'],
+    legacyHeadings: ['👁 Revisión'],
+  },
+];
+
+const MISSION_EXTRA_FIELD_DEFINITIONS = MISSION_EXTRA_SECTION_DEFINITIONS.flatMap((definition) => {
+  if (definition.type === 'group' && Array.isArray(definition.subfields)) {
+    return definition.subfields.map((subfield) => ({
+      ...subfield,
+      parentKey: definition.key,
+      parentHeading: definition.heading,
+      headingTag: (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase(),
+      fullHeading:
+        subfield.fullHeading ||
+        (definition.heading && subfield.heading
+          ? `${definition.heading} — ${subfield.heading}`
+          : subfield.heading || definition.heading),
+    }));
+  }
+  return [
+    {
+      ...definition,
+      parentKey: null,
+      parentHeading: null,
+      headingTag: (definition.headingTag || 'h3').toLowerCase(),
+      fullHeading: definition.heading,
+    },
+  ];
+});
+
+function createEmptyMissionDisplaySections() {
+  const initialValues = {};
+  MISSION_EXTRA_FIELD_DEFINITIONS.forEach((definition) => {
+    initialValues[definition.key] = '';
+  });
+  return initialValues;
+}
+
+function createDefaultMissionDisplayHeadings() {
+  const initialHeadings = {};
+  MISSION_EXTRA_SECTION_DEFINITIONS.forEach((definition) => {
+    initialHeadings[definition.key] = typeof definition.heading === 'string' ? definition.heading : '';
+  });
+  return initialHeadings;
+}
+
+function normalizeMissionExtraHeading(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const compacted = text.replace(/\s+/g, ' ').trim();
+  const withoutTrailingColon = compacted.replace(/[:：]\s*$/u, '').trim();
+  return withoutTrailingColon.toLowerCase();
+}
+
+function getMissionExtraHeadingAliases(definition) {
+  const aliases = [];
+  const seen = new Set();
+  const addAlias = (value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    aliases.push(trimmed);
+    seen.add(trimmed);
+  };
+  if (definition && typeof definition === 'object') {
+    if (Array.isArray(definition.aliases)) {
+      definition.aliases.forEach(addAlias);
+    }
+    addAlias(definition.heading);
+    if (Array.isArray(definition.legacyHeadings)) {
+      definition.legacyHeadings.forEach(addAlias);
+    }
+  }
+  return aliases;
+}
+
+function parseMissionExtrasDisplaySections(displayHtml) {
+  const parsedValues = createEmptyMissionDisplaySections();
+  const parsedHeadings = createDefaultMissionDisplayHeadings();
+  if (!displayHtml || typeof displayHtml !== 'string') {
+    return { values: parsedValues, headings: parsedHeadings };
+  }
+  if (typeof document === 'undefined') {
+    return { values: parsedValues, headings: parsedHeadings };
+  }
+  const container = document.createElement('div');
+  container.innerHTML = displayHtml;
+  const missionSection = container.querySelector('section.mission');
+  const root = missionSection || container;
+  const topLevelHeadingTags = new Set(['h2', 'h3']);
+  const headingElements = Array.from(root.querySelectorAll('h2, h3'));
+  const headingMap = new Map();
+  headingElements.forEach((element) => {
+    const normalized = normalizeMissionExtraHeading(element.textContent);
+    if (!normalized) {
+      return;
+    }
+    if (!headingMap.has(normalized)) {
+      headingMap.set(normalized, []);
+    }
+    headingMap.get(normalized).push(element);
+  });
+
+  const collectContentUntilNextHeading = (headingElement) => {
+    const fragmentContainer = document.createElement('div');
+    let sibling = headingElement.nextSibling;
+    while (sibling) {
+      if (sibling.nodeType === 1 && sibling.tagName) {
+        const tagName = sibling.tagName.toLowerCase();
+        if (topLevelHeadingTags.has(tagName)) {
+          break;
+        }
+      }
+      fragmentContainer.appendChild(sibling.cloneNode(true));
+      sibling = sibling.nextSibling;
+    }
+    return fragmentContainer.innerHTML.trim();
+  };
+
+  const takeHeadingElement = (candidateHeadings) => {
+    if (!Array.isArray(candidateHeadings)) {
+      return null;
+    }
+    for (const headingText of candidateHeadings) {
+      const normalized = normalizeMissionExtraHeading(headingText);
+      if (!normalized) {
+        continue;
+      }
+      const elements = headingMap.get(normalized);
+      if (elements && elements.length > 0) {
+        return elements.shift();
+      }
+    }
+    return null;
+  };
+
+  const findStrongOrBoldHeading = (element) => {
+    if (!element || element.nodeType !== 1) {
+      return null;
+    }
+    if (element.matches && element.matches('strong, b')) {
+      return element;
+    }
+    if (element.querySelector) {
+      return element.querySelector('strong, b');
+    }
+    return null;
+  };
+
+  const extractGroupSubsectionFromFallback = (
+    groupHtml,
+    headingTagName,
+    normalizedCandidates,
+    allNormalizedHeadings,
+  ) => {
+    if (!groupHtml || !Array.isArray(normalizedCandidates) || normalizedCandidates.length === 0) {
+      return '';
+    }
+    const normalizedCandidateSet = new Set(normalizedCandidates);
+    if (normalizedCandidateSet.size === 0) {
+      return '';
+    }
+    const allNormalizedSet = new Set(allNormalizedHeadings || []);
+    const fragment = document.createElement('div');
+    fragment.innerHTML = groupHtml;
+    const headingSelector = `${headingTagName}, p strong, p b`;
+    const labelCandidates = Array.from(fragment.querySelectorAll(headingSelector));
+    for (const candidate of labelCandidates) {
+      if (!candidate || candidate.nodeType !== 1 || !candidate.tagName) {
+        continue;
+      }
+      const tagName = candidate.tagName.toLowerCase();
+      let normalizedText = '';
+      let baseElement = candidate;
+      let labelElement = null;
+      if (tagName === headingTagName) {
+        normalizedText = normalizeMissionExtraHeading(candidate.textContent);
+        if (!normalizedCandidateSet.has(normalizedText)) {
+          continue;
+        }
+      } else {
+        const parentParagraph = candidate.closest ? candidate.closest('p') : null;
+        if (!parentParagraph) {
+          continue;
+        }
+        normalizedText = normalizeMissionExtraHeading(candidate.textContent);
+        if (!normalizedCandidateSet.has(normalizedText)) {
+          continue;
+        }
+        baseElement = parentParagraph;
+        labelElement = candidate;
+      }
+      const subFragment = document.createElement('div');
+      if (labelElement) {
+        const paragraphClone = baseElement.cloneNode(true);
+        const labelClone = findStrongOrBoldHeading(paragraphClone);
+        if (labelClone && labelClone.parentNode) {
+          labelClone.parentNode.removeChild(labelClone);
+        }
+        if (paragraphClone.innerHTML.trim()) {
+          subFragment.appendChild(paragraphClone);
+        }
+      }
+      let sibling = baseElement.nextSibling;
+      while (sibling) {
+        if (sibling.nodeType === 1 && sibling.tagName) {
+          const siblingTagName = sibling.tagName.toLowerCase();
+          if (topLevelHeadingTags.has(siblingTagName)) {
+            break;
+          }
+          if (siblingTagName === headingTagName) {
+            const normalizedSiblingHeading = normalizeMissionExtraHeading(sibling.textContent);
+            if (allNormalizedSet.has(normalizedSiblingHeading)) {
+              break;
+            }
+          } else if (siblingTagName === 'p') {
+            const potentialLabel = findStrongOrBoldHeading(sibling);
+            if (potentialLabel) {
+              const normalizedSiblingHeading = normalizeMissionExtraHeading(potentialLabel.textContent);
+              if (allNormalizedSet.has(normalizedSiblingHeading)) {
+                break;
+              }
+            }
+          }
+        }
+        subFragment.appendChild(sibling.cloneNode(true));
+        sibling = sibling.nextSibling;
+      }
+      const resultHtml = subFragment.innerHTML.trim();
+      if (resultHtml) {
+        return resultHtml;
+      }
+    }
+    return '';
+  };
+
+  MISSION_EXTRA_SECTION_DEFINITIONS.forEach((definition) => {
+    const candidateHeadings = getMissionExtraHeadingAliases(definition);
+    const headingElement = takeHeadingElement(candidateHeadings);
+    const headingText = headingElement ? headingElement.textContent.trim() : '';
+    if (headingText) {
+      parsedHeadings[definition.key] = headingText;
+    }
+    if (definition.type === 'group' && Array.isArray(definition.subfields) && definition.subfields.length) {
+      const contractContainer = root.querySelector(`[data-contract="${definition.key}"]`);
+      let fallbackGroupHtml = '';
+      if (!contractContainer && headingElement) {
+        fallbackGroupHtml = collectContentUntilNextHeading(headingElement);
+      }
+      const normalizedSubheadingAliases = new Map();
+      const allNormalizedGroupHeadings = new Set();
+      definition.subfields.forEach((subfield) => {
+        const aliases = getMissionExtraHeadingAliases(subfield);
+        const normalizedAliases = aliases
+          .map((text) => normalizeMissionExtraHeading(text))
+          .filter((text) => Boolean(text));
+        normalizedSubheadingAliases.set(subfield.key, {
+          aliases,
+          normalized: normalizedAliases,
+        });
+        normalizedAliases.forEach((value) => allNormalizedGroupHeadings.add(value));
+      });
+      definition.subfields.forEach((subfield) => {
+        const headingTagName = (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase();
+        const aliasInfo = normalizedSubheadingAliases.get(subfield.key) || {
+          aliases: getMissionExtraHeadingAliases(subfield),
+          normalized: [],
+        };
+        let content = '';
+        if (contractContainer) {
+          const itemElement = contractContainer.querySelector(`[data-contract-part="${subfield.key}"]`);
+          if (itemElement) {
+            const clone = itemElement.cloneNode(true);
+            const subHeadingElement = clone.querySelector(headingTagName);
+            if (subHeadingElement && subHeadingElement.parentNode) {
+              subHeadingElement.parentNode.removeChild(subHeadingElement);
+            }
+            content = clone.innerHTML.trim();
+          }
+        }
+        if (!content && fallbackGroupHtml) {
+          content = extractGroupSubsectionFromFallback(
+            fallbackGroupHtml,
+            headingTagName,
+            aliasInfo.normalized,
+            allNormalizedGroupHeadings,
+          );
+        }
+        if (!content) {
+          const fallbackHeadingElement = takeHeadingElement(aliasInfo.aliases);
+          if (fallbackHeadingElement) {
+            content = collectContentUntilNextHeading(fallbackHeadingElement);
+          }
+        }
+        parsedValues[subfield.key] = content;
+      });
+      return;
+    }
+    parsedValues[definition.key] = headingElement ? collectContentUntilNextHeading(headingElement) : '';
+  });
+  return { values: parsedValues, headings: parsedHeadings };
+}
+
 function normalizeAdminSection(sectionName) {
   if (!sectionName) {
     return '';
@@ -1808,112 +2208,8 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
   const missionExtrasEditor = sectionContainer.querySelector('#missionExtrasEditor');
   const missionExtrasFeedback = sectionContainer.querySelector('#missionExtrasFeedback');
   const missionExtrasAdvancedDetails = sectionContainer.querySelector('#missionExtrasAdvancedDetails');
-  const missionExtraSectionDefinitions = [
-    {
-      key: 'purpose',
-      heading: '1. Nombre y narrativa',
-      aliases: ['1. Nombre y narrativa', '💡 ¿Para qué sirve?'],
-      legacyHeadings: ['💡 ¿Para qué sirve?'],
-    },
-    {
-      key: 'outcome',
-      heading: '2. Objetivos de la misión',
-      aliases: ['2. Objetivos de la misión', '🏆 Al final podrás…'],
-      legacyHeadings: ['🏆 Al final podrás…'],
-    },
-    { key: 'history', heading: '3. Historia / contexto breve', aliases: ['3. Historia / contexto breve'] },
-    {
-      key: 'resources',
-      heading: '4. Recursos de aprendizaje sugeridos',
-      aliases: ['4. Recursos de aprendizaje sugeridos', '📚 Material de aprendizaje sugerido…'],
-      legacyHeadings: ['📚 Material de aprendizaje sugerido…'],
-    },
-    {
-      key: 'practice_contract',
-      heading: '5. Práctica — Contrato',
-      aliases: ['5. Práctica — Contrato'],
-      type: 'group',
-      subheadingTag: 'h4',
-      subfields: [
-        {
-          key: 'practice_contract_entry',
-          heading: 'Entrada',
-          aliases: ['Entrada', '6. Guía previa a la práctica', '🧭 Guía detallada antes de la práctica'],
-          legacyHeadings: ['6. Guía previa a la práctica', '🧭 Guía detallada antes de la práctica'],
-        },
-        {
-          key: 'practice_contract_steps',
-          heading: 'Pasos a realizar',
-          aliases: ['Pasos a realizar', '7. Setup del repositorio y entorno', '📦 Clonar el repositorio…'],
-          legacyHeadings: ['7. Setup del repositorio y entorno', '📦 Clonar el repositorio…'],
-        },
-        {
-          key: 'practice_contract_expected',
-          heading: 'Logro esperado',
-          aliases: ['Logro esperado', '9. Práctica principal', '🚀 Práctica…'],
-          legacyHeadings: ['9. Práctica principal', '🚀 Práctica…'],
-        },
-        {
-          key: 'practice_contract_outputs',
-          heading: 'Archivos de salida',
-          aliases: ['Archivos de salida'],
-        },
-      ],
-    },
-    {
-      key: 'research',
-      heading: '6. Investigación previa (fichas)',
-      aliases: ['6. Investigación previa (fichas)', '📝 Investigación (Fichas)'],
-      legacyHeadings: ['📝 Investigación (Fichas)'],
-    },
-    { key: 'micro_quiz', heading: '7. Micro-quiz', aliases: ['7. Micro-quiz'] },
-    {
-      key: 'pr_checklist',
-      heading: '8. Checklist para el Pull Request',
-      aliases: ['8. Checklist para el Pull Request'],
-    },
-    {
-      key: 'deliverables',
-      heading: '9. Entregables obligatorios',
-      aliases: ['9. Entregables obligatorios', '📋 Entregables obligatorios'],
-      legacyHeadings: ['📋 Entregables obligatorios'],
-    },
-    {
-      key: 'evaluation_rubric',
-      heading: '10. Rúbrica de evaluación (10 puntos)',
-      aliases: ['10. Rúbrica de evaluación (10 puntos)'],
-    },
-    {
-      key: 'review',
-      heading: '11. Revisión final',
-      aliases: ['11. Revisión final', '👁 Revisión'],
-      legacyHeadings: ['👁 Revisión'],
-    },
-  ];
-  const missionExtraFieldDefinitions = missionExtraSectionDefinitions.flatMap((definition) => {
-    if (definition.type === 'group' && Array.isArray(definition.subfields)) {
-      return definition.subfields.map((subfield) => ({
-        ...subfield,
-        parentKey: definition.key,
-        parentHeading: definition.heading,
-        headingTag: (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase(),
-        fullHeading:
-          subfield.fullHeading ||
-          (definition.heading && subfield.heading
-            ? `${definition.heading} — ${subfield.heading}`
-            : subfield.heading || definition.heading),
-      }));
-    }
-    return [
-      {
-        ...definition,
-        parentKey: null,
-        parentHeading: null,
-        headingTag: (definition.headingTag || 'h3').toLowerCase(),
-        fullHeading: definition.heading,
-      },
-    ];
-  });
+  const missionExtraSectionDefinitions = MISSION_EXTRA_SECTION_DEFINITIONS;
+  const missionExtraFieldDefinitions = MISSION_EXTRA_FIELD_DEFINITIONS;
   const missionExtrasFieldNodes = {};
   let missionDisplaySectionValues = {};
   let missionDisplaySectionHeadings = {};
@@ -2024,23 +2320,6 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     }
   }
 
-  function createEmptyMissionDisplaySections() {
-    const initialValues = {};
-    missionExtraFieldDefinitions.forEach((definition) => {
-      initialValues[definition.key] = '';
-    });
-    return initialValues;
-  }
-
-  function createDefaultMissionDisplayHeadings() {
-    const initialHeadings = {};
-    missionExtraSectionDefinitions.forEach((definition) => {
-      initialHeadings[definition.key] =
-        typeof definition.heading === 'string' ? definition.heading : '';
-    });
-    return initialHeadings;
-  }
-
   function setMissionSectionFieldValues(values) {
     missionExtraFieldDefinitions.forEach((definition) => {
       const field = missionExtrasFieldNodes[definition.key];
@@ -2092,167 +2371,6 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       }
     });
     return { values, missing };
-  }
-
-  function normalizeMissionExtraHeading(text) {
-    return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().toLowerCase() : '';
-  }
-
-  function getMissionExtraHeadingAliases(definition) {
-    const aliases = [];
-    const seen = new Set();
-    const addAlias = (value) => {
-      if (typeof value !== 'string') {
-        return;
-      }
-      const trimmed = value.trim();
-      if (!trimmed || seen.has(trimmed)) {
-        return;
-      }
-      aliases.push(trimmed);
-      seen.add(trimmed);
-    };
-    if (definition && typeof definition === 'object') {
-      if (Array.isArray(definition.aliases)) {
-        definition.aliases.forEach(addAlias);
-      }
-      addAlias(definition.heading);
-      if (Array.isArray(definition.legacyHeadings)) {
-        definition.legacyHeadings.forEach(addAlias);
-      }
-    }
-    return aliases;
-  }
-
-  function parseMissionExtrasDisplaySections(displayHtml) {
-    const parsedValues = createEmptyMissionDisplaySections();
-    const parsedHeadings = createDefaultMissionDisplayHeadings();
-    if (!displayHtml || typeof displayHtml !== 'string') {
-      return { values: parsedValues, headings: parsedHeadings };
-    }
-    if (typeof document === 'undefined') {
-      return { values: parsedValues, headings: parsedHeadings };
-    }
-    const container = document.createElement('div');
-    container.innerHTML = displayHtml;
-    const missionSection = container.querySelector('section.mission');
-    const root = missionSection || container;
-    const headingElements = Array.from(root.querySelectorAll('h3'));
-    const headingMap = new Map();
-    headingElements.forEach((element) => {
-      const normalized = normalizeMissionExtraHeading(element.textContent);
-      if (!normalized) {
-        return;
-      }
-      if (!headingMap.has(normalized)) {
-        headingMap.set(normalized, []);
-      }
-      headingMap.get(normalized).push(element);
-    });
-
-    const collectContentUntilNextHeading = (headingElement) => {
-      const fragmentContainer = document.createElement('div');
-      let sibling = headingElement.nextSibling;
-      while (sibling) {
-        if (sibling.nodeType === 1 && sibling.tagName) {
-          const tagName = sibling.tagName.toLowerCase();
-          if (tagName === 'h3') {
-            break;
-          }
-        }
-        fragmentContainer.appendChild(sibling.cloneNode(true));
-        sibling = sibling.nextSibling;
-      }
-      return fragmentContainer.innerHTML.trim();
-    };
-
-    const takeHeadingElement = (candidateHeadings) => {
-      if (!Array.isArray(candidateHeadings)) {
-        return null;
-      }
-      for (const headingText of candidateHeadings) {
-        const normalized = normalizeMissionExtraHeading(headingText);
-        if (!normalized) {
-          continue;
-        }
-        const elements = headingMap.get(normalized);
-        if (elements && elements.length > 0) {
-          return elements.shift();
-        }
-      }
-      return null;
-    };
-
-    missionExtraSectionDefinitions.forEach((definition) => {
-      const candidateHeadings = getMissionExtraHeadingAliases(definition);
-      const headingElement = takeHeadingElement(candidateHeadings);
-      const headingText = headingElement ? headingElement.textContent.trim() : '';
-      if (headingText) {
-        parsedHeadings[definition.key] = headingText;
-      }
-      if (definition.type === 'group' && Array.isArray(definition.subfields) && definition.subfields.length) {
-        const contractContainer = root.querySelector(`[data-contract="${definition.key}"]`);
-        let fallbackGroupHtml = '';
-        if (!contractContainer && headingElement) {
-          fallbackGroupHtml = collectContentUntilNextHeading(headingElement);
-        }
-        definition.subfields.forEach((subfield) => {
-          const headingTagName = (subfield.headingTag || definition.subheadingTag || 'h4').toLowerCase();
-          let content = '';
-          if (contractContainer) {
-            const itemElement = contractContainer.querySelector(`[data-contract-part="${subfield.key}"]`);
-            if (itemElement) {
-              const clone = itemElement.cloneNode(true);
-              const headingElement = clone.querySelector(headingTagName);
-              if (headingElement && headingElement.parentNode) {
-                headingElement.parentNode.removeChild(headingElement);
-              }
-              content = clone.innerHTML.trim();
-            }
-          }
-          if (!content && fallbackGroupHtml) {
-            const fragment = document.createElement('div');
-            fragment.innerHTML = fallbackGroupHtml;
-            const candidateSubHeadings = getMissionExtraHeadingAliases(subfield)
-              .map((text) => normalizeMissionExtraHeading(text))
-              .filter((text) => Boolean(text));
-            const subheadingElements = Array.from(fragment.querySelectorAll(headingTagName));
-            const matchedHeading = subheadingElements.find((element) => {
-              const normalizedText = normalizeMissionExtraHeading(element.textContent);
-              return candidateSubHeadings.includes(normalizedText);
-            });
-            if (matchedHeading) {
-              const subFragment = document.createElement('div');
-              let sibling = matchedHeading.nextSibling;
-              while (sibling) {
-                if (
-                  sibling.nodeType === 1 &&
-                  sibling.tagName &&
-                  sibling.tagName.toLowerCase() === headingTagName
-                ) {
-                  break;
-                }
-                subFragment.appendChild(sibling.cloneNode(true));
-                sibling = sibling.nextSibling;
-              }
-              content = subFragment.innerHTML.trim();
-            }
-          }
-          if (!content) {
-            const fallbackHeadingElement = takeHeadingElement(getMissionExtraHeadingAliases(subfield));
-            if (fallbackHeadingElement) {
-              content = collectContentUntilNextHeading(fallbackHeadingElement);
-            }
-          }
-          parsedValues[subfield.key] = content;
-        });
-        return;
-      }
-      parsedValues[definition.key] = headingElement
-        ? collectContentUntilNextHeading(headingElement)
-        : '';
-    });
-    return { values: parsedValues, headings: parsedHeadings };
   }
 
   function syncMissionSectionFieldsFromExtras(extras) {
@@ -4677,6 +4795,13 @@ function initializeLandingView() {
 
 if (typeof window !== 'undefined') {
   window.renderMissionContent = renderMissionContent;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    normalizeMissionExtraHeading,
+    parseMissionExtrasDisplaySections,
+  };
 }
 
 document.addEventListener('DOMContentLoaded', () => {
