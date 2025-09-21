@@ -1,0 +1,11 @@
+{
+  "name": "portal-kids",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test:mission-parser": "node frontend/tests/missionExtrasParser.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}
