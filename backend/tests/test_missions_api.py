@@ -147,6 +147,47 @@ def test_blank_display_html_is_replaced_from_contract(sqlite_backend):
     assert updated_payload.get("display_html") == expected_html
 
 
+def test_outdated_display_html_is_replaced_from_contract(sqlite_backend):
+    backend_app.init_db()
+    contracts_payload = backend_app._load_contract_payload()
+    mission_id = None
+    expected_html = None
+    for candidate_id, contract in contracts_payload.items():
+        html_value = contract.get("display_html") if isinstance(contract, dict) else None
+        if isinstance(html_value, str) and html_value.strip():
+            mission_id = candidate_id
+            expected_html = html_value
+            break
+    assert mission_id is not None, "Se esperaba al menos una misión con display_html en el contrato"
+    with backend_app.get_db_connection() as conn:
+        with conn.cursor() as cur:
+            is_sqlite = getattr(conn, "is_sqlite", False)
+            backend_app._ensure_missions_seeded(cur, is_sqlite)
+            cur.execute(
+                "SELECT content_json FROM missions WHERE mission_id = %s",
+                (mission_id,),
+            )
+            row = cur.fetchone() or {}
+            content_raw = row.get("content_json")
+            assert isinstance(content_raw, str) and content_raw.strip(), "La misión debe existir en la base de datos"
+            content_payload = json.loads(content_raw)
+            content_payload["display_html"] = "<p>Contenido anterior</p>"
+            cur.execute(
+                "UPDATE missions SET content_json = %s WHERE mission_id = %s",
+                (json.dumps(content_payload, ensure_ascii=False), mission_id),
+            )
+            backend_app._ensure_presentations_in_storage(cur, is_sqlite)
+            cur.execute(
+                "SELECT content_json FROM missions WHERE mission_id = %s",
+                (mission_id,),
+            )
+            updated_row = cur.fetchone() or {}
+            updated_raw = updated_row.get("content_json")
+    assert isinstance(updated_raw, str) and updated_raw.strip()
+    updated_payload = json.loads(updated_raw)
+    assert updated_payload.get("display_html") == expected_html
+
+
 def test_admin_mission_crud_flow(sqlite_backend):
     token = _prepare_admin()
     client = backend_app.app.test_client()
