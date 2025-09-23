@@ -1758,6 +1758,10 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
     if count == 0:
         _seed_missions_from_file(cursor, is_sqlite)
 
+    contracts_payload = _load_contract_payload()
+    frontend_presentations = _load_frontend_presentations()
+    timestamp = _format_timestamp(datetime.utcnow())
+
     blank_title_ids: List[str] = []
     try:
         cursor.execute(
@@ -1783,9 +1787,6 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
             blank_title_ids.append(mission_id)
 
     if blank_title_ids:
-        contracts_payload = _load_contract_payload()
-        frontend_presentations = _load_frontend_presentations()
-        timestamp = _format_timestamp(datetime.utcnow())
         for mission_id in blank_title_ids:
             contract_entry = (
                 contracts_payload.get(mission_id)
@@ -1839,6 +1840,112 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
                     mission_id,
                     exc,
                 )
+
+    try:
+        cursor.execute("SELECT mission_id, content_json FROM missions")
+        rows_with_content = cursor.fetchall() or []
+    except Exception as exc:
+        logger.error("Failed to inspect mission content: %s", exc)
+        rows_with_content = []
+
+    for row in rows_with_content:
+        mission_id_raw = None
+        if isinstance(row, Mapping):
+            mission_id_raw = row.get("mission_id")
+            if mission_id_raw is None:
+                mission_id_raw = row.get("MISSION_ID")
+        elif isinstance(row, (list, tuple)) and row:
+            mission_id_raw = row[0]
+        if isinstance(mission_id_raw, (bytes, bytearray)):
+            mission_id_raw = mission_id_raw.decode("utf-8", errors="ignore")
+        mission_id = str(mission_id_raw or "").strip()
+        if not mission_id:
+            continue
+
+        contract_entry = (
+            contracts_payload.get(mission_id)
+            if isinstance(contracts_payload, Mapping)
+            else None
+        )
+        if not isinstance(contract_entry, Mapping):
+            continue
+
+        seed_values = _build_mission_seed_values(
+            mission_id,
+            contract_entry,
+            frontend_presentations,
+        )
+        if seed_values is None:
+            continue
+        _, _, desired_content_json = seed_values
+        if not isinstance(desired_content_json, str):
+            continue
+
+        content_raw = None
+        if isinstance(row, Mapping):
+            content_raw = row.get("content_json")
+            if content_raw is None:
+                content_raw = row.get("CONTENT_JSON")
+        elif isinstance(row, (list, tuple)):
+            content_raw = row[1] if len(row) > 1 else None
+        if isinstance(content_raw, (bytes, bytearray)):
+            content_raw = content_raw.decode("utf-8", errors="ignore")
+
+        stored_payload: Optional[dict] = None
+        stored_json: Optional[str] = None
+        if isinstance(content_raw, str):
+            stored_json = content_raw
+            stripped = content_raw.strip()
+            if stripped:
+                try:
+                    decoded = json.loads(stripped)
+                except json.JSONDecodeError:
+                    decoded = None
+                if isinstance(decoded, dict):
+                    stored_payload = decoded
+        elif isinstance(content_raw, Mapping):
+            try:
+                stored_payload = dict(content_raw)
+            except Exception:
+                stored_payload = None
+            if stored_payload is not None:
+                try:
+                    stored_json = json.dumps(stored_payload, ensure_ascii=False)
+                except TypeError:
+                    stored_json = None
+
+        try:
+            desired_payload = json.loads(desired_content_json)
+        except json.JSONDecodeError:
+            continue
+
+        needs_update = False
+        if stored_payload is not None:
+            needs_update = stored_payload != desired_payload
+        elif isinstance(stored_json, str):
+            needs_update = stored_json.strip() != desired_content_json.strip()
+        else:
+            needs_update = True
+
+        if not needs_update:
+            continue
+
+        try:
+            cursor.execute(
+                """
+                UPDATE missions
+                SET content_json = %s,
+                    updated_at = %s
+                WHERE mission_id = %s
+                """,
+                (desired_content_json, timestamp, mission_id),
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to refresh mission %s content from contracts: %s",
+                mission_id,
+                exc,
+            )
 
     _ensure_presentations_in_storage(cursor, is_sqlite)
 
