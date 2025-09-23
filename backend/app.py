@@ -2331,6 +2331,12 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
     if not script_path:
         return False, ["Missing script_path in contract."]
 
+    def _format_feedback(template: str, **context: str) -> str:
+        try:
+            return template.format(**context)
+        except Exception:
+            return template
+
     def _write_file(root: str, relative: str, data: bytes) -> Path:
         relative_path = PurePosixPath(relative)
         parts: list[str] = []
@@ -2348,9 +2354,19 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
     try:
         script_bytes = files.read_bytes(script_path)
     except GitHubFileNotFoundError:
-        return False, [
-            f"Script file not found: {script_path} (fuente: {files.describe_source(script_path)})"
-        ]
+        script_source = files.describe_source(script_path)
+        template = contract.get("feedback_script_missing")
+        if template:
+            message = _format_feedback(
+                template,
+                script_path=script_path,
+                source=script_source,
+            )
+        else:
+            message = (
+                f"Script file not found: {script_path} (fuente: {script_source})"
+            )
+        return False, [message]
     except GitHubDownloadError as exc:
         return False, [f"No se pudo descargar el script {script_path}: {exc}"]
 
@@ -2368,10 +2384,21 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             try:
                 dep_bytes = files.read_bytes(dep_path)
             except GitHubFileNotFoundError:
-                return False, [
-                    f"No se encontró el archivo requerido {dep_path} "
-                    f"({files.describe_source(dep_path)})."
-                ]
+                dep_source = files.describe_source(dep_path)
+                template = contract.get("feedback_required_file_missing")
+                if template:
+                    message = _format_feedback(
+                        template,
+                        required_path=dep_path,
+                        source=dep_source,
+                        script_path=script_path,
+                    )
+                else:
+                    message = (
+                        f"No se encontró el archivo requerido {dep_path} "
+                        f"({dep_source})."
+                    )
+                return False, [message]
             except GitHubDownloadError as exc:
                 return False, [f"No se pudo descargar {dep_path}: {exc}"]
             try:
