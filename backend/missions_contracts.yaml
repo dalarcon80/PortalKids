@@ -32,6 +32,16 @@ m2:
 m3:
   verification_type: script_output
   script_path: "scripts/m3_explorer.py"
+  deliverables:
+    - type: file_exists
+      path: "docs/m3_csv_notes.md"
+      feedback_fail: "No encontré tus notas sobre CSV para la misión 3 (m3_csv_notes.md)."
+    - type: file_exists
+      path: "docs/m3_practice_output.txt"
+      feedback_fail: "No encontré el archivo con los resultados de tu práctica (m3_practice_output.txt)."
+    - type: file_exists
+      path: "scripts/m3_explorer.py"
+      feedback_fail: "No encontré tu script explorador de la misión 3 (m3_explorer.py)."
   validations:
     - type: output_contains
       text: "Shape: "
