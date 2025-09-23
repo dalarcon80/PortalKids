@@ -147,6 +147,62 @@ def test_blank_display_html_is_replaced_from_contract(sqlite_backend):
     assert updated_payload.get("display_html") == expected_html
 
 
+def test_mission_content_json_is_refreshed_from_contract(sqlite_backend):
+    backend_app.init_db()
+    contracts_payload = backend_app._load_contract_payload()
+    presentations = backend_app._load_frontend_presentations()
+    mission_id = None
+    contract_entry = None
+    for candidate_id, contract in contracts_payload.items():
+        if isinstance(contract, dict) and "feedback_script_missing" in contract:
+            mission_id = candidate_id
+            contract_entry = contract
+            break
+    assert mission_id is not None, "Se esperaba al menos una misión con feedback_script_missing"
+    seed_values = backend_app._build_mission_seed_values(
+        mission_id,
+        contract_entry,
+        presentations,
+    )
+    assert seed_values is not None
+    title, roles_json, desired_content_json = seed_values
+    desired_payload = json.loads(desired_content_json)
+    assert "feedback_script_missing" in desired_payload
+    outdated_payload = dict(desired_payload)
+    outdated_payload.pop("feedback_script_missing", None)
+    outdated_content_json = json.dumps(outdated_payload, ensure_ascii=False)
+
+    updated_raw = None
+    with backend_app.get_db_connection() as conn:
+        with conn.cursor() as cur:
+            is_sqlite = getattr(conn, "is_sqlite", False)
+            cur.execute("DELETE FROM missions WHERE mission_id = %s", (mission_id,))
+            cur.execute(
+                """
+                INSERT INTO missions (mission_id, title, roles, content_json, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    mission_id,
+                    title,
+                    roles_json,
+                    outdated_content_json,
+                    backend_app._format_timestamp(datetime.utcnow()),
+                ),
+            )
+            backend_app._ensure_missions_seeded(cur, is_sqlite)
+            cur.execute(
+                "SELECT content_json FROM missions WHERE mission_id = %s",
+                (mission_id,),
+            )
+            row = cur.fetchone() or {}
+            updated_raw = row.get("content_json")
+
+    assert isinstance(updated_raw, str) and updated_raw.strip()
+    updated_payload = json.loads(updated_raw)
+    assert updated_payload.get("feedback_script_missing") == desired_payload.get("feedback_script_missing")
+
+
 def test_outdated_display_html_is_replaced_from_contract(sqlite_backend):
     backend_app.init_db()
     contracts_payload = backend_app._load_contract_payload()
