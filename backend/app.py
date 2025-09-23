@@ -1696,8 +1696,6 @@ def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
         if not isinstance(content_payload, dict):
             continue
         existing_display_html = content_payload.get("display_html")
-        if isinstance(existing_display_html, str) and existing_display_html.strip():
-            continue
         contract_payload = contracts.get(mission_id) if isinstance(contracts, Mapping) else {}
         if not isinstance(contract_payload, Mapping):
             contract_payload = {}
@@ -1706,6 +1704,15 @@ def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
             display_html = frontend_presentations.get(mission_id, "") if frontend_presentations else ""
         if not isinstance(display_html, str):
             display_html = ""
+        existing_normalized = (
+            existing_display_html.strip()
+            if isinstance(existing_display_html, str)
+            else ""
+        )
+        desired_normalized = display_html.strip()
+        should_update = not isinstance(existing_display_html, str) or existing_normalized != desired_normalized
+        if not should_update:
+            continue
         content_payload["display_html"] = display_html
         try:
             encoded = json.dumps(content_payload, ensure_ascii=False)
