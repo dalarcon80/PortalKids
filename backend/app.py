@@ -1693,7 +1693,10 @@ def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
             content_payload = json.loads(content_raw)
         except json.JSONDecodeError:
             continue
-        if not isinstance(content_payload, dict) or "display_html" in content_payload:
+        if not isinstance(content_payload, dict):
+            continue
+        existing_display_html = content_payload.get("display_html")
+        if isinstance(existing_display_html, str) and existing_display_html.strip():
             continue
         contract_payload = contracts.get(mission_id) if isinstance(contracts, Mapping) else {}
         if not isinstance(contract_payload, Mapping):
