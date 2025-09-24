@@ -265,6 +265,70 @@ const MISSION_EXTRA_SECTION_DEFINITIONS = [
   },
 ];
 
+const MISSION_VERIFICATION_BUTTON_LABEL = 'Verificar y Entregar Misión';
+
+function buildMissionVerificationSectionHtml() {
+  return [
+    '<section class="verification">',
+    `  <button id="verifyBtn">${MISSION_VERIFICATION_BUTTON_LABEL}</button>`,
+    '  <div id="verifyResult"></div>',
+    '</section>',
+  ].join('\n');
+}
+
+function ensureMissionVerificationSection(container) {
+  if (!container || typeof document === 'undefined') {
+    return { button: null, result: null };
+  }
+  let button = container.querySelector('#verifyBtn');
+  let result = container.querySelector('#verifyResult');
+  if (button && result) {
+    return { button, result };
+  }
+  let section = null;
+  if (button && typeof button.closest === 'function') {
+    section = button.closest('section.verification');
+  }
+  if (!section && result && typeof result.closest === 'function') {
+    section = result.closest('section.verification');
+  }
+  if (!section) {
+    section = container.querySelector('section.verification');
+  }
+  if (!section) {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = buildMissionVerificationSectionHtml();
+    section = wrapper.firstElementChild || wrapper.querySelector('section.verification');
+    if (!section) {
+      section = document.createElement('section');
+      section.className = 'verification';
+    }
+    container.appendChild(section);
+    button = section.querySelector('#verifyBtn');
+    result = section.querySelector('#verifyResult');
+  }
+  if (!button || !section.contains(button)) {
+    button = section.querySelector('#verifyBtn');
+  }
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'verifyBtn';
+    button.textContent = MISSION_VERIFICATION_BUTTON_LABEL;
+    section.insertBefore(button, section.firstChild);
+  } else if (!button.textContent) {
+    button.textContent = MISSION_VERIFICATION_BUTTON_LABEL;
+  }
+  if (!result || !section.contains(result)) {
+    result = section.querySelector('#verifyResult');
+  }
+  if (!result) {
+    result = document.createElement('div');
+    result.id = 'verifyResult';
+    section.appendChild(result);
+  }
+  return { button, result };
+}
+
 const MISSION_EXTRA_FIELD_DEFINITIONS = MISSION_EXTRA_SECTION_DEFINITIONS.flatMap((definition) => {
   if (definition.type === 'group' && Array.isArray(definition.subfields)) {
     return definition.subfields.map((subfield) => ({
@@ -2810,7 +2874,8 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       const content = typeof values[definition.key] === 'string' ? values[definition.key].trim() : '';
       return `<h3>${headingText}</h3>${content}`;
     });
-    return `<section class="mission">\n${sectionHtmlParts.join('\n')}\n</section>`;
+    const missionHtml = `<section class="mission">\n${sectionHtmlParts.join('\n')}\n</section>`;
+    return `${missionHtml}\n\n${buildMissionVerificationSectionHtml()}`;
   }
 
   const handleDeliverablesChange = () => {
@@ -5314,8 +5379,7 @@ async function renderMissionContent(missionId) {
   }
   mainElement.removeAttribute('hidden');
 
-  const verifyBtn = mainElement.querySelector('#verifyBtn');
-  const resultContainer = mainElement.querySelector('#verifyResult');
+  const { button: verifyBtn, result: resultContainer } = ensureMissionVerificationSection(mainElement);
   if (verifyBtn && resultContainer) {
     verifyBtn.addEventListener('click', () => {
       verifyMission(missionKey, resultContainer);
@@ -5406,6 +5470,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     normalizeMissionExtraHeading,
     parseMissionExtrasDisplaySections,
+    buildMissionVerificationSectionHtml,
+    ensureMissionVerificationSection,
   };
 }
 
