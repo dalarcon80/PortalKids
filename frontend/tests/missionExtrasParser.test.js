@@ -14,7 +14,12 @@ global.Node = dom.window.Node;
 global.navigator = dom.window.navigator;
 
 delete require.cache[require.resolve('../assets/js/main.js')];
-const { parseMissionExtrasDisplaySections, normalizeMissionExtraHeading } = require('../assets/js/main.js');
+const {
+  parseMissionExtrasDisplaySections,
+  normalizeMissionExtraHeading,
+  buildMissionVerificationSectionHtml,
+  ensureMissionVerificationSection,
+} = require('../assets/js/main.js');
 
 const parsed = parseMissionExtrasDisplaySections(displayHtml);
 const values = parsed.values || {};
@@ -69,6 +74,39 @@ assert.strictEqual(
   normalizeMissionExtraHeading('Entrada:'),
   'entrada',
   'La normalización debe ignorar los dos puntos finales.',
+);
+
+const verificationHtml = buildMissionVerificationSectionHtml();
+
+assert.ok(
+  typeof verificationHtml === 'string' && verificationHtml.includes('Verificar y Entregar Misión'),
+  'El HTML de verificación debe incluir el texto del botón requerido.',
+);
+
+const missionContainer = dom.window.document.createElement('main');
+missionContainer.innerHTML = '<section class="mission"><h2>Misiones</h2></section>';
+
+const ensuredElements = ensureMissionVerificationSection(missionContainer);
+
+assert.ok(ensuredElements.button, 'La verificación debe crear el botón cuando no existe.');
+assert.ok(ensuredElements.result, 'La verificación debe crear el contenedor de resultados cuando no existe.');
+assert.strictEqual(
+  ensuredElements.button.textContent,
+  'Verificar y Entregar Misión',
+  'El botón generado debe contener la etiqueta esperada.',
+);
+
+const repeatedCall = ensureMissionVerificationSection(missionContainer);
+
+assert.strictEqual(
+  repeatedCall.button,
+  ensuredElements.button,
+  'Las llamadas posteriores deben reutilizar el mismo botón.',
+);
+assert.strictEqual(
+  repeatedCall.result,
+  ensuredElements.result,
+  'Las llamadas posteriores deben reutilizar el mismo contenedor de resultados.',
 );
 
 console.log('Mission extras parser fixture checks passed.');
