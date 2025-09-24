@@ -114,6 +114,13 @@ SESSION_DURATION_SECONDS = 60 * 60 * 8
 DEFAULT_ADMIN_SLUGS = {"dalarcon80"}
 
 ROLE_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9_-]{0,63})$")
+_VERIFY_BUTTON_PATTERN = re.compile(r"id\s*=\s*['\"]verifyBtn['\"]", re.IGNORECASE)
+_VERIFICATION_SECTION_SNIPPET = (
+    "\n\n    <section class=\"verification\">\n"
+    "      <button id=\"verifyBtn\">Verificar y Entregar Misión</button>\n"
+    "      <div id=\"verifyResult\"></div>\n"
+    "    </section>\n"
+)
 
 DEFAULT_ROLE_SEEDS = [
     {
@@ -1695,6 +1702,8 @@ def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
             continue
         if not isinstance(content_payload, dict):
             continue
+        if _coerce_db_bool(content_payload.get("disable_contract_sync")):
+            continue
         existing_display_html = content_payload.get("display_html")
         contract_payload = contracts.get(mission_id) if isinstance(contracts, Mapping) else {}
         if not isinstance(contract_payload, Mapping):
@@ -1921,6 +1930,8 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
 
         needs_update = False
         if stored_payload is not None:
+            if _coerce_db_bool(stored_payload.get("disable_contract_sync")):
+                continue
             needs_update = stored_payload != desired_payload
         elif isinstance(stored_json, str):
             needs_update = stored_json.strip() != desired_content_json.strip()
@@ -1996,6 +2007,29 @@ def _get_mission_by_id(mission_id: str) -> Optional[dict]:
     return missions[0] if missions else None
 
 
+def _ensure_verification_display(content: Mapping[str, object]) -> dict:
+    if isinstance(content, Mapping):
+        content_dict = dict(content)
+    else:  # pragma: no cover - defensive branch for unexpected types
+        try:
+            content_dict = dict(content)  # type: ignore[arg-type]
+        except Exception:
+            content_dict = {}
+    verification_type = str(content_dict.get("verification_type") or "").strip()
+    if not verification_type:
+        return content_dict
+    display_html = content_dict.get("display_html")
+    html_value = display_html if isinstance(display_html, str) else ""
+    if _VERIFY_BUTTON_PATTERN.search(html_value):
+        return content_dict
+    trimmed = html_value.rstrip()
+    if trimmed:
+        content_dict["display_html"] = f"{trimmed}{_VERIFICATION_SECTION_SNIPPET}"
+    else:
+        content_dict["display_html"] = _VERIFICATION_SECTION_SNIPPET.lstrip("\n")
+    return content_dict
+
+
 def _store_mission_record(
     mission_id: str,
     title: str,
@@ -2035,7 +2069,7 @@ def _store_mission_record(
         seen_tokens.add(lowered_slug)
         validated_roles.append(slug_value)
     normalized_roles = validated_roles
-    content_dict = dict(content)
+    content_dict = _ensure_verification_display(content)
     try:
         content_json = json.dumps(content_dict, ensure_ascii=False)
     except TypeError as exc:
@@ -3452,6 +3486,8 @@ def api_admin_create_mission():
     content = data.get("content")
     if not isinstance(content, Mapping):
         return jsonify({"error": "El campo 'content' debe ser un objeto."}), 400
+    content_payload = dict(content)
+    content_payload["disable_contract_sync"] = True
     title_value = str(data.get("title") or "").strip() or mission_id
     roles_value = _normalize_roles_input(data.get("roles"))
     try:
@@ -3459,7 +3495,7 @@ def api_admin_create_mission():
             mission_id,
             title_value,
             roles_value,
-            dict(content),
+            content_payload,
             create=True,
         )
     except (sqlite3.IntegrityError, pymysql.err.IntegrityError):
@@ -3487,6 +3523,8 @@ def api_admin_update_mission(mission_id: str):
     content = data.get("content")
     if not isinstance(content, Mapping):
         return jsonify({"error": "El campo 'content' debe ser un objeto."}), 400
+    content_payload = dict(content)
+    content_payload["disable_contract_sync"] = True
     title_value = data.get("title")
     if title_value is None:
         title_value = existing.get("title") or mission_id
@@ -3501,7 +3539,7 @@ def api_admin_update_mission(mission_id: str):
             mission_id,
             title_value,
             normalized_roles,
-            dict(content),
+            content_payload,
             create=False,
         )
     except ValueError as exc:

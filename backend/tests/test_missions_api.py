@@ -244,6 +244,73 @@ def test_outdated_display_html_is_replaced_from_contract(sqlite_backend):
     assert updated_payload.get("display_html") == expected_html
 
 
+def test_admin_mission_display_html_persists_after_update(sqlite_backend):
+    token = _prepare_admin()
+    client = backend_app.app.test_client()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    list_response = client.get("/api/admin/missions", headers=headers)
+    assert list_response.status_code == 200
+    missions = list_response.get_json().get("missions")
+    assert isinstance(missions, list) and missions, "Se esperaba al menos una misión disponible"
+    mission = next((m for m in missions if isinstance(m.get("content"), dict) and m["content"].get("display_html")), None)
+    assert mission is not None, "Se esperaba encontrar una misión con display_html"
+    mission_id = mission.get("mission_id")
+    original_content = dict(mission["content"])
+    new_html = "<section class=\"mission\"><h3>Historia</h3><p>Actualizado desde la prueba</p></section>"
+    content_payload = dict(original_content)
+    content_payload["display_html"] = new_html
+
+    update_response = client.put(
+        f"/api/admin/missions/{mission_id}",
+        json={
+            "title": mission.get("title"),
+            "roles": mission.get("roles"),
+            "content": content_payload,
+        },
+        headers=headers,
+    )
+    assert update_response.status_code == 200
+    updated = update_response.get_json().get("mission")
+    assert updated is not None
+    updated_content = updated.get("content", {})
+    updated_html = updated_content.get("display_html", "")
+    assert isinstance(updated_html, str) and new_html in updated_html
+    assert updated_html.count('id="verifyBtn"') == 1
+    assert updated_content.get("disable_contract_sync") is True
+
+    second_payload = dict(updated_content)
+    second_response = client.put(
+        f"/api/admin/missions/{mission_id}",
+        json={
+            "title": mission.get("title"),
+            "roles": mission.get("roles"),
+            "content": second_payload,
+        },
+        headers=headers,
+    )
+    assert second_response.status_code == 200
+    second_updated = second_response.get_json().get("mission")
+    assert second_updated is not None
+    second_html = second_updated.get("content", {}).get("display_html", "")
+    assert second_html == updated_html
+
+    reload_response = client.get("/api/admin/missions", headers=headers)
+    assert reload_response.status_code == 200
+    refreshed = next(
+        (
+            m
+            for m in reload_response.get_json().get("missions", [])
+            if m.get("mission_id") == mission_id
+        ),
+        None,
+    )
+    assert refreshed is not None, "La misión actualizada debe permanecer disponible"
+    refreshed_content = refreshed.get("content", {})
+    assert refreshed_content.get("display_html") == updated_html
+    assert refreshed_content.get("disable_contract_sync") is True
+
+
 def test_admin_mission_crud_flow(sqlite_backend):
     token = _prepare_admin()
     client = backend_app.app.test_client()
@@ -271,6 +338,7 @@ def test_admin_mission_crud_flow(sqlite_backend):
     assert created["title"] == create_payload["title"]
     assert created["roles"] == ["learner"]
     assert created["content"]["verification_type"] == "evidence"
+    assert 'id="verifyBtn"' in created["content"].get("display_html", "")
 
     list_response = client.get("/api/admin/missions", headers=headers)
     assert list_response.status_code == 200
@@ -295,6 +363,7 @@ def test_admin_mission_crud_flow(sqlite_backend):
     assert updated["title"] == "Actualizada"
     assert updated["roles"] == ["explorer"]
     assert updated["content"]["deliverables"][0]["path"] == "README.md"
+    assert 'id="verifyBtn"' in updated["content"].get("display_html", "")
 
     public_response = client.get("/api/missions?role=explorer")
     assert public_response.status_code == 200

@@ -165,6 +165,7 @@ function clearSession() {
 }
 
 const ADMIN_AVAILABLE_ROLES = ['Ventas', 'Operaciones'];
+const UNIVERSAL_ROLE_TOKENS = ['*', 'all', 'todos', 'todas', 'tod@s', 'todxs', 'todes'];
 const ADMIN_SECTION_KEYS = ['missions', 'users', 'roles', 'integrations'];
 
 const MISSION_EXTRA_SECTION_DEFINITIONS = [
@@ -2011,6 +2012,132 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     '<div class="admin-module__status admin-module__status--loading"><p>Cargando misiones disponibles...</p></div>';
   const { token } = moduleState.session;
   let missions = [];
+  const ROLE_TOKEN_VALUE_KEYS = [
+    'slug',
+    'name',
+    'display',
+    'display_name',
+    'displayName',
+    'label',
+    'value',
+    'alias',
+    'role',
+    'role_name',
+    'roleName',
+    'title',
+    'text',
+    'id',
+  ];
+  const ROLE_TOKEN_COLLECTION_KEYS = ['aliases', 'labels', 'values'];
+  const ROLE_TOKEN_NESTED_KEYS = ['metadata', 'meta', 'info', 'details', 'data'];
+
+  function normalizeRoleToken(value) {
+    if (value === null || typeof value === 'undefined') {
+      return '';
+    }
+    const raw = typeof value === 'string' ? value : String(value);
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return '';
+    }
+    let normalized = trimmed.toLowerCase();
+    try {
+      normalized = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    } catch (err) {
+      // Ignore normalization errors on environments without full Unicode support.
+    }
+    normalized = normalized.replace(/@/g, 'a');
+    normalized = normalized.replace(/[\s]+/g, ' ').trim();
+    return normalized;
+  }
+
+  const universalTokensNormalized = new Set(
+    UNIVERSAL_ROLE_TOKENS.map((token) => normalizeRoleToken(token)).filter(Boolean)
+  );
+
+  function collectTokensFromValue(value, register, seen = new WeakSet()) {
+    if (value === null || typeof value === 'undefined') {
+      return;
+    }
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
+      register(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        collectTokensFromValue(item, register, seen);
+      });
+      return;
+    }
+    if (typeof value === 'object') {
+      if (seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+      ROLE_TOKEN_VALUE_KEYS.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          collectTokensFromValue(value[key], register, seen);
+        }
+      });
+      ROLE_TOKEN_COLLECTION_KEYS.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          collectTokensFromValue(value[key], register, seen);
+        }
+      });
+      ROLE_TOKEN_NESTED_KEYS.forEach((key) => {
+        if (Object.prototype.hasOwnProperty.call(value, key)) {
+          collectTokensFromValue(value[key], register, seen);
+        }
+      });
+    }
+  }
+
+  let roleCatalogEntries = [];
+  const catalogTokenToSlugs = new Map();
+  const catalogSlugToTokens = new Map();
+
+  function rebuildCatalogTokenIndexes() {
+    catalogTokenToSlugs.clear();
+    catalogSlugToTokens.clear();
+    roleCatalogEntries.forEach((roleEntry) => {
+      if (!roleEntry || typeof roleEntry !== 'object') {
+        return;
+      }
+      const slug =
+        roleEntry.slug != null && typeof roleEntry.slug !== 'undefined'
+          ? String(roleEntry.slug).trim()
+          : '';
+      if (!slug) {
+        return;
+      }
+      const slugTokens = new Set();
+      const register = (candidate) => {
+        const token = normalizeRoleToken(candidate);
+        if (!token) {
+          return;
+        }
+        slugTokens.add(token);
+        if (!catalogTokenToSlugs.has(token)) {
+          catalogTokenToSlugs.set(token, new Set());
+        }
+        catalogTokenToSlugs.get(token).add(slug);
+      };
+      register(slug);
+      if (roleEntry.name != null) {
+        register(roleEntry.name);
+      }
+      collectTokensFromValue(roleEntry, register);
+      catalogSlugToTokens.set(slug, slugTokens);
+      const normalizedSlug = normalizeRoleToken(slug);
+      if (normalizedSlug && normalizedSlug !== slug) {
+        catalogSlugToTokens.set(normalizedSlug, slugTokens);
+      }
+    });
+  }
   try {
     const res = await apiFetch('/api/admin/missions', {
       credentials: 'include',
@@ -2093,6 +2220,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     if (sectionContainer.dataset.activeSection !== sectionKey) {
       return;
     }
+    roleCatalogEntries = Array.isArray(catalogRoles) ? catalogRoles : [];
     roleOptions = catalogRoles
       .map((role) => {
         const slug = role && role.slug ? String(role.slug) : '';
@@ -2153,11 +2281,13 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       .filter((role) => typeof role === 'string' && role)
       .sort((a, b) => a.localeCompare(b))
       .map((role) => ({ slug: role, name: role }));
+    roleCatalogEntries = roleOptions.map((role) => ({ slug: role.slug, name: role.name }));
     if (!rolesLoadWarning) {
       rolesLoadWarning =
         'No fue posible obtener el catálogo de roles. Se mostrarán los roles detectados en las misiones disponibles.';
     }
   }
+  rebuildCatalogTokenIndexes();
   const missionOptions = missions
     .map((mission) => {
       const missionId = mission && mission.mission_id != null ? String(mission.mission_id) : '';
@@ -2168,12 +2298,11 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     })
     .join('');
   const rolesCheckboxes = roleOptions
-    .map(
-      (role) =>
-        `<label class="admin-checkbox"><input type="checkbox" class="mission-role-option" value="${escapeHtml(
-          role.slug
-        )}"> <span>${escapeHtml(role.name)}</span></label>`
-    )
+    .map((role) => {
+      const slug = escapeHtml(role.slug);
+      const name = escapeHtml(role.name);
+      return `<label class="admin-checkbox"><input type="checkbox" class="mission-role-option" value="${slug}" data-role-name="${name}"> <span>${name}</span></label>`;
+    })
     .join('');
   sectionContainer.innerHTML = `
     <div class="admin-section admin-section--missions">
@@ -2681,7 +2810,14 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
       const content = typeof values[definition.key] === 'string' ? values[definition.key].trim() : '';
       return `<h3>${headingText}</h3>${content}`;
     });
-    return `<section class="mission">\n${sectionHtmlParts.join('\n')}\n</section>`;
+    const missionSectionHtml = `<section class="mission">\n${sectionHtmlParts.join('\n')}\n</section>`;
+    const verificationSectionHtml = [
+      '<section class="verification">',
+      '  <button id="verifyBtn">Verificar y Entregar Misión</button>',
+      '  <div id="verifyResult"></div>',
+      '</section>',
+    ].join('\n');
+    return `${missionSectionHtml}\n\n${verificationSectionHtml}`;
   }
 
   const handleDeliverablesChange = () => {
@@ -2876,9 +3012,139 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
     if (missionTitleInput) {
       missionTitleInput.value = mission.title || '';
     }
-    const normalizedRoles = Array.isArray(mission.roles) ? mission.roles : [];
+    const missionRoleEntries = Array.isArray(mission.roles) ? mission.roles : [];
+    const missionRoleTokens = new Set();
+    const missionRoleSlugs = new Set();
+    const seenRoleObjects = new WeakSet();
+    let missionHasUniversalRole = false;
+
+    const registerMissionToken = (value) => {
+      const token = normalizeRoleToken(value);
+      if (!token) {
+        return;
+      }
+      missionRoleTokens.add(token);
+      if (universalTokensNormalized.has(token)) {
+        missionHasUniversalRole = true;
+      }
+      const matchingSlugs = catalogTokenToSlugs.get(token);
+      if (matchingSlugs) {
+        matchingSlugs.forEach((slug) => {
+          missionRoleSlugs.add(slug);
+          const normalizedSlug = normalizeRoleToken(slug);
+          if (normalizedSlug) {
+            missionRoleSlugs.add(normalizedSlug);
+          }
+        });
+      }
+    };
+
+    const registerMissionRoleToken = (value) => {
+      if (value === null || typeof value === 'undefined') {
+        return;
+      }
+      if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
+        registerMissionToken(value);
+        return;
+      }
+      if (Array.isArray(value)) {
+        value.forEach((item) => registerMissionRoleToken(item));
+        return;
+      }
+      if (typeof value === 'object') {
+        if (seenRoleObjects.has(value)) {
+          return;
+        }
+        seenRoleObjects.add(value);
+        const universalCandidates = [];
+        if (Object.prototype.hasOwnProperty.call(value, 'universal_role')) {
+          universalCandidates.push(value.universal_role);
+        }
+        if (Object.prototype.hasOwnProperty.call(value, 'universalRole')) {
+          universalCandidates.push(value.universalRole);
+        }
+        universalCandidates.forEach((candidate) => {
+          if (candidate === null || typeof candidate === 'undefined') {
+            return;
+          }
+          if (candidate === true || candidate === 1) {
+            missionHasUniversalRole = true;
+            registerMissionToken('*');
+            return;
+          }
+          const candidateString = String(candidate).trim().toLowerCase();
+          if (!candidateString) {
+            return;
+          }
+          const normalizedCandidate = normalizeRoleToken(candidateString);
+          if (
+            candidateString === '1' ||
+            candidateString === 'true' ||
+            candidateString === 'yes' ||
+            candidateString === 'y' ||
+            candidateString === 'si' ||
+            candidateString === 'sí' ||
+            candidateString === '*' ||
+            candidateString === 'all' ||
+            universalTokensNormalized.has(candidateString) ||
+            (normalizedCandidate && universalTokensNormalized.has(normalizedCandidate))
+          ) {
+            missionHasUniversalRole = true;
+            registerMissionToken('*');
+          }
+        });
+        ROLE_TOKEN_VALUE_KEYS.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(value, key)) {
+            registerMissionRoleToken(value[key]);
+          }
+        });
+        ROLE_TOKEN_COLLECTION_KEYS.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(value, key)) {
+            registerMissionRoleToken(value[key]);
+          }
+        });
+        ROLE_TOKEN_NESTED_KEYS.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(value, key)) {
+            registerMissionRoleToken(value[key]);
+          }
+        });
+        return;
+      }
+      registerMissionToken(value);
+    };
+
+    missionRoleEntries.forEach((roleEntry) => {
+      registerMissionRoleToken(roleEntry);
+    });
+
     roleInputs.forEach((input) => {
-      input.checked = normalizedRoles.includes(input.value);
+      if (!input) {
+        return;
+      }
+      const slugValue = typeof input.value === 'string' ? input.value.trim() : '';
+      const normalizedSlug = normalizeRoleToken(slugValue);
+      const nameValue =
+        input.dataset && typeof input.dataset.roleName === 'string'
+          ? input.dataset.roleName
+          : '';
+      const normalizedName = normalizeRoleToken(nameValue);
+      const slugTokens =
+        catalogSlugToTokens.get(slugValue) ||
+        (normalizedSlug ? catalogSlugToTokens.get(normalizedSlug) : null);
+      const matchesCatalogToken =
+        slugTokens && Array.from(slugTokens).some((token) => missionRoleTokens.has(token));
+      const shouldCheck =
+        missionHasUniversalRole ||
+        (slugValue && missionRoleSlugs.has(slugValue)) ||
+        (normalizedSlug && missionRoleSlugs.has(normalizedSlug)) ||
+        (normalizedSlug && missionRoleTokens.has(normalizedSlug)) ||
+        (normalizedName && missionRoleTokens.has(normalizedName)) ||
+        matchesCatalogToken;
+      input.checked = Boolean(shouldCheck);
     });
     const contentValue = mission && mission.content && typeof mission.content === 'object' ? mission.content : {};
     const { verificationType, source, deliverables, scriptPath, validations, extras } =
@@ -3085,6 +3351,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         missionDisplaySectionHeadings
       );
       const extrasForPayload = cloneMissionContentExtras(missionContentExtras);
+      extrasForPayload.disable_contract_sync = true;
       extrasForPayload.display_html = displayHtml;
       missionContentExtras = extrasForPayload;
       setMissionExtrasEditorValue(missionContentExtras);
