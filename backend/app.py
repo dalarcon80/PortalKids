@@ -1695,6 +1695,8 @@ def _ensure_presentations_in_storage(cursor, is_sqlite: bool) -> None:
             continue
         if not isinstance(content_payload, dict):
             continue
+        if _coerce_db_bool(content_payload.get("disable_contract_sync")):
+            continue
         existing_display_html = content_payload.get("display_html")
         contract_payload = contracts.get(mission_id) if isinstance(contracts, Mapping) else {}
         if not isinstance(contract_payload, Mapping):
@@ -1921,6 +1923,8 @@ def _ensure_missions_seeded(cursor, is_sqlite: bool) -> None:
 
         needs_update = False
         if stored_payload is not None:
+            if _coerce_db_bool(stored_payload.get("disable_contract_sync")):
+                continue
             needs_update = stored_payload != desired_payload
         elif isinstance(stored_json, str):
             needs_update = stored_json.strip() != desired_content_json.strip()
@@ -3452,6 +3456,8 @@ def api_admin_create_mission():
     content = data.get("content")
     if not isinstance(content, Mapping):
         return jsonify({"error": "El campo 'content' debe ser un objeto."}), 400
+    content_payload = dict(content)
+    content_payload["disable_contract_sync"] = True
     title_value = str(data.get("title") or "").strip() or mission_id
     roles_value = _normalize_roles_input(data.get("roles"))
     try:
@@ -3459,7 +3465,7 @@ def api_admin_create_mission():
             mission_id,
             title_value,
             roles_value,
-            dict(content),
+            content_payload,
             create=True,
         )
     except (sqlite3.IntegrityError, pymysql.err.IntegrityError):
@@ -3487,6 +3493,8 @@ def api_admin_update_mission(mission_id: str):
     content = data.get("content")
     if not isinstance(content, Mapping):
         return jsonify({"error": "El campo 'content' debe ser un objeto."}), 400
+    content_payload = dict(content)
+    content_payload["disable_contract_sync"] = True
     title_value = data.get("title")
     if title_value is None:
         title_value = existing.get("title") or mission_id
@@ -3501,7 +3509,7 @@ def api_admin_update_mission(mission_id: str):
             mission_id,
             title_value,
             normalized_roles,
-            dict(content),
+            content_payload,
             create=False,
         )
     except ValueError as exc:

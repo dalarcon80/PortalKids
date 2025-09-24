@@ -3344,6 +3344,7 @@ async function renderAdminMissionsSection(sectionContainer, moduleState) {
         missionDisplaySectionHeadings
       );
       const extrasForPayload = cloneMissionContentExtras(missionContentExtras);
+      extrasForPayload.disable_contract_sync = true;
       extrasForPayload.display_html = displayHtml;
       missionContentExtras = extrasForPayload;
       setMissionExtrasEditorValue(missionContentExtras);

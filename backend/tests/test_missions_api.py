@@ -244,6 +244,53 @@ def test_outdated_display_html_is_replaced_from_contract(sqlite_backend):
     assert updated_payload.get("display_html") == expected_html
 
 
+def test_admin_mission_display_html_persists_after_update(sqlite_backend):
+    token = _prepare_admin()
+    client = backend_app.app.test_client()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    list_response = client.get("/api/admin/missions", headers=headers)
+    assert list_response.status_code == 200
+    missions = list_response.get_json().get("missions")
+    assert isinstance(missions, list) and missions, "Se esperaba al menos una misión disponible"
+    mission = next((m for m in missions if isinstance(m.get("content"), dict) and m["content"].get("display_html")), None)
+    assert mission is not None, "Se esperaba encontrar una misión con display_html"
+    mission_id = mission.get("mission_id")
+    original_content = dict(mission["content"])
+    new_html = "<section class=\"mission\"><h3>Historia</h3><p>Actualizado desde la prueba</p></section>"
+    content_payload = dict(original_content)
+    content_payload["display_html"] = new_html
+
+    update_response = client.put(
+        f"/api/admin/missions/{mission_id}",
+        json={
+            "title": mission.get("title"),
+            "roles": mission.get("roles"),
+            "content": content_payload,
+        },
+        headers=headers,
+    )
+    assert update_response.status_code == 200
+    updated = update_response.get_json().get("mission")
+    assert updated and updated.get("content", {}).get("display_html") == new_html
+    assert updated.get("content", {}).get("disable_contract_sync") is True
+
+    reload_response = client.get("/api/admin/missions", headers=headers)
+    assert reload_response.status_code == 200
+    refreshed = next(
+        (
+            m
+            for m in reload_response.get_json().get("missions", [])
+            if m.get("mission_id") == mission_id
+        ),
+        None,
+    )
+    assert refreshed is not None, "La misión actualizada debe permanecer disponible"
+    refreshed_content = refreshed.get("content", {})
+    assert refreshed_content.get("display_html") == new_html
+    assert refreshed_content.get("disable_contract_sync") is True
+
+
 def test_admin_mission_crud_flow(sqlite_backend):
     token = _prepare_admin()
     client = backend_app.app.test_client()
