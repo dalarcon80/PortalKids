@@ -111,4 +111,4 @@ Si no hay valores persistentes, el backend lee las variables de entorno como mec
 | `OPENAI_MODEL` | Modelo de chat por defecto (se sustituye al guardar una configuración desde el panel). |
 | `OPENAI_TIMEOUT` | Tiempo máximo de espera en segundos antes de abortar la solicitud. |
 
-El proyecto depende de la librería oficial `openai` incluida en `backend/requirements.txt`. Ejecuta `pip install -r backend/requirements.txt` para instalarla antes de iniciar el servidor.
+El proyecto depende de librerías como `openai` y `pandas` incluidas en `backend/requirements.txt`. Ejecuta `pip install -r backend/requirements.txt` para instalarlas antes de iniciar el servidor.
