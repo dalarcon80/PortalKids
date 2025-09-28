@@ -47,6 +47,8 @@ try:  # pragma: no cover - fallback for direct execution
         RepositoryFileAccessor,
         determine_student_repositories,
         select_repository_for_contract,
+        _matches_operaciones,
+        _matches_ventas,
     )
 except ImportError:  # pragma: no cover - allow "python backend/app.py"
     from github_client import (  # type: ignore
@@ -57,6 +59,8 @@ except ImportError:  # pragma: no cover - allow "python backend/app.py"
         RepositoryFileAccessor,
         determine_student_repositories,
         select_repository_for_contract,
+        _matches_operaciones,
+        _matches_ventas,
     )
 
 try:  # pragma: no cover - fallback for direct execution
@@ -3894,6 +3898,7 @@ def api_verify_mission():
         contract = mission_record.get("content")
     else:
         contract = None
+    normalized_mission_roles = _normalize_roles_input(mission_roles)
     if not contract:
         return jsonify(
             {"verified": False, "feedback": [f"No se encontró contrato para {mission_id}"]}
@@ -3908,32 +3913,135 @@ def api_verify_mission():
     except GitHubConfigurationError as exc:
         print(f"Repository selection error: {exc}", file=sys.stderr)
         return jsonify({"verified": False, "feedback": [str(exc)]})
-    try:
-        selection = select_repository_for_contract(
-            contract.get("source"),
-            slug,
-            available_repos,
-            role=role,
-            mission_roles=mission_roles,
-        )
-    except GitHubConfigurationError as exc:
-        print(f"Contract repository selection error: {exc}", file=sys.stderr)
-        return jsonify({"verified": False, "feedback": [str(exc)]})
-    file_accessor = RepositoryFileAccessor(github_client, selection)
+    source_config = contract.get("source") or {}
     vtype = contract.get("verification_type")
-    if vtype == "evidence":
-        passed, feedback = verify_evidence(file_accessor, contract)
-    elif vtype == "script_output":
-        passed, feedback = verify_script(file_accessor, contract)
-    elif vtype == "llm_evaluation":
-        passed, feedback = verify_llm(file_accessor, contract)
-    else:
-        return jsonify(
-            {
-                "verified": False,
-                "feedback": [f"Tipo de verificación desconocido: {vtype}"],
-            }
-        )
+    requested_value = source_config.get("repository") or "default"
+    requested_key = str(requested_value).strip().lower() or "default"
+    prefer_by_role = bool(source_config.get("prefer_repository_by_role"))
+    slug_lower = slug.strip().lower()
+    role_lower = (role or "").strip().lower()
+
+    identity_matches: set[str] = set()
+    for token in (slug_lower, role_lower):
+        if _matches_ventas(token):
+            identity_matches.add("ventas")
+        if _matches_operaciones(token):
+            identity_matches.add("operaciones")
+
+    candidate_keys: List[str] = []
+    if (
+        vtype == "script_output"
+        and prefer_by_role
+        and requested_key == "default"
+        and len(available_repos) > 1
+        and not identity_matches
+    ):
+        seen_candidates: set[str] = set()
+        for mission_role_name in normalized_mission_roles:
+            normalized_role = mission_role_name.strip().lower()
+            if not normalized_role:
+                continue
+            candidate_key = None
+            if _matches_ventas(normalized_role):
+                candidate_key = "ventas"
+            elif _matches_operaciones(normalized_role):
+                candidate_key = "operaciones"
+            if (
+                candidate_key
+                and candidate_key in available_repos
+                and candidate_key not in seen_candidates
+            ):
+                candidate_keys.append(candidate_key)
+                seen_candidates.add(candidate_key)
+
+    passed = False
+    feedback: List[str] = []
+    verification_attempted = False
+
+    def _should_retry_on_missing_artifacts(
+        current_accessor: RepositoryFileAccessor,
+    ) -> bool:
+        script_path = (contract.get("script_path") or "").strip()
+        if script_path:
+            try:
+                current_accessor.read_bytes(script_path)
+            except GitHubFileNotFoundError:
+                return True
+            except GitHubDownloadError:
+                return False
+        required_files = contract.get("required_files") or []
+        for dependency in required_files:
+            dep_path = (dependency or "").strip()
+            if not dep_path:
+                continue
+            try:
+                current_accessor.read_bytes(dep_path)
+            except GitHubFileNotFoundError:
+                return True
+            except GitHubDownloadError:
+                return False
+        return False
+
+    filtered_candidates = [
+        key for key in candidate_keys if key in available_repos
+    ]
+    if filtered_candidates:
+        candidate_attempted = False
+        for index, repo_key in enumerate(filtered_candidates):
+            try:
+                selection = select_repository_for_contract(
+                    source_config,
+                    slug,
+                    available_repos,
+                    role=role,
+                    mission_roles=normalized_mission_roles,
+                    preferred_repository_key=repo_key,
+                )
+            except GitHubConfigurationError as exc:
+                feedback = [str(exc)]
+                continue
+            file_accessor = RepositoryFileAccessor(github_client, selection)
+            candidate_attempted = True
+            passed, feedback = verify_script(file_accessor, contract)
+            if passed:
+                verification_attempted = True
+                break
+            should_retry = (
+                index + 1 < len(filtered_candidates)
+                and _should_retry_on_missing_artifacts(file_accessor)
+            )
+            if not should_retry:
+                verification_attempted = True
+                break
+        if candidate_attempted and not verification_attempted:
+            verification_attempted = True
+
+    if not verification_attempted:
+        try:
+            selection = select_repository_for_contract(
+                source_config,
+                slug,
+                available_repos,
+                role=role,
+                mission_roles=normalized_mission_roles,
+            )
+        except GitHubConfigurationError as exc:
+            print(f"Contract repository selection error: {exc}", file=sys.stderr)
+            return jsonify({"verified": False, "feedback": [str(exc)]})
+        file_accessor = RepositoryFileAccessor(github_client, selection)
+        if vtype == "evidence":
+            passed, feedback = verify_evidence(file_accessor, contract)
+        elif vtype == "script_output":
+            passed, feedback = verify_script(file_accessor, contract)
+        elif vtype == "llm_evaluation":
+            passed, feedback = verify_llm(file_accessor, contract)
+        else:
+            return jsonify(
+                {
+                    "verified": False,
+                    "feedback": [f"Tipo de verificación desconocido: {vtype}"],
+                }
+            )
     if passed:
         try:
             init_db()

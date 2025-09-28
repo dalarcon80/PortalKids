@@ -119,7 +119,9 @@ def test_verify_mission_executes_m3_script_with_pandas(monkeypatch):
             )
         }
 
-    def _dummy_select_repo(source, slug: str, repositories, role=None):
+    def _dummy_select_repo(
+        source, slug: str, repositories, role=None, preferred_repository_key=None
+    ):
         info = repositories["default"]
         return RepositorySelection(info=info, branch="main", base_path=f"students/{slug}")
 
@@ -228,7 +230,9 @@ def test_verify_mission_reports_dataframe_summary_errors(monkeypatch):
             )
         }
 
-    def _dummy_select_repo(source, slug: str, repositories, role=None):
+    def _dummy_select_repo(
+        source, slug: str, repositories, role=None, preferred_repository_key=None
+    ):
         info = repositories["default"]
         return RepositorySelection(info=info, branch="main", base_path=f"students/{slug}")
 

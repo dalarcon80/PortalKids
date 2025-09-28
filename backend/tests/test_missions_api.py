@@ -9,6 +9,7 @@ import pytest
 import werkzeug
 
 from backend import app as backend_app
+from backend.github_client import GitHubFileNotFoundError, RepositoryInfo
 
 if not hasattr(werkzeug, "__version__"):
     werkzeug.__version__ = "0"
@@ -497,3 +498,128 @@ def test_m3_contract_requires_dataframe_introspection():
         "unit_price",
     ]
     assert "order_id" in (dataframe_validation.get("dtypes") or {})
+
+
+def test_verify_mission_prefers_operaciones_when_ventas_missing_files(monkeypatch):
+    backend_app.app.config["TESTING"] = True
+
+    monkeypatch.setattr(backend_app, "init_db", lambda: None)
+
+    class _StubCursor:
+        def __enter__(self) -> "_StubCursor":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def execute(self, query: str, params=None) -> None:
+            return None
+
+        def fetchone(self) -> dict:
+            return {"role": ""}
+
+    class _StubConnection:
+        is_sqlite = True
+
+        def __enter__(self) -> "_StubConnection":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def cursor(self) -> _StubCursor:
+            return _StubCursor()
+
+    monkeypatch.setattr(backend_app, "get_db_connection", lambda: _StubConnection())
+    monkeypatch.setattr(
+        backend_app,
+        "validate_session",
+        lambda token, slug=None, require_admin=False: True,
+    )
+
+    mission_roles = ["Ventas", "Operaciones"]
+    contract = {
+        "verification_type": "script_output",
+        "script_path": "scripts/report.py",
+        "required_files": ["sources/orders_seed.csv"],
+        "source": {
+            "repository": "default",
+            "prefer_repository_by_role": True,
+            "base_path": "students/{slug}",
+        },
+    }
+    mission_record = {
+        "mission_id": "m-operaciones",
+        "roles": mission_roles,
+        "content": contract,
+    }
+
+    monkeypatch.setattr(backend_app, "_get_mission_by_id", lambda mission_id: mission_record)
+    monkeypatch.setattr(backend_app, "_fetch_missions_from_db", lambda mission_id=None: [])
+
+    repositories = {
+        "ventas": RepositoryInfo(
+            key="ventas", repository="org/ventas", default_branch="main"
+        ),
+        "operaciones": RepositoryInfo(
+            key="operaciones", repository="org/operaciones", default_branch="main"
+        ),
+    }
+
+    monkeypatch.setattr(
+        backend_app,
+        "determine_student_repositories",
+        lambda slug, role=None: repositories,
+    )
+
+    script_bytes = (
+        "from pathlib import Path\n"
+        "if __name__ == '__main__':\n"
+        "    dataset = Path('sources/orders_seed.csv')\n"
+        "    print(dataset.read_text().strip())\n"
+    ).encode("utf-8")
+
+    class _StubGitHubClient:
+        def __init__(self, script_data: bytes) -> None:
+            self._script = script_data
+            self.requests: list[tuple[str, str]] = []
+
+        def get_file_content(self, repository: str, path: str, ref: str | None) -> bytes:
+            self.requests.append((repository, path))
+            if path.endswith("scripts/report.py"):
+                return self._script
+            if repository == "org/operaciones" and path.endswith("sources/orders_seed.csv"):
+                return b"order_id\n1\n"
+            raise GitHubFileNotFoundError(
+                "missing",
+                repository=repository,
+                path=path,
+                ref=ref or "",
+            )
+
+        def download_workspace(self, selection, paths, destination):  # pragma: no cover - not used
+            return None
+
+    stub_client = _StubGitHubClient(script_bytes)
+    monkeypatch.setattr(
+        backend_app.GitHubClient,
+        "from_settings",
+        classmethod(lambda cls: stub_client),
+    )
+
+    client = backend_app.app.test_client()
+    response = client.post(
+        "/api/verify_mission",
+        json={"slug": "student", "mission_id": "m-operaciones"},
+        headers={"Authorization": "Bearer token"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload == {"verified": True, "feedback": []}
+
+    dataset_requests = [
+        repo for repo, path in stub_client.requests if path.endswith("sources/orders_seed.csv")
+    ]
+    assert "org/ventas" in dataset_requests
+    assert "org/operaciones" in dataset_requests
