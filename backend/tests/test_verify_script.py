@@ -50,3 +50,25 @@ def test_verify_script_uses_custom_message_when_dependency_missing() -> None:
     assert feedback == [
         "Hace falta data/input.csv para ejecutar el script (repo/main en data/input.csv)."
     ]
+
+
+def test_verify_script_runs_with_required_files(tmp_path) -> None:
+    script_code = (
+        "from pathlib import Path\n"
+        "print(Path('sources/orders_seed.csv').read_text(encoding='utf-8').splitlines()[0])\n"
+    )
+    files = _DummyFiles(
+        {
+            "scripts/m3_explorer.py": script_code.encode(),
+            "sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
+        }
+    )
+    contract = {
+        "script_path": "scripts/m3_explorer.py",
+        "required_files": ["sources/orders_seed.csv"],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []
