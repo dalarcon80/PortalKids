@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from backend import app as backend_app
 from backend.github_client import GitHubFileNotFoundError
 
@@ -74,10 +78,15 @@ def test_verify_script_runs_with_required_files(tmp_path) -> None:
     assert feedback == []
 
 
-def test_verify_script_reports_missing_dataframe_calls(tmp_path) -> None:
+def test_verify_script_reports_dataframe_summary_mismatch() -> None:
     script_code = (
         "def main():\n"
-        "    print('Hola exploradora')\n"
+        "    print('Shape: (1, 1)')\n"
+        "    print(\"Columns: ['fake']\")\n"
+        "    print('Head:')\n"
+        "    print('solo texto')\n"
+        "    print('Dtypes:')\n"
+        "    print('dtype: object')\n"
         "\n"
         "if __name__ == '__main__':\n"
         "    main()\n"
@@ -87,15 +96,33 @@ def test_verify_script_reports_missing_dataframe_calls(tmp_path) -> None:
         "script_path": "scripts/m3_explorer.py",
         "validations": [
             {
-                "type": "output_contains",
-                "text": "Shape: ",
-                "feedback_fail": "La salida de tu script no incluye el resultado de llamar a df.shape (usa print(f\"Shape: {df.shape}\")).",
-            },
-            {
-                "type": "output_contains",
-                "text": "Columns:",
-                "feedback_fail": "La salida de tu script no muestra la lista de columnas obtenida con df.columns.tolist().",
-            },
+                "type": "dataframe_output",
+                "shape": [3, 7],
+                "columns": [
+                    "order_id",
+                    "customer_id",
+                    "product_id",
+                    "order_date",
+                    "status",
+                    "quantity",
+                    "unit_price",
+                ],
+                "head": (
+                    "   order_id customer_id product_id  order_date     status  quantity  unit_price\n"
+                    "0      1001        C001       P001  2024-01-05    Shipped         2       19.99\n"
+                    "1      1002        C002       P003  2024-01-06    Pending         1       49.50\n"
+                    "2      1003        C001       P002  2024-01-08  Cancelled         3       12.00"
+                ),
+                "dtypes": {
+                    "order_id": "int64",
+                    "customer_id": "object",
+                    "product_id": "object",
+                    "order_date": "object",
+                    "status": "object",
+                    "quantity": "int64",
+                    "unit_price": "float64",
+                },
+            }
         ],
     }
 
@@ -104,3 +131,73 @@ def test_verify_script_reports_missing_dataframe_calls(tmp_path) -> None:
     assert passed is False
     assert any("df.shape" in message for message in feedback)
     assert any("df.columns.tolist()" in message for message in feedback)
+    assert any("df.head()" in message for message in feedback)
+    assert any("df.dtypes" in message for message in feedback)
+    assert any("Esperado: (3, 7)" in message for message in feedback)
+    assert any("Obtenido: (1, 1)" in message for message in feedback)
+
+
+def test_verify_script_accepts_valid_dataframe_summary() -> None:
+    pytest.importorskip("pandas")
+
+    script_code = (
+        "import pandas as pd\n"
+        "from pathlib import Path\n"
+        "\n"
+        "def main():\n"
+        "    df = pd.read_csv(Path('sources/orders_seed.csv'))\n"
+        "    print(f\"Shape: {df.shape}\")\n"
+        "    print('Columns:', df.columns.tolist())\n"
+        "    print('Head:')\n"
+        "    print(df.head().to_string())\n"
+        "    print('Dtypes:')\n"
+        "    print(df.dtypes)\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+    files = _DummyFiles(
+        {
+            "scripts/m3_explorer.py": script_code.encode(),
+            "sources/orders_seed.csv": Path('sources/orders_seed.csv').read_bytes(),
+        }
+    )
+    contract = {
+        "script_path": "scripts/m3_explorer.py",
+        "required_files": ["sources/orders_seed.csv"],
+        "validations": [
+            {
+                "type": "dataframe_output",
+                "shape": [3, 7],
+                "columns": [
+                    "order_id",
+                    "customer_id",
+                    "product_id",
+                    "order_date",
+                    "status",
+                    "quantity",
+                    "unit_price",
+                ],
+                "head": (
+                    "   order_id customer_id product_id  order_date     status  quantity  unit_price\n"
+                    "0      1001        C001       P001  2024-01-05    Shipped         2       19.99\n"
+                    "1      1002        C002       P003  2024-01-06    Pending         1       49.50\n"
+                    "2      1003        C001       P002  2024-01-08  Cancelled         3       12.00"
+                ),
+                "dtypes": {
+                    "order_id": "int64",
+                    "customer_id": "object",
+                    "product_id": "object",
+                    "order_date": "object",
+                    "status": "object",
+                    "quantity": "int64",
+                    "unit_price": "float64",
+                },
+            }
+        ],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []

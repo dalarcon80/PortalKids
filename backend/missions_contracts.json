@@ -117,14 +117,30 @@
     ],
     "validations": [
       {
-        "type": "output_contains",
-        "text": "Shape: ",
-        "feedback_fail": "La salida de tu script no incluye el resultado de llamar a df.shape (usa print(f\"Shape: {df.shape}\"))."
-      },
-      {
-        "type": "output_contains",
-        "text": "Columns:",
-        "feedback_fail": "La salida de tu script no muestra la lista de columnas obtenida con df.columns.tolist()."
+        "type": "dataframe_output",
+        "shape": [
+          3,
+          7
+        ],
+        "columns": [
+          "order_id",
+          "customer_id",
+          "product_id",
+          "order_date",
+          "status",
+          "quantity",
+          "unit_price"
+        ],
+        "head": "   order_id customer_id product_id  order_date     status  quantity  unit_price\n0      1001        C001       P001  2024-01-05    Shipped         2       19.99\n1      1002        C002       P003  2024-01-06    Pending         1       49.50\n2      1003        C001       P002  2024-01-08  Cancelled         3       12.00",
+        "dtypes": {
+          "order_id": "int64",
+          "customer_id": "object",
+          "product_id": "object",
+          "order_date": "object",
+          "status": "object",
+          "quantity": "int64",
+          "unit_price": "float64"
+        }
       }
     ],
     "display_html": "<section class=\"mission\">\n      <h2>Historia</h2>\n      <p>El pasillo conduce a una bodega con cofres etiquetados: orders, products, customers. “Estos cofres son CSV”, explica Byte. “Parecen listas, pero esconden tablas. Para leerlos sin perdernos, usaremos una lupa especial: pandas. Con pandas, los cofres se transforman en DataFrames.”</p>\n      <p>Byte coloca cuatro tarjetas: head, shape, dtypes, columns. “Son tus cuatro sentidos para reconocer un DataFrame. head te muestra el comienzo; shape te dice cuántas filas y columnas hay; dtypes revela los tipos; columns te presenta cada campo por su nombre. Si dominas estos cuatro, sabrás qué tienes delante antes de tocarlo.”</p>\n      <h2>¿Para qué sirve?</h2>\n      <p>Cargar y entender datos rápidamente: validar columnas, tipos, tamaño y primeras filas para detectar problemas temprano.</p>\n      <h2>Al final podrás…</h2>\n      <ul>\n        <li>Escribir un programa que lea un CSV real.</li>\n        <li>Imprimir número de columnas, nombres, head(5), shape y dtypes.</li>\n        <li>Guardar notas y un resumen técnico en docs.</li>\n      </ul>\n      <h2>Videos</h2>\n      <ul>\n        <li><a href=\"https://www.youtube.com/watch?v=WkVpnTgAQLU\" target=\"_blank\">Leer y escribir CSV con pandas</a></li>\n        <li><a href=\"https://www.youtube.com/watch?v=sKQW-oIneFM\" target=\"_blank\">Leer CSV con pandas (rápido)</a></li>\n        <li><a href=\"https://www.youtube.com/watch?v=w7fNwreUsIk\" target=\"_blank\">¿Qué es una librería en Python?</a></li>\n        <li><a href=\"https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.shape.html\" target=\"_blank\">DataFrame.shape (referencia oficial)</a></li>\n      </ul>\n      <h2>Investigación — Fichas</h2>\n      <p>Completa 4 fichas: librería, pip, pandas, DataFrame. Para cada ficha incluye:</p>\n      <ul>\n        <li>Definición</li>\n        <li>Ejemplo en este proyecto (¿qué harás con ello hoy?)</li>\n        <li>Error común</li>\n        <li>Fuente vista</li>\n      </ul>\n      <p>Además, añade un mini‑mapa: para qué sirve cada propiedad head/shape/dtypes/columns.</p>\n      <h2>Práctica — Contrato</h2>\n      <p><strong>Entrada:</strong> Usa la ruta relativa <code>sources/orders_seed.csv</code> disponible en el repositorio.</p>\n      <p><strong>Logro:</strong> programa que lee el CSV (si falla por codificación, reintenta con otra) y muestra/guarda lo pedido.</p>\n      <p><strong>Salidas:</strong></p>\n      <ul>\n        <li><code>docs/m3_csv_notes.md</code> (lista de columnas + 1 duda)</li>\n        <li><code>docs/m3_practice_output.txt</code> (resumen con head/shape/dtypes/columns y valores)</li>\n      </ul>\n      <h2>Parte aplicada (detallada)</h2>\n      <p><strong>Situación:</strong> en M4 necesitarás una preview (3 filas) antes de copiar a Bronze.</p>\n      <p><strong>Qué debes hacer hoy:</strong></p>\n      <ul>\n        <li>Deja tu programa parametrizable por ruta (que puedas cambiar el archivo sin alterar la lógica).</li>\n        <li>Asegura que si no existe el archivo o hay error de codificación, el programa explique el problema con un mensaje claro (no stacktrace crudo).</li>\n        <li>Anota en tus notas cómo probarás tu programa con otro CSV del proyecto (si existiera).</li>\n      </ul>\n      <p><strong>Meta de calidad:</strong> tu programa sirve como visor reutilizable.</p>\n      <h2>Entregables</h2>\n      <p>m3_csv_notes.md, m3_practice_output.txt, scripts/m3_explorer.py</p>\n      <h2>Verificación</h2>\n      <p>El script existe y la salida contiene shape y columnas.</p>\n      <h2>Micro‑quiz (5)</h2>\n      <ol>\n        <li>¿Qué es una librería?</li>\n        <li>¿Cómo se lee un CSV en pandas?</li>\n        <li>¿Para qué sirve DataFrame.head()?</li>\n        <li>¿Qué información da DataFrame.shape?</li>\n        <li>¿Cómo verificas los tipos de columna?</li>\n      </ol>\n      <h2>Checklist</h2>\n      <ul>\n        <li>Videos vistos</li>\n        <li>Fichas completadas</li>\n        <li>Script creado y probado</li>\n        <li>Notas documentadas</li>\n      </ul>\n      <h2>Rúbrica (10)</h2>\n      <ul>\n        <li>Fichas (3)</li>\n        <li>Práctica (4)</li>\n        <li>Evidencias (2)</li>\n        <li>Orden (1)</li>\n      </ul>\n      <h2>Errores comunes</h2>\n      <ul>\n        <li>No manejar errores de codificación</li>\n        <li>No revisar shape antes de procesar</li>\n      </ul>\n    </section>\n    <section class=\"verification\">\n      <button id=\"verifyBtn\">Verificar y Entregar Misión</button>\n      <div id=\"verifyResult\"></div>\n    </section>"

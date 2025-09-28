@@ -1,3 +1,4 @@
+import ast
 import base64
 import binascii
 import json
@@ -2432,7 +2433,7 @@ def verify_evidence(
                 )
         else:
             passed = False
-            feedback.append(f"Unknown evidence type: {item_type}")
+            feedback.append(f"Unknown evidence type: {vtype}")
     return passed, feedback
 
 
@@ -2530,9 +2531,95 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         except Exception as exc:  # pragma: no cover - defensive
             return False, [f"Error running script: {exc}"]
 
+    def _parse_dataframe_output(text: str) -> Dict[str, object]:
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = normalized.split("\n")
+        label_prefixes = ("Shape:", "Columns:", "Head:", "Dtypes:")
+
+        summary: Dict[str, object] = {
+            "shape": None,
+            "shape_text": None,
+            "columns": None,
+            "columns_text": None,
+            "head": None,
+            "dtypes": None,
+            "dtypes_text": None,
+        }
+
+        def _collect_block(start_index: int) -> Tuple[str, int]:
+            collected: List[str] = []
+            index = start_index
+            while index < len(lines) and not any(
+                lines[index].startswith(prefix) for prefix in label_prefixes
+            ):
+                collected.append(lines[index].rstrip())
+                index += 1
+            block = "\n".join(line for line in collected if line)
+            return block, index
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if line.startswith("Shape:"):
+                shape_text = line[len("Shape:") :].strip()
+                summary["shape_text"] = shape_text
+                try:
+                    parsed_shape = ast.literal_eval(shape_text)
+                    if isinstance(parsed_shape, (list, tuple)):
+                        summary["shape"] = tuple(parsed_shape)
+                except Exception:
+                    summary["shape"] = None
+                i += 1
+                continue
+            if line.startswith("Columns:"):
+                columns_text = line[len("Columns:") :].strip()
+                summary["columns_text"] = columns_text
+                try:
+                    parsed_columns = ast.literal_eval(columns_text)
+                    if isinstance(parsed_columns, (list, tuple)):
+                        summary["columns"] = [str(item) for item in parsed_columns]
+                except Exception:
+                    summary["columns"] = None
+                i += 1
+                continue
+            if line.startswith("Head:"):
+                i += 1
+                head_block, i = _collect_block(i)
+                summary["head"] = head_block
+                continue
+            if line.startswith("Dtypes:"):
+                i += 1
+                dtypes_block, i = _collect_block(i)
+                summary["dtypes_text"] = dtypes_block
+                if dtypes_block:
+                    parsed: Dict[str, str] = {}
+                    for dtype_line in dtypes_block.split("\n"):
+                        stripped = dtype_line.strip()
+                        if not stripped or stripped.startswith("dtype:"):
+                            continue
+                        parts = stripped.split()
+                        if len(parts) >= 2:
+                            parsed[parts[0]] = parts[-1]
+                    if parsed:
+                        summary["dtypes"] = parsed
+                continue
+            i += 1
+
+        return summary
+
+    def _append_feedback(base_message: Optional[str], detail: str) -> None:
+        if base_message:
+            if "\n" in detail:
+                feedback.append(f"{base_message}\n{detail}")
+            else:
+                feedback.append(f"{base_message} {detail}")
+        else:
+            feedback.append(detail)
+
     passed = True
     for validation in contract.get("validations", []):
-        if validation.get("type") == "output_contains":
+        vtype = validation.get("type")
+        if vtype == "output_contains":
             text = validation.get("text", "")
             if text not in output:
                 passed = False
@@ -2541,6 +2628,109 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                         "feedback_fail", f"Expected output to contain '{text}'"
                     )
                 )
+        elif vtype == "dataframe_output":
+            summary = _parse_dataframe_output(output)
+            base_message = validation.get("feedback_fail")
+
+            expected_shape = validation.get("shape")
+            if expected_shape is not None:
+                expected_shape_tuple = tuple(expected_shape)
+                actual_shape = summary.get("shape")
+                actual_shape_display = summary.get("shape_text")
+                if actual_shape is None:
+                    passed = False
+                    detail = (
+                        f"No se encontró df.shape en la salida. Esperado: {expected_shape_tuple}."
+                    )
+                    if actual_shape_display:
+                        detail = (
+                            f"df.shape no se pudo interpretar. Esperado: {expected_shape_tuple}. "
+                            f"Obtenido: {actual_shape_display}."
+                        )
+                    _append_feedback(base_message, detail)
+                elif tuple(actual_shape) != expected_shape_tuple:
+                    passed = False
+                    detail = (
+                        f"df.shape no coincide. Esperado: {expected_shape_tuple}. "
+                        f"Obtenido: {tuple(actual_shape)}."
+                    )
+                    _append_feedback(base_message, detail)
+
+            expected_columns = validation.get("columns")
+            if expected_columns is not None:
+                expected_columns_list = [str(item) for item in expected_columns]
+                actual_columns = summary.get("columns")
+                actual_columns_display = summary.get("columns_text")
+                if actual_columns is None:
+                    passed = False
+                    detail = (
+                        "df.columns.tolist() no se pudo interpretar. Esperado: "
+                        f"{expected_columns_list}. Obtenido: {actual_columns_display or '(sin salida)'}."
+                    )
+                    _append_feedback(base_message, detail)
+                elif list(actual_columns) != expected_columns_list:
+                    passed = False
+                    detail = (
+                        "df.columns.tolist() no coincide. Esperado: "
+                        f"{expected_columns_list}. Obtenido: {list(actual_columns)}."
+                    )
+                    _append_feedback(base_message, detail)
+
+            if "head" in validation:
+                expected_head_value = str(validation.get("head") or "").strip("\n")
+                actual_head_value = summary.get("head")
+                normalized_actual_head = (
+                    "\n".join(line.rstrip() for line in actual_head_value.split("\n"))
+                    if isinstance(actual_head_value, str) and actual_head_value
+                    else ""
+                )
+                normalized_expected_head = "\n".join(
+                    line.rstrip() for line in expected_head_value.split("\n")
+                )
+                if normalized_actual_head != normalized_expected_head:
+                    passed = False
+                    detail = (
+                        "df.head() no coincide.\n"
+                        f"Esperado:\n{normalized_expected_head or '(sin salida)'}\n"
+                        f"Obtenido:\n{normalized_actual_head or '(sin salida)'}"
+                    )
+                    _append_feedback(base_message, detail)
+
+            if "dtypes" in validation:
+                expected_dtypes_value = validation.get("dtypes") or {}
+                if isinstance(expected_dtypes_value, dict):
+                    expected_dtypes = {
+                        str(key): str(value)
+                        for key, value in expected_dtypes_value.items()
+                    }
+                elif isinstance(expected_dtypes_value, list):
+                    expected_dtypes = {
+                        str(item[0]): str(item[1])
+                        for item in expected_dtypes_value
+                        if isinstance(item, (list, tuple)) and len(item) == 2
+                    }
+                else:
+                    expected_dtypes = {"_raw": str(expected_dtypes_value)}
+
+                actual_dtypes = summary.get("dtypes")
+                actual_dtypes_display = summary.get("dtypes_text")
+                if not isinstance(actual_dtypes, dict):
+                    passed = False
+                    detail = (
+                        "df.dtypes no se pudo interpretar. Esperado: "
+                        f"{expected_dtypes}. Obtenido: {actual_dtypes_display or '(sin salida)'}."
+                    )
+                    _append_feedback(base_message, detail)
+                elif actual_dtypes != expected_dtypes:
+                    passed = False
+                    detail = (
+                        "df.dtypes no coincide. Esperado: "
+                        f"{expected_dtypes}. Obtenido: {actual_dtypes}."
+                    )
+                    _append_feedback(base_message, detail)
+        else:
+            passed = False
+            feedback.append(f"Unknown evidence type: {vtype}")
     return passed, feedback
 
 
