@@ -46,7 +46,7 @@
       <h2>Entregables</h2>
       <p>m3_csv_notes.md, m3_practice_output.txt, scripts/m3_explorer.py</p>
       <h2>Verificación</h2>
-      <p>El script existe y la salida contiene shape y columnas.</p>
+      <p>El script existe y la salida imprime <code>df.shape</code> = <code>(3, 7)</code>; <code>df.columns.tolist()</code> = <code>['order_id', 'customer_id', 'product_id', 'order_date', 'status', 'quantity', 'unit_price']</code>; <code>df.head()</code> con las primeras 3 filas exactamente como se muestra en este contrato; y <code>df.dtypes</code> = <code>{'order_id': 'int64', 'customer_id': 'object', 'product_id': 'object', 'order_date': 'object', 'status': 'object', 'quantity': 'int64', 'unit_price': 'float64'}</code>.</p>
       <p><strong>Checklist antes de subir cambios:</strong></p>
       <ol>
         <li>Desde este repositorio central, ubica <code>sources/orders_seed.csv</code>.</li>
