@@ -2522,7 +2522,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             result = subprocess.run(
                 [sys.executable, str(local_script_path)],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 text=True,
                 cwd=tmpdir,
                 timeout=30,
@@ -2530,6 +2530,20 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             output = result.stdout or ""
         except Exception as exc:  # pragma: no cover - defensive
             return False, [f"Error running script: {exc}"]
+
+        if result.returncode != 0:
+            stdout_text = (result.stdout or "").strip()
+            stderr_text = (result.stderr or "").strip()
+            failure_details = [
+                f"STDOUT:\n{stdout_text}" if stdout_text else "STDOUT: (sin salida)",
+                f"STDERR:\n{stderr_text}" if stderr_text else "STDERR: (sin salida)",
+            ]
+            message = (
+                "La ejecución del script terminó con errores. "
+                f"Código de salida: {result.returncode}.\n"
+                + "\n".join(failure_details)
+            )
+            return False, [message]
 
     def _parse_dataframe_output(text: str) -> Dict[str, object]:
         normalized = text.replace("\r\n", "\n").replace("\r", "\n")
