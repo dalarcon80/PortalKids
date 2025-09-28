@@ -374,6 +374,7 @@ def select_repository_for_contract(
     repositories: Dict[str, RepositoryInfo],
     *,
     role: str | None = None,
+    mission_roles: Iterable[str] | None = None,
 ) -> RepositorySelection:
     source = source_config or {}
     requested_value = source.get("repository") or "default"
@@ -382,6 +383,13 @@ def select_repository_for_contract(
 
     role_lower = (role or "").strip().lower()
     slug_lower = (slug or "").strip().lower()
+
+    if isinstance(mission_roles, str):
+        mission_role_values: Iterable[str] = [mission_roles]
+    elif mission_roles is None:
+        mission_role_values = []
+    else:
+        mission_role_values = mission_roles
 
     def _match_repository_from_value(value: str) -> str | None:
         if not value:
@@ -396,6 +404,12 @@ def select_repository_for_contract(
         matched_key = _match_repository_from_value(role_lower)
         if matched_key is None:
             matched_key = _match_repository_from_value(slug_lower)
+        if matched_key is None:
+            for mission_role in mission_role_values:
+                normalized = str(mission_role or "").strip().lower()
+                matched_key = _match_repository_from_value(normalized)
+                if matched_key:
+                    break
         if matched_key:
             requested_key = matched_key
 

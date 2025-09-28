@@ -3888,7 +3888,12 @@ def api_verify_mission():
         return jsonify(
             {"verified": False, "feedback": [f"No se encontró contrato para {mission_id}"]}
         )
-    contract = mission_record.get("content") if isinstance(mission_record, Mapping) else None
+    mission_roles = None
+    if isinstance(mission_record, Mapping):
+        mission_roles = mission_record.get("roles")
+        contract = mission_record.get("content")
+    else:
+        contract = None
     if not contract:
         return jsonify(
             {"verified": False, "feedback": [f"No se encontró contrato para {mission_id}"]}
@@ -3905,7 +3910,11 @@ def api_verify_mission():
         return jsonify({"verified": False, "feedback": [str(exc)]})
     try:
         selection = select_repository_for_contract(
-            contract.get("source"), slug, available_repos, role=role
+            contract.get("source"),
+            slug,
+            available_repos,
+            role=role,
+            mission_roles=mission_roles,
         )
     except GitHubConfigurationError as exc:
         print(f"Contract repository selection error: {exc}", file=sys.stderr)
