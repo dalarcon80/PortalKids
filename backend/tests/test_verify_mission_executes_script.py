@@ -3,9 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import werkzeug
 
 from backend import app as backend_app
 from backend.github_client import RepositoryInfo, RepositorySelection
+
+
+if not hasattr(werkzeug, "__version__"):
+    werkzeug.__version__ = "0"
 
 
 class _DummyCursor:
@@ -126,12 +131,10 @@ def test_verify_mission_executes_m3_script_with_pandas(monkeypatch):
         "\n"
         "if __name__ == \"__main__\":\n"
         "    df = pd.read_csv(Path('sources/orders_seed.csv'))\n"
-        "    print(f\"Shape: {df.shape}\")\n"
-        "    print('Columns:', df.columns.tolist())\n"
-        "    print('Head:')\n"
-        "    print(df.head().to_string())\n"
-        "    print('Dtypes:')\n"
-        "    print(df.dtypes)\n"
+        "    print('Shape =', df.shape)\n"
+        "    print('Columns =', df.columns.tolist())\n"
+        "    print('Head:', df.head())\n"
+        "    print('Dtypes:', df.dtypes)\n"
     ).encode()
 
     class _DummyGitHubClient:

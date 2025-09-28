@@ -2536,25 +2536,32 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         raw_lines = normalized.split("\n")
 
         def _normalize_line(line: str) -> str:
-            stripped = line.strip()
+            stripped = line.lstrip()
+
+            def _pattern(prefix: str) -> re.Pattern:
+                return re.compile(
+                    rf"^{prefix}\s*(?:=|:|->)(?P<rest>.*)$",
+                    re.IGNORECASE,
+                )
+
             normalization_rules = (
-                (re.compile(r"^df\.shape\s*(?:=|:|->)\s*", re.IGNORECASE), "Shape:"),
-                (
-                    re.compile(
-                        r"^df\.columns(?:\.tolist\(\))?\s*(?:=|:|->)\s*", re.IGNORECASE
-                    ),
-                    "Columns:",
-                ),
-                (
-                    re.compile(r"^df\.head\(\)\s*(?:=|:|->)\s*", re.IGNORECASE),
-                    "Head:",
-                ),
-                (re.compile(r"^df\.dtypes\s*(?:=|:|->)\s*", re.IGNORECASE), "Dtypes:"),
+                (_pattern(r"df\.shape"), "Shape:"),
+                (_pattern(r"shape"), "Shape:"),
+                (_pattern(r"df\.columns(?:\.tolist\(\))?"), "Columns:"),
+                (_pattern(r"columns(?:\.tolist\(\))?"), "Columns:"),
+                (_pattern(r"df\.head\(\)"), "Head:"),
+                (_pattern(r"head"), "Head:"),
+                (_pattern(r"df\.dtypes"), "Dtypes:"),
+                (_pattern(r"dtypes"), "Dtypes:"),
             )
 
             for pattern, label in normalization_rules:
-                if pattern.match(stripped):
-                    remainder = pattern.sub("", stripped, count=1).lstrip()
+                match = pattern.match(stripped)
+                if match:
+                    remainder = match.group("rest")
+                    if remainder.startswith(" "):
+                        remainder = remainder[1:]
+                    remainder = remainder.rstrip()
                     return f"{label} {remainder}".rstrip()
             return line
 
@@ -2608,17 +2615,36 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 i += 1
                 continue
             if line.startswith("Head:"):
+                inline_head = line[len("Head:") :]
+                if inline_head.startswith(" "):
+                    inline_head = inline_head[1:]
+                inline_head = inline_head.rstrip()
                 i += 1
                 head_block, i = _collect_block(i)
-                summary["head"] = head_block
+                head_parts = []
+                if inline_head:
+                    head_parts.append(inline_head)
+                if head_block:
+                    head_parts.append(head_block)
+                summary["head"] = "\n".join(head_parts)
                 continue
             if line.startswith("Dtypes:"):
+                inline_dtypes = line[len("Dtypes:") :]
+                if inline_dtypes.startswith(" "):
+                    inline_dtypes = inline_dtypes[1:]
+                inline_dtypes = inline_dtypes.rstrip()
                 i += 1
                 dtypes_block, i = _collect_block(i)
-                summary["dtypes_text"] = dtypes_block
+                dtypes_parts = []
+                if inline_dtypes:
+                    dtypes_parts.append(inline_dtypes)
                 if dtypes_block:
+                    dtypes_parts.append(dtypes_block)
+                combined_dtypes = "\n".join(dtypes_parts)
+                summary["dtypes_text"] = combined_dtypes
+                if combined_dtypes:
                     parsed: Dict[str, str] = {}
-                    for dtype_line in dtypes_block.split("\n"):
+                    for dtype_line in combined_dtypes.split("\n"):
                         stripped = dtype_line.strip()
                         if not stripped or stripped.startswith("dtype:"):
                             continue
