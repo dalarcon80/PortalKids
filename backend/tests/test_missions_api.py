@@ -426,3 +426,43 @@ def test_public_mission_detail_includes_display_html(sqlite_backend):
     assert "display_html" in content
     assert isinstance(content.get("display_html"), str)
     assert "<section" in content.get("display_html", "")
+
+
+def test_m3_contract_requires_dataframe_introspection():
+    contracts_payload = backend_app._load_contract_payload()
+    mission = contracts_payload.get("m3")
+    assert isinstance(mission, dict), "La misión m3 debe existir en el contrato"
+
+    deliverables = mission.get("deliverables", [])
+    shape_requirement = next(
+        (
+            d
+            for d in deliverables
+            if d.get("type") == "file_contains"
+            and d.get("path") == "scripts/m3_explorer.py"
+            and d.get("content") == "df.shape"
+        ),
+        None,
+    )
+    columns_requirement = next(
+        (
+            d
+            for d in deliverables
+            if d.get("type") == "file_contains"
+            and d.get("path") == "scripts/m3_explorer.py"
+            and d.get("content") == "df.columns.tolist()"
+        ),
+        None,
+    )
+
+    assert shape_requirement is not None, "Se debe exigir la llamada a df.shape en el script"
+    assert columns_requirement is not None, "Se debe exigir la llamada a df.columns.tolist() en el script"
+
+    validations = mission.get("validations", [])
+    feedback_by_text = {v.get("text"): v.get("feedback_fail", "") for v in validations}
+    assert "df.shape" in feedback_by_text.get(
+        "Shape: ", ""
+    ), "El mensaje de feedback debe mencionar df.shape"
+    assert "df.columns.tolist()" in feedback_by_text.get(
+        "Columns:", ""
+    ), "El mensaje de feedback debe mencionar df.columns.tolist()"

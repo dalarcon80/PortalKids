@@ -72,3 +72,35 @@ def test_verify_script_runs_with_required_files(tmp_path) -> None:
 
     assert passed is True
     assert feedback == []
+
+
+def test_verify_script_reports_missing_dataframe_calls(tmp_path) -> None:
+    script_code = (
+        "def main():\n"
+        "    print('Hola exploradora')\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+    files = _DummyFiles({"scripts/m3_explorer.py": script_code.encode()})
+    contract = {
+        "script_path": "scripts/m3_explorer.py",
+        "validations": [
+            {
+                "type": "output_contains",
+                "text": "Shape: ",
+                "feedback_fail": "La salida de tu script no incluye el resultado de llamar a df.shape (usa print(f\"Shape: {df.shape}\")).",
+            },
+            {
+                "type": "output_contains",
+                "text": "Columns:",
+                "feedback_fail": "La salida de tu script no muestra la lista de columnas obtenida con df.columns.tolist().",
+            },
+        ],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is False
+    assert any("df.shape" in message for message in feedback)
+    assert any("df.columns.tolist()" in message for message in feedback)
