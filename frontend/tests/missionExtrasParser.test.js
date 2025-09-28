@@ -66,6 +66,12 @@ assert.ok(
 
 assert.ok(
   typeof values.review === 'string' &&
+    values.review.includes('df.shape') &&
+    values.review.includes("df.columns.tolist()") &&
+    values.review.includes('df.head()') &&
+    values.review.includes('df.dtypes') &&
+    values.review.includes("['order_id', 'customer_id', 'product_id', 'order_date', 'status', 'quantity', 'unit_price']") &&
+    values.review.includes('(3, 7)') &&
     values.review.includes('Checklist antes de subir cambios') &&
     values.review.includes('students/{slug}/sources/orders_seed.csv') &&
     values.review.includes('docs/orders_seed_instructions.md'),
