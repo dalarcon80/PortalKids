@@ -46,13 +46,21 @@ m3:
     - type: file_exists
       path: "scripts/m3_explorer.py"
       feedback_fail: "No encontré tu script explorador de la misión 3 (m3_explorer.py)."
+    - type: file_contains
+      path: "scripts/m3_explorer.py"
+      content: "df.shape"
+      feedback_fail: "Tu script debe obtener el tamaño del DataFrame usando df.shape."
+    - type: file_contains
+      path: "scripts/m3_explorer.py"
+      content: "df.columns.tolist()"
+      feedback_fail: "Tu script debe listar las columnas usando df.columns.tolist()."
   validations:
     - type: output_contains
       text: "Shape: "
-      feedback_fail: "La salida de tu script no muestra el 'shape' correcto de los datos."
+      feedback_fail: "La salida de tu script no incluye el resultado de llamar a df.shape (usa print(f\"Shape: {df.shape}\"))."
     - type: output_contains
       text: "Columns:"
-      feedback_fail: "La lista de columnas en la salida de tu script no es la esperada."
+      feedback_fail: "La salida de tu script no muestra la lista de columnas obtenida con df.columns.tolist()."
 
 m4:
   verification_type: evidence
