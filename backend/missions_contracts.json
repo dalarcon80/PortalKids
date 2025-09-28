@@ -78,7 +78,8 @@
     "source": {
       "repository": "default",
       "default_branch": "main",
-      "base_path": "students/{slug}"
+      "base_path": "students/{slug}",
+      "prefer_repository_by_role": true
     },
     "deliverables": [
       {
