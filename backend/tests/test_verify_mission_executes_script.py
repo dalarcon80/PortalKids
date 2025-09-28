@@ -90,6 +90,7 @@ def test_verify_mission_executes_m3_script_with_pandas(monkeypatch):
         "verification_type": "script_output",
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
+        "workspace_paths": ["scripts/"],
         "validations": [_dataframe_validation_contract()],
         "source": {
             "repository": "default",
@@ -127,15 +128,17 @@ def test_verify_mission_executes_m3_script_with_pandas(monkeypatch):
 
     script_bytes = (
         "import pandas as pd\n"
+        "from helpers import dataset_path\n"
         "from pathlib import Path\n"
         "\n"
         "if __name__ == \"__main__\":\n"
-        "    df = pd.read_csv(Path('sources/orders_seed.csv'))\n"
+        "    df = pd.read_csv(Path(dataset_path()))\n"
         "    print('Shape =', df.shape)\n"
         "    print('Columns =', df.columns.tolist())\n"
         "    print('Head:', df.head())\n"
         "    print('Dtypes:', df.dtypes)\n"
     ).encode()
+    helper_bytes = b"def dataset_path():\n    return 'sources/orders_seed.csv'\n"
 
     class _DummyGitHubClient:
         def get_file_content(self, repository: str, path: str, ref: str | None) -> bytes:
@@ -145,7 +148,18 @@ def test_verify_mission_executes_m3_script_with_pandas(monkeypatch):
                 return script_bytes
             if path == "students/student/sources/orders_seed.csv":
                 return Path("sources/orders_seed.csv").read_bytes()
+            if path == "students/student/scripts/helpers.py":
+                return helper_bytes
             raise AssertionError(f"Unexpected path requested: {path}")
+
+        def download_workspace(self, selection, paths, destination):
+            root = Path(destination)
+            for entry in paths:
+                cleaned = (entry or "").strip("/")
+                if cleaned == "scripts":
+                    target = root / "scripts"
+                    target.mkdir(parents=True, exist_ok=True)
+                    (target / "helpers.py").write_bytes(helper_bytes)
 
     monkeypatch.setattr(
         backend_app.GitHubClient,
@@ -170,6 +184,7 @@ def test_verify_mission_reports_dataframe_summary_errors(monkeypatch):
         "verification_type": "script_output",
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
+        "workspace_paths": ["scripts/"],
         "validations": [_dataframe_validation_contract()],
         "source": {
             "repository": "default",
@@ -215,17 +230,20 @@ def test_verify_mission_reports_dataframe_summary_errors(monkeypatch):
     monkeypatch.setattr(backend_app, "select_repository_for_contract", _dummy_select_repo)
 
     script_bytes = (
+        "from helpers import dataset_path\n"
+        "\n"
         "def main():\n"
         "    print('Shape: (1, 1)')\n"
         "    print(\"Columns: ['fake']\")\n"
         "    print('Head:')\n"
-        "    print('nada que ver')\n"
+        "    print(dataset_path())\n"
         "    print('Dtypes:')\n"
         "    print('dtype: object')\n"
         "\n"
         "if __name__ == '__main__':\n"
         "    main()\n"
     ).encode()
+    helper_bytes = b"def dataset_path():\n    return 'sources/orders_seed.csv'\n"
 
     class _DummyGitHubClientFailure:
         def get_file_content(self, repository: str, path: str, ref: str | None) -> bytes:
@@ -235,7 +253,18 @@ def test_verify_mission_reports_dataframe_summary_errors(monkeypatch):
                 return script_bytes
             if path == "students/student/sources/orders_seed.csv":
                 return Path("sources/orders_seed.csv").read_bytes()
+            if path == "students/student/scripts/helpers.py":
+                return helper_bytes
             raise AssertionError(f"Unexpected path requested: {path}")
+
+        def download_workspace(self, selection, paths, destination):
+            root = Path(destination)
+            for entry in paths:
+                cleaned = (entry or "").strip("/")
+                if cleaned == "scripts":
+                    target = root / "scripts"
+                    target.mkdir(parents=True, exist_ok=True)
+                    (target / "helpers.py").write_bytes(helper_bytes)
 
     monkeypatch.setattr(
         backend_app.GitHubClient,

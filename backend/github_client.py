@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Dict
+from pathlib import Path, PurePosixPath
+from typing import Dict, Iterable
 from urllib.parse import quote
 
 
@@ -183,6 +184,163 @@ class GitHubClient:
             )
         return response.content
 
+    def download_workspace(
+        self,
+        selection: RepositorySelection,
+        paths: Iterable[str],
+        destination: str | os.PathLike[str],
+    ) -> None:
+        root = Path(destination)
+        root.mkdir(parents=True, exist_ok=True)
+        for entry in paths:
+            normalized = self._normalize_workspace_entry(entry)
+            if not normalized:
+                continue
+            try:
+                self._download_workspace_path(selection, normalized, root)
+            except GitHubFileNotFoundError as exc:
+                raise GitHubFileNotFoundError(
+                    exc.args[0],
+                    repository=selection.info.repository,
+                    path=normalized,
+                    ref=selection.branch,
+                ) from exc
+
+    def _download_workspace_path(
+        self,
+        selection: RepositorySelection,
+        relative_path: str,
+        destination_root: Path,
+    ) -> None:
+        repository = selection.info.repository
+        remote_path = selection.resolve_path(relative_path)
+        metadata = self._fetch_contents_metadata(
+            repository,
+            remote_path,
+            selection.branch,
+            relative_label=relative_path,
+        )
+
+        if isinstance(metadata, list):
+            destination_root.joinpath(*PurePosixPath(relative_path).parts).mkdir(
+                parents=True, exist_ok=True
+            )
+            for item in metadata:
+                name = item.get("name")
+                if not name:
+                    continue
+                child_relative = "/".join(filter(None, [relative_path, name]))
+                self._download_workspace_path(selection, child_relative, destination_root)
+            return
+
+        content_type = metadata.get("type")
+        if content_type == "dir":
+            listing = self._fetch_contents_metadata(
+                repository,
+                remote_path,
+                selection.branch,
+                relative_label=relative_path,
+            )
+            if isinstance(listing, list):
+                destination_root.joinpath(*PurePosixPath(relative_path).parts).mkdir(
+                    parents=True, exist_ok=True
+                )
+                for item in listing:
+                    name = item.get("name")
+                    if not name:
+                        continue
+                    child_relative = "/".join(filter(None, [relative_path, name]))
+                    self._download_workspace_path(selection, child_relative, destination_root)
+                return
+            raise GitHubDownloadError(
+                f"No se pudo listar el contenido de {repository}:{remote_path}",
+                repository=repository,
+                path=remote_path,
+                ref=selection.branch,
+            )
+
+        if content_type == "file":
+            content = self.get_file_content(repository, remote_path, selection.branch)
+            destination = destination_root.joinpath(*PurePosixPath(relative_path).parts)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+            return
+
+        raise GitHubDownloadError(
+            f"Tipo de contenido no soportado al descargar {repository}:{remote_path} ({content_type}).",
+            repository=repository,
+            path=remote_path,
+            ref=selection.branch,
+        )
+
+    def _fetch_contents_metadata(
+        self,
+        repository: str,
+        path: str,
+        ref: str,
+        *,
+        relative_label: str,
+    ):
+        clean_path = (path or "").strip("/")
+        url = f"{self.api_url}/repos/{repository}/contents/{quote(clean_path, safe='/')}"
+        params = {"ref": ref} if ref else None
+        headers = {"Accept": "application/vnd.github.v3+json"}
+        try:
+            response = self._session.get(url, params=params, headers=headers, timeout=self.timeout)
+        except requests.RequestException as exc:
+            raise GitHubDownloadError(
+                f"No se pudo conectar con GitHub para listar {repository}:{clean_path}: {exc}",
+                repository=repository,
+                path=clean_path,
+                ref=ref,
+            ) from exc
+        if response.status_code == 404:
+            raise GitHubFileNotFoundError(
+                f"No se encontró {relative_label} en el repositorio {repository} (rama {ref}).",
+                repository=repository,
+                path=relative_label,
+                ref=ref,
+            )
+        if response.status_code >= 400:
+            details: str
+            try:
+                payload = response.json()
+                details = payload.get("message") or response.text
+            except ValueError:
+                details = response.text
+            raise GitHubDownloadError(
+                (
+                    f"GitHub respondió {response.status_code} al listar "
+                    f"{repository}:{clean_path} (rama {ref}): {details}"
+                ),
+                repository=repository,
+                path=clean_path,
+                ref=ref,
+            )
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise GitHubDownloadError(
+                f"GitHub devolvió una respuesta inválida al listar {repository}:{clean_path}.",
+                repository=repository,
+                path=clean_path,
+                ref=ref,
+            ) from exc
+
+    @staticmethod
+    def _normalize_workspace_entry(entry: str | None) -> str | None:
+        candidate = PurePosixPath(entry or "")
+        parts: list[str] = []
+        for part in candidate.parts:
+            if part in {"", "."}:
+                continue
+            if part == "..":
+                raise ValueError("workspace_paths no permite rutas relativas ascendentes")
+            parts.append(part)
+        if not parts:
+            return None
+        return "/".join(parts)
+
 
 def determine_student_repositories(slug: str, role: str | None = None) -> Dict[str, RepositoryInfo]:
     slug_lower = (slug or "").lower()
@@ -330,6 +488,11 @@ class RepositoryFileAccessor:
 
     def resolve_remote_path(self, relative_path: str) -> str:
         return self._selection.resolve_path(relative_path)
+
+    def download_workspace(
+        self, paths: Iterable[str], destination: str | os.PathLike[str]
+    ) -> None:
+        self._client.download_workspace(self._selection, paths, destination)
 
 
 def _matches_ventas(text: str) -> bool:
