@@ -486,6 +486,10 @@ class RepositoryFileAccessor:
     def branch(self) -> str:
         return self._selection.branch
 
+    @property
+    def base_path(self) -> str:
+        return self._selection.base_path
+
     def describe_source(self, relative_path: str | None = None) -> str:
         base = f"{self.repository} (rama {self.branch})"
         if relative_path is None:

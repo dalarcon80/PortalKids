@@ -2488,10 +2488,33 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
 
     required_files = contract.get("required_files", [])
     workspace_paths = contract.get("workspace_paths") or []
+    def _resolve_execution_root(tmpdir: str, base_path_value: str) -> Path:
+        root = Path(tmpdir)
+        candidate = PurePosixPath(base_path_value or "")
+        parts: list[str] = []
+        for part in candidate.parts:
+            if part in {"", "."}:
+                continue
+            if part == "..":
+                raise ValueError("la ruta base no puede contener '..'")
+            parts.append(part)
+        if not parts:
+            return root
+        execution_root = root.joinpath(*parts)
+        execution_root.mkdir(parents=True, exist_ok=True)
+        return execution_root
+
+    base_path_value = getattr(files, "base_path", "") or ""
+
     with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            execution_root = _resolve_execution_root(tmpdir, base_path_value)
+        except ValueError as exc:
+            return False, [f"Ruta base inválida {base_path_value!r}: {exc}"]
+
         if workspace_paths and hasattr(files, "download_workspace"):
             try:
-                files.download_workspace(workspace_paths, tmpdir)
+                files.download_workspace(workspace_paths, execution_root)
             except ValueError as exc:
                 return False, [f"Ruta de workspace inválida: {exc}"]
             except GitHubFileNotFoundError as exc:
@@ -2506,7 +2529,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 details = f" {missing_path}" if missing_path else ""
                 return False, [f"No se pudo descargar la ruta de trabajo{details}: {exc}"]
         try:
-            local_script_path = _write_file(tmpdir, script_path, script_bytes)
+            local_script_path = _write_file(execution_root, script_path, script_bytes)
         except ValueError as exc:
             return False, [f"Ruta de script inválida {script_path}: {exc}"]
 
@@ -2535,7 +2558,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             except GitHubDownloadError as exc:
                 return False, [f"No se pudo descargar {dep_path}: {exc}"]
             try:
-                _write_file(tmpdir, dep_path, dep_bytes)
+                _write_file(execution_root, dep_path, dep_bytes)
             except ValueError as exc:
                 return False, [f"Ruta inválida {dep_path}: {exc}"]
 
@@ -2545,7 +2568,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=tmpdir,
+                cwd=str(execution_root),
                 timeout=30,
             )
         except Exception as exc:  # pragma: no cover - defensive

@@ -9,8 +9,15 @@ from backend.github_client import GitHubFileNotFoundError
 
 
 class _DummyFiles:
-    def __init__(self, existing: dict[str, bytes] | None = None) -> None:
+    def __init__(
+        self, existing: dict[str, bytes] | None = None, *, base_path: str = ""
+    ) -> None:
         self._existing = existing or {}
+        self._base_path = base_path
+
+    @property
+    def base_path(self) -> str:
+        return self._base_path
 
     def read_bytes(self, path: str) -> bytes:
         if path in self._existing:
@@ -106,6 +113,36 @@ def test_verify_script_runs_with_required_files(tmp_path) -> None:
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
         "workspace_paths": ["scripts/", "sources/"],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []
+
+
+def test_verify_script_honors_base_path_when_accessing_files() -> None:
+    script_code = (
+        "from pathlib import Path\n"
+        "\n"
+        "def main():\n"
+        "    csv_path = Path(__file__).resolve().parents[3] / 'students' / 'student' / 'sources' / 'orders_seed.csv'\n"
+        "    print(csv_path.read_text(encoding='utf-8').splitlines()[0])\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+    files = _DummyFiles(
+        {
+            "scripts/m3_explorer.py": script_code.encode(),
+            "sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
+        },
+        base_path="students/student",
+    )
+    contract = {
+        "script_path": "scripts/m3_explorer.py",
+        "required_files": ["sources/orders_seed.csv"],
+        "workspace_paths": ["sources/"],
     }
 
     passed, feedback = backend_app.verify_script(files, contract)
