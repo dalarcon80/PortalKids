@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -23,6 +23,38 @@ class _DummyFiles:
         if path is None:
             return "repo/main"
         return f"repo/main en {path}"
+
+    def download_workspace(self, workspace_paths, destination: str | Path) -> None:
+        root = Path(destination)
+        root.mkdir(parents=True, exist_ok=True)
+        for entry in workspace_paths:
+            candidate = PurePosixPath(entry or "")
+            parts: list[str] = []
+            for part in candidate.parts:
+                if part in {"", "."}:
+                    continue
+                if part == "..":
+                    raise ValueError("no '..' allowed")
+                parts.append(part)
+            if not parts:
+                continue
+            normalized = "/".join(parts)
+            prefix = normalized + "/"
+            matched = False
+            for key, content in self._existing.items():
+                key_path = "/".join(PurePosixPath(key).parts)
+                if key_path == normalized or key_path.startswith(prefix):
+                    matched = True
+                    destination_path = root.joinpath(*PurePosixPath(key_path).parts)
+                    destination_path.parent.mkdir(parents=True, exist_ok=True)
+                    destination_path.write_bytes(content)
+            if not matched:
+                raise GitHubFileNotFoundError(
+                    f"missing {normalized}",
+                    repository="repo",
+                    path=normalized,
+                    ref="main",
+                )
 
 
 def test_verify_script_uses_custom_message_when_script_missing() -> None:
@@ -58,18 +90,22 @@ def test_verify_script_uses_custom_message_when_dependency_missing() -> None:
 
 def test_verify_script_runs_with_required_files(tmp_path) -> None:
     script_code = (
+        "from helpers import dataset_path\n"
         "from pathlib import Path\n"
-        "print(Path('sources/orders_seed.csv').read_text(encoding='utf-8').splitlines()[0])\n"
+        "print(Path(dataset_path()).read_text(encoding='utf-8').splitlines()[0])\n"
     )
+    helper_code = "def dataset_path():\n    return 'sources/orders_seed.csv'\n"
     files = _DummyFiles(
         {
             "scripts/m3_explorer.py": script_code.encode(),
+            "scripts/helpers.py": helper_code.encode(),
             "sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
         }
     )
     contract = {
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
+        "workspace_paths": ["scripts/"],
     }
 
     passed, feedback = backend_app.verify_script(files, contract)
@@ -158,10 +194,11 @@ def test_verify_script_accepts_valid_dataframe_summary() -> None:
 
     script_code = (
         "import pandas as pd\n"
+        "from helpers import dataset_path\n"
         "from pathlib import Path\n"
         "\n"
         "def main():\n"
-        "    df = pd.read_csv(Path('sources/orders_seed.csv'))\n"
+        "    df = pd.read_csv(Path(dataset_path()))\n"
         "    print(f\"Shape: {df.shape}\")\n"
         "    print('Columns:', df.columns.tolist())\n"
         "    print('Head:')\n"
@@ -172,15 +209,18 @@ def test_verify_script_accepts_valid_dataframe_summary() -> None:
         "if __name__ == '__main__':\n"
         "    main()\n"
     )
+    helper_code = "def dataset_path():\n    return 'sources/orders_seed.csv'\n"
     files = _DummyFiles(
         {
             "scripts/m3_explorer.py": script_code.encode(),
+            "scripts/helpers.py": helper_code.encode(),
             "sources/orders_seed.csv": Path('sources/orders_seed.csv').read_bytes(),
         }
     )
     contract = {
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
+        "workspace_paths": ["scripts/"],
         "validations": [
             {
                 "type": "dataframe_output",

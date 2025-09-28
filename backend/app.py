@@ -2483,7 +2483,24 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         return False, [f"No se pudo descargar el script {script_path}: {exc}"]
 
     required_files = contract.get("required_files", [])
+    workspace_paths = contract.get("workspace_paths") or []
     with tempfile.TemporaryDirectory() as tmpdir:
+        if workspace_paths and hasattr(files, "download_workspace"):
+            try:
+                files.download_workspace(workspace_paths, tmpdir)
+            except ValueError as exc:
+                return False, [f"Ruta de workspace inválida: {exc}"]
+            except GitHubFileNotFoundError as exc:
+                workspace_source = files.describe_source(exc.path)
+                message = (
+                    f"No se encontró la ruta de trabajo {exc.path} "
+                    f"({workspace_source})."
+                )
+                return False, [message]
+            except GitHubDownloadError as exc:
+                missing_path = getattr(exc, "path", None) or ""
+                details = f" {missing_path}" if missing_path else ""
+                return False, [f"No se pudo descargar la ruta de trabajo{details}: {exc}"]
         try:
             local_script_path = _write_file(tmpdir, script_path, script_bytes)
         except ValueError as exc:
