@@ -3822,7 +3822,7 @@ def api_verify_mission():
         return jsonify({"verified": False, "feedback": [str(exc)]})
     try:
         selection = select_repository_for_contract(
-            contract.get("source"), slug, available_repos
+            contract.get("source"), slug, available_repos, role=role
         )
     except GitHubConfigurationError as exc:
         print(f"Contract repository selection error: {exc}", file=sys.stderr)

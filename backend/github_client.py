@@ -214,9 +214,32 @@ def select_repository_for_contract(
     source_config: dict | None,
     slug: str,
     repositories: Dict[str, RepositoryInfo],
+    *,
+    role: str | None = None,
 ) -> RepositorySelection:
     source = source_config or {}
-    requested_key = (source.get("repository") or "default").lower()
+    requested_value = source.get("repository") or "default"
+    requested_key = str(requested_value).strip().lower() or "default"
+    prefer_by_role = bool(source.get("prefer_repository_by_role"))
+
+    role_lower = (role or "").strip().lower()
+    slug_lower = (slug or "").strip().lower()
+
+    def _match_repository_from_value(value: str) -> str | None:
+        if not value:
+            return None
+        if _matches_ventas(value) and "ventas" in repositories:
+            return "ventas"
+        if _matches_operaciones(value) and "operaciones" in repositories:
+            return "operaciones"
+        return None
+
+    if prefer_by_role and requested_key == "default" and len(repositories) > 1:
+        matched_key = _match_repository_from_value(role_lower)
+        if matched_key is None:
+            matched_key = _match_repository_from_value(slug_lower)
+        if matched_key:
+            requested_key = matched_key
 
     if requested_key == "default":
         if len(repositories) == 1:

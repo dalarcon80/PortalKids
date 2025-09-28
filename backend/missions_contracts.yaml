@@ -31,6 +31,11 @@ m2:
 
 m3:
   verification_type: script_output
+  source:
+    repository: default
+    default_branch: main
+    base_path: "students/{slug}"
+    prefer_repository_by_role: true
   script_path: "scripts/m3_explorer.py"
   feedback_script_missing: "No encontré tu script principal de la misión 3 ({script_path}). Revisa que exista en {source}."
   feedback_required_file_missing: "Falta el archivo necesario {required_path} (debe existir en students/{{slug}}/sources/orders_seed.csv). Sigue la guía docs/orders_seed_instructions.md antes de validar ({source})."
