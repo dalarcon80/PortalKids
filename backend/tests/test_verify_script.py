@@ -78,6 +78,20 @@ def test_verify_script_runs_with_required_files(tmp_path) -> None:
     assert feedback == []
 
 
+def test_verify_script_reports_script_exception() -> None:
+    script_code = "import nonexistent_module\n"
+    files = _DummyFiles({"scripts/m3_explorer.py": script_code.encode()})
+    contract = {"script_path": "scripts/m3_explorer.py"}
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is False
+    assert len(feedback) == 1
+    message = feedback[0]
+    assert "Código de salida" in message
+    assert "ModuleNotFoundError" in message
+
+
 def test_verify_script_reports_dataframe_summary_mismatch() -> None:
     script_code = (
         "def main():\n"
