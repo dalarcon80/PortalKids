@@ -1,0 +1,4 @@
+order_id,customer_id,product_id,order_date,status,quantity,unit_price
+1001,C001,P001,2024-01-05,Shipped,2,19.99
+1002,C002,P003,2024-01-06,Pending,1,49.50
+1003,C001,P002,2024-01-08,Cancelled,3,12.00
