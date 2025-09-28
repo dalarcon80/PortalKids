@@ -64,6 +64,14 @@ assert.ok(
   'El contrato debe capturar los archivos de salida.',
 );
 
+assert.ok(
+  typeof values.review === 'string' &&
+    values.review.includes('Checklist antes de subir cambios') &&
+    values.review.includes('students/{slug}/sources/orders_seed.csv') &&
+    values.review.includes('docs/orders_seed_instructions.md'),
+  'La sección de verificación debe guiar sobre orders_seed.csv y enlazar al instructivo.',
+);
+
 assert.strictEqual(
   headings.practice_contract,
   'Práctica — Contrato',
