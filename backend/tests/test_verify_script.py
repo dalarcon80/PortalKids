@@ -105,7 +105,7 @@ def test_verify_script_runs_with_required_files(tmp_path) -> None:
     contract = {
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
-        "workspace_paths": ["scripts/"],
+        "workspace_paths": ["scripts/", "sources/"],
     }
 
     passed, feedback = backend_app.verify_script(files, contract)
@@ -220,7 +220,7 @@ def test_verify_script_accepts_valid_dataframe_summary() -> None:
     contract = {
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
-        "workspace_paths": ["scripts/"],
+        "workspace_paths": ["scripts/", "sources/"],
         "validations": [
             {
                 "type": "dataframe_output",

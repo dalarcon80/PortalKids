@@ -90,7 +90,7 @@ def test_verify_mission_executes_m3_script_with_pandas(monkeypatch):
         "verification_type": "script_output",
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
-        "workspace_paths": ["scripts/"],
+        "workspace_paths": ["scripts/", "sources/"],
         "validations": [_dataframe_validation_contract()],
         "source": {
             "repository": "default",
@@ -160,6 +160,12 @@ def test_verify_mission_executes_m3_script_with_pandas(monkeypatch):
                     target = root / "scripts"
                     target.mkdir(parents=True, exist_ok=True)
                     (target / "helpers.py").write_bytes(helper_bytes)
+                elif cleaned == "sources":
+                    target = root / "sources"
+                    target.mkdir(parents=True, exist_ok=True)
+                    (target / "orders_seed.csv").write_bytes(
+                        Path("sources/orders_seed.csv").read_bytes()
+                    )
 
     monkeypatch.setattr(
         backend_app.GitHubClient,
@@ -184,7 +190,7 @@ def test_verify_mission_reports_dataframe_summary_errors(monkeypatch):
         "verification_type": "script_output",
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
-        "workspace_paths": ["scripts/"],
+        "workspace_paths": ["scripts/", "sources/"],
         "validations": [_dataframe_validation_contract()],
         "source": {
             "repository": "default",
