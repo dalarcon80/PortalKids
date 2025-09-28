@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Optional
 from urllib.parse import quote
 
 
@@ -375,6 +375,7 @@ def select_repository_for_contract(
     *,
     role: str | None = None,
     mission_roles: Iterable[str] | None = None,
+    preferred_repository_key: Optional[str] = None,
 ) -> RepositorySelection:
     source = source_config or {}
     requested_value = source.get("repository") or "default"
@@ -383,6 +384,8 @@ def select_repository_for_contract(
 
     role_lower = (role or "").strip().lower()
     slug_lower = (slug or "").strip().lower()
+
+    preferred_key = (preferred_repository_key or "").strip().lower() or None
 
     if isinstance(mission_roles, str):
         mission_role_values: Iterable[str] = [mission_roles]
@@ -400,6 +403,15 @@ def select_repository_for_contract(
             return "operaciones"
         return None
 
+    info: RepositoryInfo | None = None
+
+    if preferred_key:
+        info = repositories.get(preferred_key)
+        if not info:
+            raise GitHubConfigurationError(
+                f"El contrato requiere el repositorio '{preferred_key}', pero el estudiante no lo tiene asignado."
+            )
+
     if prefer_by_role and requested_key == "default" and len(repositories) > 1:
         matched_key = _match_repository_from_value(role_lower)
         if matched_key is None:
@@ -413,21 +425,22 @@ def select_repository_for_contract(
         if matched_key:
             requested_key = matched_key
 
-    if requested_key == "default":
-        if len(repositories) == 1:
-            info = next(iter(repositories.values()))
-        elif "ventas" in repositories:
-            info = repositories["ventas"]
-        elif "operaciones" in repositories:
-            info = repositories["operaciones"]
+    if info is None:
+        if requested_key == "default":
+            if len(repositories) == 1:
+                info = next(iter(repositories.values()))
+            elif "ventas" in repositories:
+                info = repositories["ventas"]
+            elif "operaciones" in repositories:
+                info = repositories["operaciones"]
+            else:
+                info = next(iter(repositories.values()))
         else:
-            info = next(iter(repositories.values()))
-    else:
-        info = repositories.get(requested_key)
-        if not info:
-            raise GitHubConfigurationError(
-                f"El contrato requiere el repositorio '{requested_key}', pero el estudiante no lo tiene asignado."
-            )
+            info = repositories.get(requested_key)
+            if not info:
+                raise GitHubConfigurationError(
+                    f"El contrato requiere el repositorio '{requested_key}', pero el estudiante no lo tiene asignado."
+                )
 
     branch_env = source.get("branch_env")
     branch_override = _normalize_branch(os.environ.get(branch_env)) if branch_env else None
