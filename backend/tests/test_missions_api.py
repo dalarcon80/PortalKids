@@ -106,6 +106,19 @@ def test_blank_titles_are_reseeded(sqlite_backend):
     assert isinstance(display_html, str) and display_html.strip()
 
 
+def test_m3_contract_includes_orders_seed_guidance(sqlite_backend):
+    contracts = backend_app.load_contracts()
+    m3 = contracts.get("m3")
+    assert isinstance(m3, dict)
+    feedback_message = m3.get("feedback_required_file_missing", "")
+    assert "students/{{slug}}/sources/orders_seed.csv" in feedback_message
+    assert "docs/orders_seed_instructions.md" in feedback_message
+    display_html = m3.get("display_html", "")
+    assert "Checklist antes de subir cambios" in display_html
+    assert "students/{slug}/sources/orders_seed.csv" in display_html
+    assert "docs/orders_seed_instructions.md" in display_html
+
+
 def test_blank_display_html_is_replaced_from_contract(sqlite_backend):
     backend_app.init_db()
     contracts_payload = backend_app._load_contract_payload()
