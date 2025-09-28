@@ -71,3 +71,24 @@ def test_select_repository_for_contract_prefers_role_when_enabled():
     )
 
     assert selection_from_slug.info.key == "ventas"
+
+
+def test_select_repository_for_contract_falls_back_to_mission_roles():
+    repositories = {
+        "ventas": github_client.RepositoryInfo(
+            key="ventas", repository="org/ventas", default_branch="main"
+        ),
+        "operaciones": github_client.RepositoryInfo(
+            key="operaciones", repository="org/operaciones", default_branch="main"
+        ),
+    }
+
+    selection = github_client.select_repository_for_contract(
+        {"repository": "default", "prefer_repository_by_role": True},
+        slug="estudiante",  # sin sufijo especial
+        repositories=repositories,
+        role="",  # sin rol almacenado
+        mission_roles=["Operaciones"],
+    )
+
+    assert selection.info.key == "operaciones"
