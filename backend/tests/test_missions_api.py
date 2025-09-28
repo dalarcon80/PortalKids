@@ -110,6 +110,9 @@ def test_m3_contract_includes_orders_seed_guidance(sqlite_backend):
     contracts = backend_app.load_contracts()
     m3 = contracts.get("m3")
     assert isinstance(m3, dict)
+    workspace_paths = m3.get("workspace_paths")
+    assert isinstance(workspace_paths, list), "La misión m3 debe exponer rutas de workspace"
+    assert "sources/" in workspace_paths, "Se espera que m3 incluya sources/ en workspace_paths"
     feedback_message = m3.get("feedback_required_file_missing", "")
     assert "students/{{slug}}/sources/orders_seed.csv" in feedback_message
     assert "docs/orders_seed_instructions.md" in feedback_message
