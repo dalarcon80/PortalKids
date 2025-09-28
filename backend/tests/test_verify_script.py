@@ -89,7 +89,9 @@ def test_verify_script_reports_script_exception() -> None:
     assert len(feedback) == 1
     message = feedback[0]
     assert "Código de salida" in message
+    assert "STDERR:" in message
     assert "ModuleNotFoundError" in message
+    assert "No module named 'nonexistent_module'" in message
 
 
 def test_verify_script_reports_dataframe_summary_mismatch() -> None:
