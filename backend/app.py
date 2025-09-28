@@ -2533,7 +2533,32 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
 
     def _parse_dataframe_output(text: str) -> Dict[str, object]:
         normalized = text.replace("\r\n", "\n").replace("\r", "\n")
-        lines = normalized.split("\n")
+        raw_lines = normalized.split("\n")
+
+        def _normalize_line(line: str) -> str:
+            stripped = line.strip()
+            normalization_rules = (
+                (re.compile(r"^df\.shape\s*(?:=|:|->)\s*", re.IGNORECASE), "Shape:"),
+                (
+                    re.compile(
+                        r"^df\.columns(?:\.tolist\(\))?\s*(?:=|:|->)\s*", re.IGNORECASE
+                    ),
+                    "Columns:",
+                ),
+                (
+                    re.compile(r"^df\.head\(\)\s*(?:=|:|->)\s*", re.IGNORECASE),
+                    "Head:",
+                ),
+                (re.compile(r"^df\.dtypes\s*(?:=|:|->)\s*", re.IGNORECASE), "Dtypes:"),
+            )
+
+            for pattern, label in normalization_rules:
+                if pattern.match(stripped):
+                    remainder = pattern.sub("", stripped, count=1).lstrip()
+                    return f"{label} {remainder}".rstrip()
+            return line
+
+        lines = [_normalize_line(line) for line in raw_lines]
         label_prefixes = ("Shape:", "Columns:", "Head:", "Dtypes:")
 
         summary: Dict[str, object] = {
