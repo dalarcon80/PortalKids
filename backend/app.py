@@ -2527,13 +2527,12 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 cwd=tmpdir,
                 timeout=30,
             )
-            output = result.stdout or ""
         except Exception as exc:  # pragma: no cover - defensive
             return False, [f"Error running script: {exc}"]
 
         if result.returncode != 0:
-            stdout_text = (result.stdout or "").strip()
-            stderr_text = (result.stderr or "").strip()
+            stdout_text = (result.stdout or "").rstrip("\n")
+            stderr_text = (result.stderr or "").rstrip("\n")
             failure_details = [
                 f"STDOUT:\n{stdout_text}" if stdout_text else "STDOUT: (sin salida)",
                 f"STDERR:\n{stderr_text}" if stderr_text else "STDERR: (sin salida)",
@@ -2544,6 +2543,8 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 + "\n".join(failure_details)
             )
             return False, [message]
+
+        output = result.stdout or ""
 
     def _parse_dataframe_output(text: str) -> Dict[str, object]:
         normalized = text.replace("\r\n", "\n").replace("\r", "\n")
