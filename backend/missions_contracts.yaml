@@ -55,12 +55,29 @@ m3:
       content: "df.columns.tolist()"
       feedback_fail: "Tu script debe listar las columnas usando df.columns.tolist()."
   validations:
-    - type: output_contains
-      text: "Shape: "
-      feedback_fail: "La salida de tu script no incluye el resultado de llamar a df.shape (usa print(f\"Shape: {df.shape}\"))."
-    - type: output_contains
-      text: "Columns:"
-      feedback_fail: "La salida de tu script no muestra la lista de columnas obtenida con df.columns.tolist()."
+    - type: dataframe_output
+      shape: [3, 7]
+      columns:
+        - order_id
+        - customer_id
+        - product_id
+        - order_date
+        - status
+        - quantity
+        - unit_price
+      head: |
+           order_id customer_id product_id  order_date     status  quantity  unit_price
+        0      1001        C001       P001  2024-01-05    Shipped         2       19.99
+        1      1002        C002       P003  2024-01-06    Pending         1       49.50
+        2      1003        C001       P002  2024-01-08  Cancelled         3       12.00
+      dtypes:
+        order_id: int64
+        customer_id: object
+        product_id: object
+        order_date: object
+        status: object
+        quantity: int64
+        unit_price: float64
 
 m4:
   verification_type: evidence

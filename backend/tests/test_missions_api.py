@@ -459,10 +459,25 @@ def test_m3_contract_requires_dataframe_introspection():
     assert columns_requirement is not None, "Se debe exigir la llamada a df.columns.tolist() en el script"
 
     validations = mission.get("validations", [])
-    feedback_by_text = {v.get("text"): v.get("feedback_fail", "") for v in validations}
-    assert "df.shape" in feedback_by_text.get(
-        "Shape: ", ""
-    ), "El mensaje de feedback debe mencionar df.shape"
-    assert "df.columns.tolist()" in feedback_by_text.get(
-        "Columns:", ""
-    ), "El mensaje de feedback debe mencionar df.columns.tolist()"
+    dataframe_validation = next(
+        (v for v in validations if v.get("type") == "dataframe_output"),
+        None,
+    )
+
+    assert (
+        dataframe_validation is not None
+    ), "La misión m3 debe validar la salida completa del DataFrame"
+    assert dataframe_validation.get("shape") == [
+        3,
+        7,
+    ], "El contrato debe verificar la forma esperada del DataFrame"
+    assert dataframe_validation.get("columns") == [
+        "order_id",
+        "customer_id",
+        "product_id",
+        "order_date",
+        "status",
+        "quantity",
+        "unit_price",
+    ]
+    assert "order_id" in (dataframe_validation.get("dtypes") or {})
