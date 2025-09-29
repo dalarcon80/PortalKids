@@ -2768,6 +2768,13 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
 
         repository = getattr(files, "repository", "")
         branch = getattr(files, "branch", "")
+        import shutil
+        # Copiar la carpeta 'sources' al directorio del script para soportar rutas relativas sencillas
+        sources_path = execution_root / "sources"
+        script_dir = local_script_path.parent
+        dest_sources = script_dir / "sources"
+        if sources_path.exists() and not dest_sources.exists():
+            shutil.copytree(sources_path, dest_sources, dirs_exist_ok=True)
 
         try:
             result = run_student_script(
