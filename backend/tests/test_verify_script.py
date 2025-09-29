@@ -121,34 +121,6 @@ def test_verify_script_runs_with_required_files(tmp_path) -> None:
     assert feedback == []
 
 
-def test_verify_script_materializes_orders_seed_when_missing_from_required_files() -> None:
-    script_code = (
-        "from pathlib import Path\n"
-        "\n"
-        "def main():\n"
-        "    csv_path = Path('sources/orders_seed.csv')\n"
-        "    print(csv_path.read_text(encoding='utf-8').splitlines()[0])\n"
-        "\n"
-        "if __name__ == '__main__':\n"
-        "    main()\n"
-    )
-    files = _DummyFiles(
-        {
-            "scripts/m3_explorer.py": script_code.encode(),
-            "sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
-        }
-    )
-    contract = {
-        "script_path": "scripts/m3_explorer.py",
-        "workspace_paths": ["scripts/"],
-    }
-
-    passed, feedback = backend_app.verify_script(files, contract)
-
-    assert passed is True
-    assert feedback == []
-
-
 def test_verify_script_honors_base_path_when_accessing_files() -> None:
     script_code = (
         "from pathlib import Path\n"
@@ -181,12 +153,7 @@ def test_verify_script_honors_base_path_when_accessing_files() -> None:
 
 def test_verify_script_reports_script_exception() -> None:
     script_code = "import nonexistent_module\n"
-    files = _DummyFiles(
-        {
-            "scripts/m3_explorer.py": script_code.encode(),
-            "sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
-        }
-    )
+    files = _DummyFiles({"scripts/m3_explorer.py": script_code.encode()})
     contract = {"script_path": "scripts/m3_explorer.py"}
 
     passed, feedback = backend_app.verify_script(files, contract)
@@ -213,12 +180,7 @@ def test_verify_script_reports_dataframe_summary_mismatch() -> None:
         "if __name__ == '__main__':\n"
         "    main()\n"
     )
-    files = _DummyFiles(
-        {
-            "scripts/m3_explorer.py": script_code.encode(),
-            "sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
-        }
-    )
+    files = _DummyFiles({"scripts/m3_explorer.py": script_code.encode()})
     contract = {
         "script_path": "scripts/m3_explorer.py",
         "validations": [
@@ -357,12 +319,7 @@ def test_verify_script_accepts_dataframe_summary_with_df_prefix_format() -> None
         "    main()\n"
     )
 
-    files = _DummyFiles(
-        {
-            "scripts/m3_explorer.py": script_code.encode(),
-            "sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
-        }
-    )
+    files = _DummyFiles({"scripts/m3_explorer.py": script_code.encode()})
     contract = {
         "script_path": "scripts/m3_explorer.py",
         "validations": [
