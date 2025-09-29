@@ -2770,6 +2770,24 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                         if trimmed_path not in required_files_remote:
                             required_files_remote[trimmed_path] = remote_path
 
+        for dep_path in required_files:
+            original_path = (dep_path or "").strip()
+            if not original_path:
+                continue
+            content = required_files_bytes.get(original_path)
+            normalized_key = None
+            if content is None:
+                try:
+                    normalized_key = _normalize_relative(original_path).as_posix()
+                except ValueError:
+                    continue
+                content = required_files_bytes.get(normalized_key)
+            if content is None:
+                continue
+            destination = Path(execution_root) / original_path.lstrip("./")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+
         for relative_path, content in required_files_bytes.items():
             relative_parts = list(PurePosixPath(relative_path).parts)
             dest_path = Path(execution_root).joinpath(*relative_parts)
