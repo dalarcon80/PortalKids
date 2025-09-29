@@ -2533,10 +2533,10 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         except ValueError as exc:
             return False, [f"Ruta de script inválida {script_path}: {exc}"]
 
-        def _ensure_required_file(path: str) -> Optional[List[str]]:
-            dep_path = (path or "").strip()
+        for dependency in required_files:
+            dep_path = (dependency or "").strip()
             if not dep_path:
-                return None
+                continue
             try:
                 dep_bytes = files.read_bytes(dep_path)
             except GitHubFileNotFoundError:
@@ -2554,26 +2554,13 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                         f"No se encontró el archivo requerido {dep_path} "
                         f"({dep_source})."
                     )
-                return [message]
+                return False, [message]
             except GitHubDownloadError as exc:
-                return [f"No se pudo descargar {dep_path}: {exc}"]
+                return False, [f"No se pudo descargar {dep_path}: {exc}"]
             try:
                 _write_file(execution_root, dep_path, dep_bytes)
             except ValueError as exc:
-                return [f"Ruta inválida {dep_path}: {exc}"]
-            return None
-
-        for dependency in required_files:
-            error_messages = _ensure_required_file(dependency)
-            if error_messages:
-                return False, error_messages
-
-        orders_seed_relative = "sources/orders_seed.csv"
-        orders_seed_path = execution_root / orders_seed_relative
-        if not orders_seed_path.exists():
-            error_messages = _ensure_required_file(orders_seed_relative)
-            if error_messages:
-                return False, error_messages
+                return False, [f"Ruta inválida {dep_path}: {exc}"]
 
         try:
             result = subprocess.run(
