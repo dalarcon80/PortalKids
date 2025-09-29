@@ -2702,24 +2702,34 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             dep_path = (dependency or "").strip()
             if not dep_path:
                 continue
+            remote_path_override: Optional[str] = None
             try:
                 dep_bytes = files.read_bytes(dep_path)
             except GitHubFileNotFoundError:
-                dep_source = files.describe_source(dep_path)
-                template = contract.get("feedback_required_file_missing")
-                if template:
-                    message = _format_feedback(
-                        template,
-                        required_path=dep_path,
-                        source=dep_source,
-                        script_path=script_path,
+                backup_path = Path(__file__).resolve().parents[1] / dep_path
+                if backup_path.exists():
+                    dep_bytes = backup_path.read_bytes()
+                    remote_path_override = backup_path.as_posix()
+                    logger.debug(
+                        "Using local backup for dependency %s at %s", dep_path, backup_path
                     )
+                    # Continue with normal processing using the backup bytes.
                 else:
-                    message = (
-                        f"No se encontró el archivo requerido {dep_path} "
-                        f"({dep_source})."
-                    )
-                return False, [message]
+                    dep_source = files.describe_source(dep_path)
+                    template = contract.get("feedback_required_file_missing")
+                    if template:
+                        message = _format_feedback(
+                            template,
+                            required_path=dep_path,
+                            source=dep_source,
+                            script_path=script_path,
+                        )
+                    else:
+                        message = (
+                            f"No se encontró el archivo requerido {dep_path} "
+                            f"({dep_source})."
+                        )
+                    return False, [message]
             except GitHubDownloadError as exc:
                 return False, [f"No se pudo descargar {dep_path}: {exc}"]
             try:
@@ -2729,9 +2739,12 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             canonical_path = normalized_dep.as_posix()
             required_files_bytes[canonical_path] = dep_bytes
             try:
-                remote_path = files.resolve_remote_path(dep_path)
+                if remote_path_override is not None:
+                    remote_path = remote_path_override
+                else:
+                    remote_path = files.resolve_remote_path(dep_path)
             except Exception:
-                remote_path = ""
+                remote_path = remote_path_override or ""
             if remote_path:
                 required_files_remote[canonical_path] = remote_path
             alias_prefixes = []
