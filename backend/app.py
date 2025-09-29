@@ -2518,6 +2518,17 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         return base_directories[-1], base_directories
 
     base_path_value = getattr(files, "base_path", "") or ""
+    normalized_base_prefix = ""
+    if base_path_value:
+        base_parts: list[str] = []
+        for part in PurePosixPath(base_path_value).parts:
+            if part in {"", "."}:
+                continue
+            if part == "..":
+                base_parts = []
+                break
+            base_parts.append(part)
+        normalized_base_prefix = "/".join(base_parts)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -2586,6 +2597,14 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 remote_path = ""
             if remote_path:
                 required_files_remote[canonical_path] = remote_path
+            if normalized_base_prefix:
+                base_prefix = f"{normalized_base_prefix}/"
+                if canonical_path.startswith(base_prefix):
+                    trimmed_path = canonical_path[len(base_prefix) :]
+                    if trimmed_path:
+                        required_files_bytes.setdefault(trimmed_path, dep_bytes)
+                        if remote_path:
+                            required_files_remote.setdefault(trimmed_path, remote_path)
 
         anchor_candidates = list(base_directories)
         anchor_candidates.append(local_script_path.parent)

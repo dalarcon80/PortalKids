@@ -34,7 +34,16 @@ class _DummyFiles:
     def resolve_remote_path(self, path: str) -> str:
         clean = "/".join(PurePosixPath(path).parts)
         if self._base_path:
-            return f"{self._base_path}/{clean}" if clean else self._base_path
+            base_clean = "/".join(
+                part for part in PurePosixPath(self._base_path).parts if part not in {"", "."}
+            )
+            if not base_clean:
+                return clean
+            if clean.startswith(f"{base_clean}/") or clean == base_clean:
+                return clean or base_clean
+            if clean:
+                return f"{base_clean}/{clean}"
+            return base_clean
         return clean
 
     def download_workspace(self, workspace_paths, destination: str | Path) -> None:
@@ -210,6 +219,39 @@ def test_verify_script_reads_required_file_after_chdir() -> None:
     contract = {
         "script_path": "scripts/m3_explorer.py",
         "required_files": ["sources/orders_seed.csv"],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []
+
+
+def test_verify_script_reads_prefixed_required_file_after_chdir() -> None:
+    script_code = (
+        "from pathlib import Path\n"
+        "import os\n"
+        "\n"
+        "def main():\n"
+        "    os.chdir(Path(__file__).parent)\n"
+        "    csv_path = Path('sources/orders_seed.csv')\n"
+        "    if csv_path.exists():\n"
+        "        raise RuntimeError('CSV should not exist locally')\n"
+        "    print(csv_path.read_text(encoding='utf-8').splitlines()[0])\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+    files = _DummyFiles(
+        {
+            "scripts/m3_explorer.py": script_code.encode(),
+            "students/student/sources/orders_seed.csv": b"order_id,customer_id\\n1,C001\\n",
+        },
+        base_path="students/student",
+    )
+    contract = {
+        "script_path": "scripts/m3_explorer.py",
+        "required_files": ["students/student/sources/orders_seed.csv"],
     }
 
     passed, feedback = backend_app.verify_script(files, contract)
