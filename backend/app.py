@@ -2702,6 +2702,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             dep_path = (dependency or "").strip()
             if not dep_path:
                 continue
+            remote_path = ""
             try:
                 dep_bytes = files.read_bytes(dep_path)
             except GitHubFileNotFoundError:
@@ -2722,16 +2723,22 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 return False, [message]
             except GitHubDownloadError as exc:
                 return False, [f"No se pudo descargar {dep_path}: {exc}"]
+            if not dep_bytes:
+                fallback_path = Path(__file__).resolve().parents[1] / dependency
+                if fallback_path.exists():
+                    dep_bytes = fallback_path.read_bytes()
+                    remote_path = fallback_path.as_posix()
             try:
                 normalized_dep = _normalize_relative(dep_path)
             except ValueError as exc:
                 return False, [f"Ruta inválida {dep_path}: {exc}"]
             canonical_path = normalized_dep.as_posix()
             required_files_bytes[canonical_path] = dep_bytes
-            try:
-                remote_path = files.resolve_remote_path(dep_path)
-            except Exception:
-                remote_path = ""
+            if not remote_path:
+                try:
+                    remote_path = files.resolve_remote_path(dep_path)
+                except Exception:
+                    remote_path = ""
             if remote_path:
                 required_files_remote[canonical_path] = remote_path
             alias_prefixes = []
@@ -2758,6 +2765,28 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         for relative_path, content in required_files_bytes.items():
             relative_parts = list(PurePosixPath(relative_path).parts)
             dest_path = Path(execution_root).joinpath(*relative_parts)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(content)
+
+        for dependency in required_files:
+            dep_path = (dependency or "").strip()
+            if not dep_path:
+                continue
+            original_relative = dep_path.lstrip("./")
+            if not original_relative:
+                continue
+            try:
+                normalized_dep = _normalize_relative(dep_path)
+            except ValueError:
+                continue
+            canonical_path = normalized_dep.as_posix()
+            content = required_files_bytes.get(original_relative)
+            if content is None:
+                content = required_files_bytes.get(canonical_path)
+            if content is None:
+                continue
+            original_parts = list(PurePosixPath(original_relative).parts)
+            dest_path = Path(execution_root).joinpath(*original_parts)
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             dest_path.write_bytes(content)
 
