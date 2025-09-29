@@ -2776,6 +2776,33 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             dest_path.write_bytes(content)
 
+        for dependency in required_files:
+            original_path = (dependency or "").strip()
+            if not original_path:
+                continue
+
+            try:
+                normalized_original = _normalize_relative(original_path)
+            except ValueError as exc:
+                return False, [f"Ruta inválida {original_path}: {exc}"]
+
+            canonical_original = normalized_original.as_posix()
+            content = required_files_bytes.get(canonical_original)
+            if content is None:
+                original_parts = canonical_original.split("/")
+                for index in range(1, len(original_parts)):
+                    candidate = "/".join(original_parts[index:])
+                    if candidate in required_files_bytes:
+                        content = required_files_bytes[candidate]
+                        break
+
+            if content is None:
+                continue
+
+            dest_path = Path(execution_root).joinpath(*normalized_original.parts)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(content)
+
         anchor_candidates = list(base_directories)
         anchor_candidates.append(local_script_path.parent)
         anchor_paths: List[Path] = []
