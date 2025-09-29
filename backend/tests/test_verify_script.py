@@ -260,6 +260,39 @@ def test_verify_script_reads_prefixed_required_file_after_chdir() -> None:
     assert feedback == []
 
 
+def test_verify_script_handles_student_prefix_without_base_path() -> None:
+    script_code = (
+        "from pathlib import Path\n"
+        "import os\n"
+        "\n"
+        "def main():\n"
+        "    os.chdir(Path(__file__).parent)\n"
+        "    csv_path = Path('sources/orders_seed.csv')\n"
+        "    if csv_path.exists():\n"
+        "        raise RuntimeError('CSV should not exist locally')\n"
+        "    print(csv_path.read_text(encoding='utf-8').splitlines()[0])\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+    files = _DummyFiles(
+        {
+            "students/student/scripts/m3_explorer.py": script_code.encode(),
+            "students/student/sources/orders_seed.csv": b"order_id,customer_id\n1,C001\n",
+        },
+        base_path="",
+    )
+    contract = {
+        "script_path": "students/student/scripts/m3_explorer.py",
+        "required_files": ["students/student/sources/orders_seed.csv"],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []
+
+
 def test_verify_script_reports_script_exception() -> None:
     script_code = "import nonexistent_module\n"
     files = _DummyFiles({"scripts/m3_explorer.py": script_code.encode()})
