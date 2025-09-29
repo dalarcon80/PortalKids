@@ -2755,6 +2755,12 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                         if trimmed_path not in required_files_remote:
                             required_files_remote[trimmed_path] = remote_path
 
+        for relative_path, content in required_files_bytes.items():
+            relative_parts = list(PurePosixPath(relative_path).parts)
+            dest_path = Path(execution_root).joinpath(*relative_parts)
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(content)
+
         anchor_candidates = list(base_directories)
         anchor_candidates.append(local_script_path.parent)
         anchor_paths: List[Path] = []
