@@ -2698,6 +2698,8 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
 
         required_files_bytes: Dict[str, bytes] = {}
         required_files_remote: Dict[str, str] = {}
+        repository_root = Path(__file__).resolve().parent.parent
+
         for dependency in required_files:
             dep_path = (dependency or "").strip()
             if not dep_path:
@@ -2706,7 +2708,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             try:
                 dep_bytes = files.read_bytes(dep_path)
             except GitHubFileNotFoundError:
-                backup_path = Path(__file__).resolve().parents[1] / dep_path
+                backup_path = repository_root / dep_path
                 if backup_path.exists():
                     dep_bytes = backup_path.read_bytes()
                     remote_path_override = backup_path.as_posix()
@@ -2787,13 +2789,6 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
 
         repository = getattr(files, "repository", "")
         branch = getattr(files, "branch", "")
-        import shutil
-        # Copiar la carpeta 'sources' al directorio del script para soportar rutas relativas sencillas
-        sources_path = execution_root / "sources"
-        script_dir = local_script_path.parent
-        dest_sources = script_dir / "sources"
-        if sources_path.exists() and not dest_sources.exists():
-            shutil.copytree(sources_path, dest_sources, dirs_exist_ok=True)
 
         try:
             result = run_student_script(
