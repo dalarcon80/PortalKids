@@ -2488,7 +2488,8 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
 
     required_files = contract.get("required_files", [])
     workspace_paths = contract.get("workspace_paths") or []
-    def _resolve_execution_root(tmpdir: str, base_path_value: str) -> Path:
+
+    def _resolve_execution_root(tmpdir: str, base_path_value: str) -> Tuple[Path, List[Path]]:
         root = Path(tmpdir)
         candidate = PurePosixPath(base_path_value or "")
         parts: list[str] = []
@@ -2498,19 +2499,32 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             if part == "..":
                 raise ValueError("la ruta base no puede contener '..'")
             parts.append(part)
-        if not parts:
-            return root
-        execution_root = root.joinpath(*parts)
-        execution_root.mkdir(parents=True, exist_ok=True)
-        return execution_root
+        base_directories: List[Path] = [root]
+        current = root
+        for part in parts:
+            current = current / part
+            base_directories.append(current)
+        for directory in base_directories[1:]:
+            directory.mkdir(parents=True, exist_ok=True)
+        return base_directories[-1], base_directories
 
     base_path_value = getattr(files, "base_path", "") or ""
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
-            execution_root = _resolve_execution_root(tmpdir, base_path_value)
+            execution_root, base_directories = _resolve_execution_root(
+                tmpdir, base_path_value
+            )
         except ValueError as exc:
             return False, [f"Ruta base inválida {base_path_value!r}: {exc}"]
+
+        replication_roots = base_directories[:-1] if len(base_directories) > 1 else []
+
+        def _replicate_required_file(relative: str, data: bytes) -> None:
+            if not replication_roots:
+                return
+            for base_root in replication_roots:
+                _write_file(str(base_root), relative, data)
 
         if workspace_paths and hasattr(files, "download_workspace"):
             try:
@@ -2559,6 +2573,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 return False, [f"No se pudo descargar {dep_path}: {exc}"]
             try:
                 _write_file(execution_root, dep_path, dep_bytes)
+                _replicate_required_file(dep_path, dep_bytes)
             except ValueError as exc:
                 return False, [f"Ruta inválida {dep_path}: {exc}"]
 
