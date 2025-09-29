@@ -2495,6 +2495,18 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
     except GitHubDownloadError as exc:
         return False, [f"No se pudo descargar el script {script_path}: {exc}"]
 
+    try:
+        normalized_script_path = _normalize_relative(script_path)
+    except ValueError as exc:
+        return False, [f"Ruta de script inválida {script_path}: {exc}"]
+
+    script_prefix_candidates: List[str] = []
+    script_parts = list(normalized_script_path.parts)
+    for index in range(1, len(script_parts)):
+        prefix = "/".join(script_parts[:index])
+        if prefix:
+            script_prefix_candidates.append(prefix)
+
     required_files = contract.get("required_files", [])
     workspace_paths = contract.get("workspace_paths") or []
 
@@ -2597,14 +2609,19 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
                 remote_path = ""
             if remote_path:
                 required_files_remote[canonical_path] = remote_path
+            alias_prefixes = []
             if normalized_base_prefix:
-                base_prefix = f"{normalized_base_prefix}/"
-                if canonical_path.startswith(base_prefix):
-                    trimmed_path = canonical_path[len(base_prefix) :]
+                alias_prefixes.append(normalized_base_prefix)
+            alias_prefixes.extend(script_prefix_candidates)
+            unique_alias_prefixes = sorted({prefix for prefix in alias_prefixes if prefix}, key=len, reverse=True)
+            for prefix in unique_alias_prefixes:
+                candidate_prefix = f"{prefix}/"
+                if canonical_path.startswith(candidate_prefix):
+                    trimmed_path = canonical_path[len(candidate_prefix) :]
                     if trimmed_path:
                         required_files_bytes.setdefault(trimmed_path, dep_bytes)
-                        if remote_path:
-                            required_files_remote.setdefault(trimmed_path, remote_path)
+                        if trimmed_path not in required_files_remote:
+                            required_files_remote[trimmed_path] = remote_path
 
         anchor_candidates = list(base_directories)
         anchor_candidates.append(local_script_path.parent)
