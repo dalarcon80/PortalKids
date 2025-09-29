@@ -2706,7 +2706,8 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             try:
                 dep_bytes = files.read_bytes(dep_path)
             except GitHubFileNotFoundError:
-                backup_path = Path(__file__).resolve().parents[1] / dep_path
+                central_root = Path(__file__).resolve().parents[2]
+                backup_path = central_root / dep_path
                 if backup_path.exists():
                     dep_bytes = backup_path.read_bytes()
                     remote_path_override = backup_path.as_posix()
@@ -4116,26 +4117,26 @@ def api_public_mission_detail(mission_id: str):
 @app.route("/api/verify_mission", methods=["POST"])
 def api_verify_mission():
     data = get_request_json()
-    slug = (data.get("slug") or "").strip()
+    requested_slug = (data.get("slug") or "").strip()
     mission_id = (data.get("mission_id") or "").strip()
-    if not slug or not mission_id:
-        return jsonify({"error": "Missing slug or mission_id."}), 400
+    if not mission_id:
+        return jsonify({"error": "Missing mission_id."}), 400
     token = extract_token()
-    if not validate_session(token, slug):
+    if not token:
         return jsonify({"error": "Unauthorized."}), 401
-    role = ""
-    try:
-        init_db()
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT role FROM students WHERE slug = %s", (slug,))
-                row = cur.fetchone()
-                if not row:
-                    return jsonify({"error": "Student not found."}), 404
-                role = (row.get("role") or "").strip()
-    except Exception as exc:
-        print(f"Database error on /api/verify_mission lookup: {exc}", file=sys.stderr)
-        return jsonify({"error": "Database connection error."}), 500
+    student_row = _get_student_for_token(token)
+    if not student_row:
+        return jsonify({"error": "Unauthorized."}), 401
+    slug = (student_row.get("slug") or "").strip()
+    if not slug:
+        return jsonify({"error": "Unauthorized."}), 401
+    if requested_slug and requested_slug != slug:
+        logger.debug(
+            "Requested slug %r does not match session slug %r; using session slug.",
+            requested_slug,
+            slug,
+        )
+    role = (student_row.get("role") or "").strip()
     mission_record = _get_mission_by_id(mission_id)
     if not mission_record:
         missions_snapshot = _fetch_missions_from_db()
