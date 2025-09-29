@@ -193,6 +193,29 @@ def test_verify_script_attempts_workspace_aliases_without_base_path() -> None:
     ]
 
 
+def test_verify_script_attempts_parent_alias_without_base_path() -> None:
+    script_code = "print('ok')\n"
+    files = _DummyFiles(
+        {
+            "scripts/m3_explorer.py": script_code.encode(),
+            "sources/orders_seed.csv": b"order_id\n1\n",
+        }
+    )
+    contract = {
+        "script_path": "scripts/m3_explorer.py",
+        "workspace_paths": ["students/student/sources/"],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []
+    assert files.workspace_calls == [
+        ["students/student/sources/"],
+        ["sources/"],
+    ]
+
+
 def test_verify_script_allows_parent_directory_access() -> None:
     script_code = (
         "from pathlib import Path\n"

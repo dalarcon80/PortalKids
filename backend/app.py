@@ -2570,25 +2570,51 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             else:
                 def _build_workspace_attempt(alias: Optional[str]) -> List[str]:
                     attempt: List[str] = []
+                    seen_candidates: set[str] = set()
                     alias_clean = (alias or "").strip("/")
+
+                    def _add_candidate(candidate: str, *, trailing: bool) -> None:
+                        formatted = candidate
+                        if trailing and formatted and not formatted.endswith("/"):
+                            formatted = f"{formatted}/"
+                        if formatted not in seen_candidates:
+                            seen_candidates.add(formatted)
+                            attempt.append(formatted)
+
                     for entry in workspace_paths:
                         entry_text = str(entry or "")
-                        if not alias_clean:
-                            attempt.append(entry_text)
-                            continue
+                        trailing = entry_text.endswith("/")
                         entry_clean = entry_text.strip("/")
-                        if not entry_clean:
-                            attempt.append(entry_text)
+
+                        if not alias_clean:
+                            base_candidate = entry_text or entry_clean
+                            _add_candidate(base_candidate, trailing=trailing)
                             continue
-                        if entry_clean == alias_clean or entry_clean.startswith(f"{alias_clean}/"):
-                            candidate = entry_clean
-                        elif alias_clean.endswith(f"/{entry_clean}"):
-                            candidate = alias_clean
-                        else:
-                            candidate = f"{alias_clean}/{entry_clean}"
-                        if entry_text.endswith("/") and not candidate.endswith("/"):
-                            candidate = f"{candidate}/"
-                        attempt.append(candidate)
+
+                        if not entry_clean:
+                            base_candidate = entry_text or entry_clean
+                            _add_candidate(base_candidate, trailing=trailing)
+                            continue
+
+                        if entry_clean.startswith(f"{alias_clean}/"):
+                            remainder = entry_clean[len(alias_clean) + 1 :]
+                            if remainder:
+                                _add_candidate(remainder, trailing=trailing)
+
+                        if alias_clean.endswith(f"/{entry_clean}"):
+                            _add_candidate(alias_clean, trailing=trailing)
+
+                        if (
+                            alias_clean
+                            and entry_clean
+                            and alias_clean != entry_clean
+                            and not entry_clean.startswith(f"{alias_clean}/")
+                            and not alias_clean.endswith(f"/{entry_clean}")
+                        ):
+                            combined = "/".join(part for part in (alias_clean, entry_clean) if part)
+                            if combined:
+                                _add_candidate(combined, trailing=trailing)
+
                     return attempt
 
                 fallback_aliases: List[str] = []
