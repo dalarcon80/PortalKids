@@ -7,7 +7,6 @@ import os
 import re
 import secrets
 import sqlite3
-import subprocess
 import sys
 import tempfile
 from datetime import datetime, timedelta
@@ -83,6 +82,11 @@ except ImportError:  # pragma: no cover - allow "python backend/app.py"
         OpenAILLMClient,
         RateLimitError,
     )
+
+try:  # pragma: no cover - fallback for direct execution
+    from .script_runner import run_student_script
+except ImportError:  # pragma: no cover - allow "python backend/app.py"
+    from script_runner import run_student_script  # type: ignore
 
 try:  # pragma: no cover - optional dependency
     import requests  # type: ignore
@@ -2453,7 +2457,7 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         except Exception:
             return template
 
-    def _write_file(root: str, relative: str, data: bytes) -> Path:
+    def _normalize_relative(relative: str) -> PurePosixPath:
         relative_path = PurePosixPath(relative)
         parts: list[str] = []
         for part in relative_path.parts:
@@ -2462,6 +2466,11 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             if part == "..":
                 raise ValueError("no se permiten rutas relativas con '..'")
             parts.append(part)
+        return PurePosixPath("/".join(parts))
+
+    def _write_file(root: str, relative: str, data: bytes) -> Path:
+        normalized = _normalize_relative(relative)
+        parts = list(normalized.parts)
         destination = Path(root).joinpath(*parts)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
@@ -2518,14 +2527,6 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         except ValueError as exc:
             return False, [f"Ruta base inválida {base_path_value!r}: {exc}"]
 
-        replication_roots = base_directories[:-1] if len(base_directories) > 1 else []
-
-        def _replicate_required_file(relative: str, data: bytes) -> None:
-            if not replication_roots:
-                return
-            for base_root in replication_roots:
-                _write_file(str(base_root), relative, data)
-
         if workspace_paths and hasattr(files, "download_workspace"):
             try:
                 files.download_workspace(workspace_paths, execution_root)
@@ -2547,6 +2548,8 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
         except ValueError as exc:
             return False, [f"Ruta de script inválida {script_path}: {exc}"]
 
+        required_files_bytes: Dict[str, bytes] = {}
+        required_files_remote: Dict[str, str] = {}
         for dependency in required_files:
             dep_path = (dependency or "").strip()
             if not dep_path:
@@ -2572,18 +2575,42 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             except GitHubDownloadError as exc:
                 return False, [f"No se pudo descargar {dep_path}: {exc}"]
             try:
-                _write_file(execution_root, dep_path, dep_bytes)
-                _replicate_required_file(dep_path, dep_bytes)
+                normalized_dep = _normalize_relative(dep_path)
             except ValueError as exc:
                 return False, [f"Ruta inválida {dep_path}: {exc}"]
+            canonical_path = normalized_dep.as_posix()
+            required_files_bytes[canonical_path] = dep_bytes
+            try:
+                remote_path = files.resolve_remote_path(dep_path)
+            except Exception:
+                remote_path = ""
+            if remote_path:
+                required_files_remote[canonical_path] = remote_path
+
+        anchor_candidates = list(base_directories)
+        anchor_candidates.append(local_script_path.parent)
+        anchor_paths: List[Path] = []
+        seen: set[Path] = set()
+        for anchor in anchor_candidates:
+            resolved_anchor = anchor.resolve()
+            if resolved_anchor in seen:
+                continue
+            seen.add(resolved_anchor)
+            anchor_paths.append(resolved_anchor)
+
+        repository = getattr(files, "repository", "")
+        branch = getattr(files, "branch", "")
 
         try:
-            result = subprocess.run(
-                [sys.executable, str(local_script_path)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=str(execution_root),
+            result = run_student_script(
+                python_executable=sys.executable,
+                script_path=local_script_path,
+                execution_root=execution_root,
+                required_files=required_files_bytes,
+                remote_file_map=required_files_remote,
+                anchors=anchor_paths,
+                repository=repository,
+                branch=branch,
                 timeout=30,
             )
         except Exception as exc:  # pragma: no cover - defensive
