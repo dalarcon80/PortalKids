@@ -2612,6 +2612,13 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             alias_prefixes = []
             if normalized_base_prefix:
                 alias_prefixes.append(normalized_base_prefix)
+            else:
+                dependency_parent = normalized_dep.parent
+                while dependency_parent and dependency_parent != PurePosixPath("."):
+                    parent_prefix = dependency_parent.as_posix()
+                    if parent_prefix:
+                        alias_prefixes.append(parent_prefix)
+                    dependency_parent = dependency_parent.parent
             alias_prefixes.extend(script_prefix_candidates)
             unique_alias_prefixes = sorted({prefix for prefix in alias_prefixes if prefix}, key=len, reverse=True)
             for prefix in unique_alias_prefixes:

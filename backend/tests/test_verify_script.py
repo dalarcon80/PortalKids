@@ -260,6 +260,45 @@ def test_verify_script_reads_prefixed_required_file_after_chdir() -> None:
     assert feedback == []
 
 
+def test_verify_script_handles_prefixed_dependency_without_base_path() -> None:
+    script_code = (
+        "from pathlib import Path\n"
+        "import os\n"
+        "\n"
+        "def main():\n"
+        "    os.chdir(Path(__file__).parent)\n"
+        "    csv_path = Path('sources/orders_seed.csv')\n"
+        "    print(csv_path.read_text(encoding='utf-8').splitlines()[0])\n"
+        "    try:\n"
+        "        import pandas as pd\n"
+        "    except Exception:\n"
+        "        print('pandas not available')\n"
+        "    else:\n"
+        "        df = pd.read_csv(csv_path)\n"
+        "        print(df.shape)\n"
+        "\n"
+        "if __name__ == '__main__':\n"
+        "    main()\n"
+    )
+    files = _DummyFiles(
+        {
+            "scripts/m3_explorer.py": script_code.encode(),
+            "students/student/sources/orders_seed.csv": b"order_id,customer_id\\n1,C001\\n",
+        },
+        base_path="",
+    )
+    contract = {
+        "script_path": "scripts/m3_explorer.py",
+        "required_files": ["students/student/sources/orders_seed.csv"],
+        "workspace_paths": ["scripts/"],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []
+
+
 def test_verify_script_handles_student_prefix_without_base_path() -> None:
     script_code = (
         "from pathlib import Path\n"
