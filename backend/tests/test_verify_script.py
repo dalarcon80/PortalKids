@@ -14,6 +14,7 @@ class _DummyFiles:
     ) -> None:
         self._existing = existing or {}
         self._base_path = base_path
+        self.workspace_calls: list[list[str]] = []
 
     @property
     def base_path(self) -> str:
@@ -49,6 +50,8 @@ class _DummyFiles:
     def download_workspace(self, workspace_paths, destination: str | Path) -> None:
         root = Path(destination)
         root.mkdir(parents=True, exist_ok=True)
+        snapshot = [str(entry) for entry in workspace_paths]
+        self.workspace_calls.append(snapshot)
         for entry in workspace_paths:
             candidate = PurePosixPath(entry or "")
             parts: list[str] = []
@@ -164,6 +167,30 @@ def test_verify_script_honors_base_path_when_accessing_files() -> None:
 
     assert passed is True
     assert feedback == []
+
+
+def test_verify_script_attempts_workspace_aliases_without_base_path() -> None:
+    script_code = "print('ok')\n"
+    files = _DummyFiles(
+        {
+            "students/student/scripts/m3_explorer.py": script_code.encode(),
+            "students/student/sources/orders_seed.csv": b"order_id\n1\n",
+        }
+    )
+    contract = {
+        "script_path": "students/student/scripts/m3_explorer.py",
+        "workspace_paths": ["sources/"],
+    }
+
+    passed, feedback = backend_app.verify_script(files, contract)
+
+    assert passed is True
+    assert feedback == []
+    assert files.workspace_calls == [
+        ["sources/"],
+        ["students/sources/"],
+        ["students/student/sources/"],
+    ]
 
 
 def test_verify_script_allows_parent_directory_access() -> None:

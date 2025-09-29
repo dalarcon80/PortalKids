@@ -2551,21 +2551,120 @@ def verify_script(files: RepositoryFileAccessor, contract: dict) -> Tuple[bool, 
             return False, [f"Ruta base inválida {base_path_value!r}: {exc}"]
 
         if workspace_paths and hasattr(files, "download_workspace"):
-            try:
-                files.download_workspace(workspace_paths, execution_root)
-            except ValueError as exc:
-                return False, [f"Ruta de workspace inválida: {exc}"]
-            except GitHubFileNotFoundError as exc:
-                workspace_source = files.describe_source(exc.path)
-                message = (
-                    f"No se encontró la ruta de trabajo {exc.path} "
-                    f"({workspace_source})."
-                )
-                return False, [message]
-            except GitHubDownloadError as exc:
-                missing_path = getattr(exc, "path", None) or ""
-                details = f" {missing_path}" if missing_path else ""
-                return False, [f"No se pudo descargar la ruta de trabajo{details}: {exc}"]
+            if normalized_base_prefix:
+                try:
+                    files.download_workspace(workspace_paths, execution_root)
+                except ValueError as exc:
+                    return False, [f"Ruta de workspace inválida: {exc}"]
+                except GitHubFileNotFoundError as exc:
+                    workspace_source = files.describe_source(exc.path)
+                    message = (
+                        f"No se encontró la ruta de trabajo {exc.path} "
+                        f"({workspace_source})."
+                    )
+                    return False, [message]
+                except GitHubDownloadError as exc:
+                    missing_path = getattr(exc, "path", None) or ""
+                    details = f" {missing_path}" if missing_path else ""
+                    return False, [f"No se pudo descargar la ruta de trabajo{details}: {exc}"]
+            else:
+                def _build_workspace_attempt(alias: Optional[str]) -> List[str]:
+                    attempt: List[str] = []
+                    alias_clean = (alias or "").strip("/")
+                    for entry in workspace_paths:
+                        entry_text = str(entry or "")
+                        if not alias_clean:
+                            attempt.append(entry_text)
+                            continue
+                        entry_clean = entry_text.strip("/")
+                        if not entry_clean:
+                            attempt.append(entry_text)
+                            continue
+                        if entry_clean == alias_clean or entry_clean.startswith(f"{alias_clean}/"):
+                            candidate = entry_clean
+                        elif alias_clean.endswith(f"/{entry_clean}"):
+                            candidate = alias_clean
+                        else:
+                            candidate = f"{alias_clean}/{entry_clean}"
+                        if entry_text.endswith("/") and not candidate.endswith("/"):
+                            candidate = f"{candidate}/"
+                        attempt.append(candidate)
+                    return attempt
+
+                fallback_aliases: List[str] = []
+                for entry in workspace_paths:
+                    entry_text = str(entry or "")
+                    if not entry_text.strip():
+                        continue
+                    try:
+                        normalized_entry = _normalize_relative(entry_text).as_posix()
+                    except ValueError as exc:
+                        return False, [f"Ruta de workspace inválida: {exc}"]
+                    parent = PurePosixPath(normalized_entry).parent
+                    while parent and parent != PurePosixPath("."):
+                        parent_text = parent.as_posix()
+                        if parent_text:
+                            fallback_aliases.append(parent_text)
+                        parent = parent.parent
+                fallback_aliases.extend(script_prefix_candidates)
+
+                seen_aliases: set[str] = set()
+                alias_order: List[Optional[str]] = [None]
+                for alias in fallback_aliases:
+                    alias_clean = alias.strip("/")
+                    if not alias_clean or alias_clean in seen_aliases:
+                        continue
+                    seen_aliases.add(alias_clean)
+                    alias_order.append(alias_clean)
+
+                workspace_errors: List[str] = []
+                workspace_successful = False
+                for alias in alias_order:
+                    attempt_paths = _build_workspace_attempt(alias)
+                    logger.debug(
+                        "Trying workspace download with alias %r: %s",
+                        alias,
+                        attempt_paths,
+                    )
+                    try:
+                        files.download_workspace(attempt_paths, execution_root)
+                    except ValueError as exc:
+                        return False, [f"Ruta de workspace inválida: {exc}"]
+                    except GitHubFileNotFoundError as exc:
+                        workspace_source = files.describe_source(exc.path)
+                        message = (
+                            f"No se encontró la ruta de trabajo {exc.path} "
+                            f"({workspace_source})."
+                        )
+                        workspace_errors.append(message)
+                        logger.debug("Workspace download failed for alias %r: %s", alias, message)
+                        continue
+                    except GitHubDownloadError as exc:
+                        missing_path = getattr(exc, "path", None) or ""
+                        details = f" {missing_path}" if missing_path else ""
+                        message = f"No se pudo descargar la ruta de trabajo{details}: {exc}"
+                        workspace_errors.append(message)
+                        logger.debug("Workspace download failed for alias %r: %s", alias, message)
+                        continue
+                    workspace_successful = True
+                    logger.debug(
+                        "Workspace download succeeded with alias %r: %s",
+                        alias,
+                        attempt_paths,
+                    )
+                    break
+
+                if not workspace_successful:
+                    deduped_errors = []
+                    seen_messages: set[str] = set()
+                    for message in workspace_errors:
+                        if message in seen_messages:
+                            continue
+                        seen_messages.add(message)
+                        deduped_errors.append(message)
+                    return False, deduped_errors or [
+                        "No se pudo descargar la ruta de trabajo requerida."
+                    ]
         try:
             local_script_path = _write_file(execution_root, script_path, script_bytes)
         except ValueError as exc:
